@@ -1,28 +1,27 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { StyleSheet, View } from 'react-native';
+
+import { AppText, Button, Screen, useTheme } from '@/design-system';
 
 export default function HomeScreen() {
+  const { theme } = useTheme();
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>IRONVANT</Text>
-      <Text style={styles.subtitle}>Каркас приложения. Рабочие экраны появятся на следующих этапах.</Text>
-    </View>
+    <Screen>
+      <View style={[styles.content, { gap: theme.spacing.s }]}>
+        <AppText variant="display">IRONVANT</AppText>
+        <AppText tone="secondary">Каркас приложения. Рабочие экраны появятся на следующих этапах.</AppText>
+      </View>
+      {__DEV__ ? (
+        <Button label="Открыть дизайн-систему" onPress={() => router.push('/design-system')} />
+      ) : null}
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  content: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    padding: 24,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-  },
-  subtitle: {
-    fontSize: 16,
-    textAlign: 'center',
   },
 });

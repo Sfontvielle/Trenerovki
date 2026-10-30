@@ -11,7 +11,7 @@
       "icon": "./assets/expo.icon"
     },
     "web": {
-      "output": "server",
+      "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
