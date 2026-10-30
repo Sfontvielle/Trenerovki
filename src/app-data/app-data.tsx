@@ -1,4 +1,5 @@
 import { type PropsWithChildren, createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 
 import { ErrorState, LoadingState } from '@/components/states';
 import { type AccentName, Screen, type ThemePreference, accentNames, useTheme } from '@/design-system';
@@ -13,6 +14,7 @@ import { WorkoutEngine } from '@/domains/workout/workout-engine';
 
 const THEME_KEY = 'theme_preference';
 const ACCENT_KEY = 'accent';
+const ALLOWED_IDLE_MS = 3 * 60 * 60 * 1000;
 
 type Services = {
   database: Database;
@@ -46,8 +48,20 @@ async function openServices() {
   const database = await openAppDatabase();
   await migrate(database);
   const engine = new WorkoutEngine({ database, createId, now: () => new Date() });
-  await engine.recoverInterruptedSession();
+  // A failed recovery leaves the session on disk, so it must not lock the user
+  // out of history and export. It runs again on the next launch.
+  await engine.recoverInterruptedSession().catch(console.error);
   return { database, engine, settings: new SettingsRepository(database) };
+}
+
+async function readThemeSettings(settings: SettingsRepository) {
+  try {
+    const [preference, accent] = await Promise.all([settings.get(THEME_KEY), settings.get(ACCENT_KEY)]);
+    return { preference, accent };
+  } catch (error) {
+    console.error(error);
+    return { preference: null, accent: null };
+  }
 }
 
 export function AppDataProvider({ children }: PropsWithChildren) {
@@ -61,11 +75,8 @@ export function AppDataProvider({ children }: PropsWithChildren) {
     async function load() {
       try {
         const services = await openServices();
-        const [profile, preference, accent] = await Promise.all([
-          getProfile(services.database),
-          services.settings.get(THEME_KEY),
-          services.settings.get(ACCENT_KEY),
-        ]);
+        const profile = await getProfile(services.database);
+        const { preference, accent } = await readThemeSettings(services.settings);
         if (!active) {
           return;
         }
@@ -84,7 +95,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
             message:
               error instanceof DatabaseTooNewError
                 ? 'Данные созданы более новой версией приложения. Обновите IRONVANT.'
-                : 'Ваши данные остаются на устройстве. Попробуйте открыть их ещё раз.',
+                : 'Проверьте свободное место на iPhone и повторите. Не удаляйте приложение: вместе с ним удалятся и данные.',
           });
         }
       }
@@ -97,6 +108,18 @@ export function AppDataProvider({ children }: PropsWithChildren) {
   }, [attempt, setAccent, setPreference]);
 
   const services = state.status === 'ready' ? state.services : null;
+
+  useEffect(() => {
+    if (!services) {
+      return;
+    }
+    const subscription = AppState.addEventListener('change', (appState) => {
+      if (appState === 'active') {
+        services.engine.recoverInterruptedSession(ALLOWED_IDLE_MS).catch(console.error);
+      }
+    });
+    return () => subscription.remove();
+  }, [services]);
 
   const refreshProfile = useCallback(async () => {
     if (!services) {

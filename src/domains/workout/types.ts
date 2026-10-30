@@ -49,6 +49,7 @@ export type WorkoutErrorCode =
   | 'session_already_open'
   | 'session_not_found'
   | 'exercise_not_found'
+  | 'exercise_has_sets'
   | 'set_not_found'
   | 'invalid_transition'
   | 'session_not_active'

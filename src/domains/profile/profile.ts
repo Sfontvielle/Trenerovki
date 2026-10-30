@@ -1,7 +1,7 @@
 export type Sex = 'male' | 'female';
 export type Goal = 'muscle' | 'fat_loss' | 'recomposition' | 'strength' | 'maintenance';
 export type Experience = 'beginner' | 'intermediate' | 'advanced';
-export type Equipment = 'gym' | 'dumbbells' | 'bodyweight';
+export type Equipment = 'gym' | 'dumbbells' | 'bar' | 'bodyweight';
 export type Limitation = 'shoulders' | 'knees' | 'lower_back';
 
 export const MIN_AGE = 18;

@@ -77,7 +77,7 @@ describe('profile validation', () => {
 describe('generatePlan', () => {
   const goals: Goal[] = ['muscle', 'fat_loss', 'recomposition', 'strength', 'maintenance'];
   const levels: Experience[] = ['beginner', 'intermediate', 'advanced'];
-  const equipment: Equipment[] = ['gym', 'dumbbells', 'bodyweight'];
+  const equipment: Equipment[] = ['gym', 'dumbbells', 'bar', 'bodyweight'];
   const limitationSets: Limitation[][] = [
     [],
     ['shoulders'],
@@ -98,10 +98,10 @@ describe('generatePlan', () => {
         for (const experience of levels) {
           const plan = generatePlan({ goal, experience, daysPerWeek, sessionMinutes, equipment: gear, limitations });
 
-          expect(plan.length).toBeGreaterThan(0);
+          expect(plan).toHaveLength(daysPerWeek);
           for (const day of plan) {
             const ids = day.exercises.map(({ exerciseId }) => exerciseId);
-            expect(ids.length).toBeGreaterThan(0);
+            expect(ids.length).toBeGreaterThanOrEqual(3);
             expect(new Set(ids).size).toBe(ids.length);
           }
         }
@@ -121,6 +121,57 @@ describe('generatePlan', () => {
     }
   });
 
+  it('keeps demanding lifts out of beginner plans', () => {
+    for (const { daysPerWeek, sessionMinutes, gear, limitations } of combinations) {
+      for (const goal of goals) {
+        const plan = generatePlan({ goal, experience: 'beginner', daysPerWeek, sessionMinutes, equipment: gear, limitations });
+        for (const { exerciseId } of plan.flatMap((day) => day.exercises)) {
+          expect(exercises.find(({ id }) => id === exerciseId)?.demanding).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('uses safer reps for beginners and never low reps on isolation work', () => {
+    const beginner = generatePlan({ ...profile, goal: 'strength', experience: 'beginner' });
+    const advanced = generatePlan({ ...profile, goal: 'strength', experience: 'advanced' });
+
+    for (const exercise of beginner.flatMap((day) => day.exercises)) {
+      expect(exercise.repsMin).toBeGreaterThanOrEqual(8);
+    }
+    for (const exercise of advanced.flatMap((day) => day.exercises)) {
+      const catalogEntry = exercises.find(({ id }) => id === exercise.exerciseId);
+      expect(exercise.repsMin).toBe(catalogEntry?.isolation ? 10 : 4);
+    }
+  });
+
+  it('does not need a bar or a bench without such equipment', () => {
+    const noBar = generatePlan({ ...profile, equipment: 'bodyweight' }).flatMap((day) => day.exercises);
+    const atHome = generatePlan({ ...profile, equipment: 'dumbbells' }).flatMap((day) => day.exercises);
+    const ids = [...noBar, ...atHome].map(({ exerciseId }) => exerciseId);
+
+    expect(ids).not.toContain('pull-up');
+    expect(ids).not.toContain('inverted-row');
+    expect(ids).not.toContain('incline-dumbbell-press');
+  });
+
+  it('avoids the pulldown with a shoulder limitation', () => {
+    const plan = generatePlan({ ...profile, limitations: ['shoulders'] });
+
+    expect(plan.flatMap((day) => day.exercises).map(({ exerciseId }) => exerciseId)).not.toContain('lat-pulldown');
+  });
+
+  it('renames themed days when limitations empty them', () => {
+    const plan = generatePlan({
+      ...profile,
+      daysPerWeek: 5,
+      equipment: 'bodyweight',
+      limitations: ['shoulders'],
+    });
+
+    expect(plan.map(({ name }) => name)).not.toContain('Жимовой день');
+  });
+
   it('matches the number of days and the session length', () => {
     const plan = generatePlan({ ...profile, daysPerWeek: 4, sessionMinutes: 30 });
 
@@ -131,7 +182,7 @@ describe('generatePlan', () => {
   it('uses low reps for strength and more sets for advanced lifters', () => {
     const [day] = generatePlan({ ...profile, goal: 'strength', experience: 'advanced' });
 
-    expect(day.exercises[0]).toMatchObject({ targetSets: 4, repsMin: 4, repsMax: 6 });
+    expect(day.exercises[0]).toMatchObject({ exerciseId: 'back-squat', targetSets: 4, repsMin: 4, repsMax: 6 });
   });
 });
 
@@ -244,9 +295,51 @@ describe('onboarding, rotation and progress', () => {
     expect(record).toMatchObject({ exerciseId: 'bench-press', bestWeightKg: 85, repsAtBest: 6 });
 
     const trend = await getExerciseTrend(database, 'bench-press');
-    expect(trend.map(({ topWeightKg, volumeKg }) => [topWeightKg, volumeKg])).toEqual([
-      [85, 1065],
-      [85, 510],
+    expect(trend.map(({ topWeightKg, bestReps }) => [topWeightKg, bestReps])).toEqual([
+      [85, 8],
+      [85, 6],
     ]);
+  });
+
+  it('shows the latest sessions when there are more than the chart limit', async () => {
+    const { clock, database, engine } = await setup();
+    for (let weightKg = 30; weightKg <= 160; weightKg += 10) {
+      await finishWorkout(engine, null, [{ weightKg, reps: 8 }]);
+      clock.time += DAY_MS;
+    }
+
+    const trend = await getExerciseTrend(database, 'bench-press');
+
+    expect(trend.map(({ topWeightKg }) => topWeightKg)).toEqual(
+      Array.from({ length: 12 }, (_, index) => 50 + index * 10),
+    );
+  });
+
+  it('tracks records and trends for bodyweight sets by reps', async () => {
+    const { clock, database, engine } = await setup();
+    await finishWorkout(engine, null, [{ weightKg: null, reps: 12 }]);
+    clock.time += DAY_MS;
+    await finishWorkout(engine, null, [{ weightKg: null, reps: 15 }]);
+
+    const [record] = await getExerciseRecords(database);
+    expect(record).toMatchObject({ bestWeightKg: null, repsAtBest: 15 });
+    const trend = await getExerciseTrend(database, 'bench-press');
+    expect(trend.map(({ topWeightKg, bestReps }) => [topWeightKg, bestReps])).toEqual([
+      [null, 12],
+      [null, 15],
+    ]);
+  });
+
+  it('survives a damaged limitations value', async () => {
+    const { database } = await setup();
+
+    await database.run("UPDATE profile SET limitations = 'not json'");
+    expect((await getProfile(database))?.limitations).toEqual([]);
+
+    await database.run("UPDATE profile SET limitations = 'null'");
+    expect((await getProfile(database))?.limitations).toEqual([]);
+
+    await database.run(`UPDATE profile SET limitations = '["knees","unknown"]'`);
+    expect((await getProfile(database))?.limitations).toEqual(['knees']);
   });
 });

@@ -1,61 +1,76 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { useAppData } from '@/app-data/app-data';
 import { AppText, Panel, Screen, TextField, useTheme } from '@/design-system';
 import { createId } from '@/domains/data-platform/ids';
 import { type Exercise, exercises, muscleGroupLabels } from '@/domains/exercises/catalog';
+import { describeFailure } from '@/lib/describe-failure';
+import { normalizeSearch } from '@/lib/format';
 
 export default function AddExerciseScreen() {
-  const { engine } = useAppData();
+  const { engine, profile } = useAppData();
   const { theme } = useTheme();
   const [query, setQuery] = useState('');
-  const [failed, setFailed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const adding = useRef(false);
 
-  const normalized = query.trim().toLocaleLowerCase('ru-RU');
-  const matches = exercises.filter((exercise) =>
-    exercise.name.toLocaleLowerCase('ru-RU').includes(normalized),
-  );
+  const normalized = normalizeSearch(query);
+  const matches = exercises.filter((exercise) => normalizeSearch(exercise.name).includes(normalized));
 
   const add = async (exercise: Exercise) => {
-    setFailed(false);
+    if (adding.current) {
+      return;
+    }
+    adding.current = true;
+    setError(null);
     try {
       const session = await engine.getOpenSession();
       if (!session) {
-        setFailed(true);
+        setError('Нет открытой тренировки.');
         return;
       }
       await engine.addExercise(session.id, exercise.id, createId());
       router.back();
-    } catch (error) {
-      console.error(error);
-      setFailed(true);
+    } catch (cause) {
+      console.error(cause);
+      setError(`Упражнение не добавлено. ${describeFailure(cause)}`);
+    } finally {
+      adding.current = false;
     }
   };
 
   return (
     <Screen scroll belowHeader>
       <TextField label="Найти упражнение" onChangeText={setQuery} value={query} />
-      {failed ? (
+      {error ? (
         <AppText accessibilityLiveRegion="polite" tone="danger">
-          Упражнение не добавлено. Попробуйте ещё раз.
+          {error}
         </AppText>
       ) : null}
       {matches.length === 0 ? (
         <AppText tone="secondary">Ничего не найдено. Попробуйте другое название.</AppText>
       ) : null}
       <View style={{ gap: theme.spacing.s }}>
-        {matches.map((exercise) => (
-          <Pressable key={exercise.id} accessibilityRole="button" onPress={() => add(exercise)}>
-            <Panel>
-              <AppText>{exercise.name}</AppText>
-              <AppText variant="caption" tone="secondary">
-                {muscleGroupLabels[exercise.muscleGroup]}
-              </AppText>
-            </Panel>
-          </Pressable>
-        ))}
+        {matches.map((exercise) => {
+          const restricted = exercise.loads.some((area) => profile?.limitations.includes(area));
+          return (
+            <Pressable key={exercise.id} accessibilityRole="button" onPress={() => add(exercise)}>
+              <Panel>
+                <AppText>{exercise.name}</AppText>
+                <AppText variant="caption" tone="secondary">
+                  {muscleGroupLabels[exercise.muscleGroup]}
+                </AppText>
+                {restricted ? (
+                  <AppText variant="caption" tone="warning">
+                    Отмечено для зоны из ваших ограничений
+                  </AppText>
+                ) : null}
+              </Panel>
+            </Pressable>
+          );
+        })}
       </View>
     </Screen>
   );

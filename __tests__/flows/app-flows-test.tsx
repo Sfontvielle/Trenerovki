@@ -11,6 +11,7 @@ import type { Profile } from '@/domains/profile/profile';
 import { getProfile } from '@/domains/profile/profile-repository';
 import { generatePlan } from '@/domains/program/generate-plan';
 import { getProgram } from '@/domains/program/program-repository';
+import { listCompletedSessions } from '@/domains/progress/progress-repository';
 import { WorkoutEngine } from '@/domains/workout/workout-engine';
 import { createTestDatabase } from '../../test-support/test-database';
 
@@ -37,6 +38,7 @@ const profile: Profile = {
 };
 
 let database: Database;
+let confirmButton = 1;
 
 async function press(name: string | RegExp, role: 'button' | 'radio' = 'button') {
   await act(async () => {
@@ -79,8 +81,9 @@ beforeEach(async () => {
   await migrate(database);
   jest.mocked(openAppDatabase).mockReset();
   jest.mocked(openAppDatabase).mockResolvedValue(database);
+  confirmButton = 1;
   jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => {
-    buttons?.[1]?.onPress?.();
+    buttons?.[confirmButton]?.onPress?.();
   });
   jest.spyOn(console, 'error').mockImplementation(() => {});
 });
@@ -175,6 +178,7 @@ describe('workout', () => {
 
     await press('К обзору тренировки');
     await press('Завершить тренировку');
+    expect(Alert.alert).toHaveBeenCalledWith('Завершить тренировку?', expect.any(String), expect.any(Array));
 
     expect(await screen.findByText('Объём: 625 кг')).toBeTruthy();
     expect(screen.getByText(/Готово/)).toBeTruthy();
@@ -249,11 +253,12 @@ describe('workout', () => {
     await screen.findByText('Следующая тренировка');
     const session = await database.first<{ state: string }>('SELECT state FROM workout_session');
     expect(session?.state).toBe('cancelled');
+    expect(await listCompletedSessions(database)).toEqual([]);
   });
 });
 
 describe('profile', () => {
-  it('stores the theme and accent choice across restarts', async () => {
+  it('stores the theme and accent choice', async () => {
     await seedProfile();
     await renderRouter('./src/app', { initialUrl: '/profile' });
     await screen.findByText('Тема');
@@ -264,6 +269,19 @@ describe('profile', () => {
     const settings = new SettingsRepository(database);
     expect(await settings.get('theme_preference')).toBe('light');
     expect(await settings.get('accent')).toBe('rose');
+  });
+
+  it('applies the stored theme and accent on launch', async () => {
+    await seedProfile();
+    const settings = new SettingsRepository(database);
+    await settings.set('theme_preference', 'light');
+    await settings.set('accent', 'rose');
+
+    await renderRouter('./src/app', { initialUrl: '/profile' });
+    await screen.findByText('Тема');
+
+    expect(screen.getByRole('radio', { name: 'Светлая', checked: true })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'Розовый', checked: true })).toBeTruthy();
   });
 
   it('exports the data through the share sheet', async () => {
@@ -290,7 +308,414 @@ describe('profile', () => {
   });
 });
 
+describe('navigation', () => {
+  it('keeps the questionnaire out of reach after it is completed', async () => {
+    await seedProfile();
+
+    await renderRouter('./src/app', { initialUrl: '/welcome' });
+
+    expect(await screen.findByText('Следующая тренировка')).toBeTruthy();
+    expect(screen).toHavePathname('/');
+  });
+
+  it('returns to the tab a past workout was opened from', async () => {
+    const engine = await seedOpenWorkout();
+    const open = await engine.getOpenSession();
+    await engine.completeSession(open!.id, createId());
+    await renderRouter('./src/app');
+    await screen.findByText('Следующая тренировка');
+    await testRouter.navigate('/progress');
+    await screen.findByText('История');
+
+    await press(/Всё тело/);
+    expect(await screen.findByText('Готово')).toBeTruthy();
+    await press('Готово');
+
+    expect(screen).toHavePathname('/progress');
+  });
+});
+
+describe('editing recorded sets', () => {
+  async function openLoggedExercise() {
+    const engine = await seedOpenWorkout();
+    const open = await engine.getOpenSession();
+    const exercise = open!.exercises[0];
+    await engine.logSet(exercise.id, { weightKg: 70, reps: 8, rir: 1 }, createId());
+    await renderRouter('./src/app', { initialUrl: '/workout' });
+    await screen.findByText('Продолжить');
+    await press('Продолжить');
+    await screen.findByText('Пауза');
+    await press(/Подходы: 2 из/);
+    await screen.findByText('Записанные подходы');
+  }
+
+  const fieldValue = (label: string) => screen.getByLabelText(label).props.value;
+
+  it('prefills the form from the last set', async () => {
+    await openLoggedExercise();
+
+    expect(fieldValue('Вес, кг')).toBe('70');
+    expect(fieldValue('Повторы')).toBe('8');
+  });
+
+  it('changes a set in place', async () => {
+    await openLoggedExercise();
+
+    await press('Изменить');
+    expect(fieldValue('Вес, кг')).toBe('60');
+    await type('Вес, кг', '62,5');
+    await press('Сохранить изменения');
+
+    expect(await screen.findByText('1. 62,5 кг × 10, запас 2')).toBeTruthy();
+    expect(await database.all('SELECT id FROM workout_set')).toHaveLength(2);
+    expect(fieldValue('Вес, кг')).toBe('70');
+  });
+
+  it('restores the prefill when editing is abandoned', async () => {
+    await openLoggedExercise();
+
+    await press('Изменить');
+    await press('Отмена');
+
+    expect(fieldValue('Вес, кг')).toBe('70');
+    expect(screen.queryByText('Сохранить изменения')).toBeNull();
+  });
+
+  it('keeps editing and the row when the new value is invalid', async () => {
+    await openLoggedExercise();
+
+    await press('Изменить');
+    await type('Повторы', '0');
+    await press('Сохранить изменения');
+
+    expect(await screen.findByText(/Проверьте значения/)).toBeTruthy();
+    expect(screen.getByText('Сохранить изменения')).toBeTruthy();
+    expect(await database.first('SELECT reps FROM workout_set WHERE position = 1')).toEqual({ reps: 10 });
+  });
+
+  it('deletes a set after confirmation and renumbers the rest', async () => {
+    await openLoggedExercise();
+
+    await press('Удалить');
+
+    expect(await screen.findByText('1. 70 кг × 8, запас 1')).toBeTruthy();
+    expect(await database.all('SELECT id FROM workout_set')).toHaveLength(1);
+  });
+
+  it('keeps a set when deletion is declined', async () => {
+    await openLoggedExercise();
+    confirmButton = 0;
+
+    await press('Удалить');
+
+    expect(await database.all('SELECT id FROM workout_set')).toHaveLength(2);
+  });
+});
+
+describe('weight suggestion and safety', () => {
+  async function seedStrongSession() {
+    await seedProfile();
+    const [day] = await getProgram(database);
+    const engine = new WorkoutEngine({ database, createId, now: () => new Date() });
+    const planned = day.exercises[0];
+    const exercises = [
+      {
+        exerciseId: planned.exerciseId,
+        plannedSets: 1,
+        repsMin: planned.repsMin,
+        repsMax: planned.repsMax,
+      },
+    ];
+    const sessionId = await engine.startSession({
+      operationId: createId(),
+      title: day.name,
+      programDayId: day.id,
+      exercises,
+    });
+    const session = await engine.getSession(sessionId);
+    await engine.logSet(session!.exercises[0].id, { weightKg: 80, reps: planned.repsMax, rir: 2 }, createId());
+    await engine.completeSession(sessionId, createId());
+
+    const nextId = await engine.startSession({
+      operationId: createId(),
+      title: day.name,
+      programDayId: day.id,
+      exercises,
+    });
+    const next = await engine.getSession(nextId);
+    await renderRouter('./src/app', { initialUrl: '/workout' });
+    await screen.findByText('Продолжить');
+    await press('Продолжить');
+    await screen.findByText('Пауза');
+    await testRouter.push(`/workout/${next!.exercises[0].id}`);
+    await screen.findByText('Записать подход');
+  }
+
+  it('offers a heavier weight and applies it only on request', async () => {
+    await seedStrongSession();
+
+    expect(screen.getByText('Попробовать 82,5 кг?')).toBeTruthy();
+    expect(screen.getByLabelText('Вес, кг').props.value).toBe('80');
+
+    await press('Подставить вес');
+
+    expect(screen.getByLabelText('Вес, кг').props.value).toBe('82,5');
+    expect(await database.all('SELECT id FROM workout_set')).toHaveLength(1);
+  });
+
+  it('withdraws the suggestion after discomfort is reported', async () => {
+    await seedStrongSession();
+
+    await press('Боль или дискомфорт');
+
+    expect(await screen.findByText(/Вы отмечали дискомфорт/)).toBeTruthy();
+    expect(screen.queryByText('Попробовать 82,5 кг?')).toBeNull();
+    expect(Alert.alert).toHaveBeenCalledWith('Остановите упражнение', expect.stringContaining('врачу'), expect.any(Array));
+  });
+});
+
+describe('adding exercises', () => {
+  async function openAddScreen() {
+    await seedProfile();
+    const engine = new WorkoutEngine({ database, createId, now: () => new Date() });
+    await engine.startSession({
+      operationId: createId(),
+      title: 'Свободная тренировка',
+      programDayId: null,
+      exercises: [],
+    });
+    await renderRouter('./src/app', { initialUrl: '/workout' });
+    await screen.findByText('Продолжить');
+    await press('Продолжить');
+    await screen.findByText('Пауза');
+    await press('Добавить упражнение');
+    await screen.findByLabelText('Найти упражнение');
+  }
+
+  it('finds an exercise typed without ё and adds it once despite a double tap', async () => {
+    await openAddScreen();
+
+    await type('Найти упражнение', 'штанги лежа');
+    expect(screen.queryByText('Ничего не найдено. Попробуйте другое название.')).toBeNull();
+
+    const row = screen.getAllByRole('button', { name: /Жим штанги лёжа/ })[0];
+    await act(async () => {
+      fireEvent.press(row);
+      fireEvent.press(row);
+    });
+
+    expect(await database.all('SELECT id FROM session_exercise')).toHaveLength(1);
+  });
+
+  it('says when nothing matches', async () => {
+    await openAddScreen();
+
+    await type('Найти упражнение', 'несуществующее');
+
+    expect(screen.getByText('Ничего не найдено. Попробуйте другое название.')).toBeTruthy();
+  });
+
+  it('removes an exercise added by mistake', async () => {
+    await openAddScreen();
+    await press(/Подъёмы на носки/);
+    await screen.findByText(/Подходы: 0/);
+
+    await press(/Подходы: 0/);
+    await press('Убрать из тренировки');
+
+    expect(await database.all('SELECT id FROM session_exercise')).toEqual([]);
+  });
+});
+
+describe('progress screens', () => {
+  it('opens the trend chart from a record', async () => {
+    const engine = await seedOpenWorkout();
+    const open = await engine.getOpenSession();
+    await engine.completeSession(open!.id, createId());
+    await renderRouter('./src/app');
+    await screen.findByText('Следующая тренировка');
+    await testRouter.navigate('/progress');
+    await screen.findByText('Рекорды');
+
+    await press(/60 кг × 10/);
+
+    expect(await screen.findByText('Лучший вес по тренировкам')).toBeTruthy();
+  });
+
+  it('builds the chart from reps for bodyweight work', async () => {
+    await seedProfile();
+    const engine = new WorkoutEngine({ database, createId, now: () => new Date() });
+    const sessionId = await engine.startSession({
+      operationId: createId(),
+      title: 'Дома',
+      programDayId: null,
+      exercises: [{ exerciseId: 'push-up', plannedSets: 1, repsMin: 8, repsMax: 12 }],
+    });
+    const session = await engine.getSession(sessionId);
+    await engine.logSet(session!.exercises[0].id, { weightKg: null, reps: 15, rir: null }, createId());
+    await engine.completeSession(sessionId, createId());
+
+    await renderRouter('./src/app', { initialUrl: '/exercise-progress/push-up' });
+
+    expect(await screen.findByText('Лучшие повторы по тренировкам')).toBeTruthy();
+  });
+});
+
+describe('recovery through the interface', () => {
+  it('resumes an interrupted workout and excludes the gap from its duration', async () => {
+    await seedOpenWorkout();
+    const threeHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
+    await database.run('UPDATE workout_session SET started_at = ?, last_activity_at = ?', [
+      threeHoursAgo,
+      threeHoursAgo,
+    ]);
+
+    await renderRouter('./src/app');
+    await screen.findByText('Тренировка не завершена');
+
+    await press('Продолжить тренировку');
+    await screen.findByText('Продолжить');
+    await press('Продолжить');
+    await screen.findByText('Пауза');
+    await press(/Подходы: 1 из/);
+    await screen.findByText('Записать подход');
+    await press('Записать подход');
+    await screen.findByText(/^2\. /);
+    await press('К обзору тренировки');
+    await press('Завершить тренировку');
+    await screen.findByText('Готово');
+
+    const session = await database.first<{
+      state: string;
+      started_at: string;
+      finished_at: string;
+      paused_ms: number;
+    }>('SELECT * FROM workout_session');
+    expect(session?.state).toBe('completed');
+    const duration = Date.parse(session!.finished_at) - Date.parse(session!.started_at) - session!.paused_ms;
+    expect(duration).toBeLessThan(60 * 1000);
+    expect(await database.all('SELECT id FROM workout_set')).toHaveLength(2);
+  });
+});
+
+describe('declined confirmations', () => {
+  it('keeps everything when deleting all data is declined', async () => {
+    await seedProfile();
+    await renderRouter('./src/app', { initialUrl: '/profile' });
+    await screen.findByText('Тема');
+    confirmButton = 0;
+
+    await press('Удалить все данные');
+
+    expect(await getProfile(database)).not.toBeNull();
+    expect(screen).toHavePathname('/profile');
+  });
+
+  it('keeps the workout when cancelling is declined', async () => {
+    await seedOpenWorkout();
+    await renderRouter('./src/app', { initialUrl: '/workout' });
+    await screen.findByText('Отменить тренировку');
+    confirmButton = 0;
+
+    await press('Отменить тренировку');
+
+    const session = await database.first<{ state: string }>('SELECT state FROM workout_session');
+    expect(session?.state).toBe('paused');
+  });
+
+  it('keeps the workout open when finishing is declined', async () => {
+    await seedOpenWorkout();
+    await renderRouter('./src/app', { initialUrl: '/workout' });
+    await screen.findByText('Завершить тренировку');
+    confirmButton = 0;
+
+    await press('Завершить тренировку');
+
+    const session = await database.first<{ state: string }>('SELECT state FROM workout_session');
+    expect(session?.state).toBe('paused');
+  });
+});
+
+describe('changing the answers', () => {
+  it('replaces the plan after confirmation and keeps the history', async () => {
+    const engine = await seedOpenWorkout();
+    const open = await engine.getOpenSession();
+    await engine.completeSession(open!.id, createId());
+    await renderRouter('./src/app', { initialUrl: '/profile' });
+    await screen.findByText('Тема');
+
+    await press('Изменить ответы и план');
+    await screen.findByLabelText('Как вас зовут');
+    expect(screen.getByLabelText('Как вас зовут').props.value).toBe('Ислам');
+    for (let step = 0; step < 6; step += 1) {
+      await press('Далее');
+    }
+    await press('Плечи', 'radio');
+    await press('Показать план');
+
+    expect(screen.getByText('Ваш новый план')).toBeTruthy();
+    expect(await getProfile(database)).toMatchObject({ limitations: [] });
+
+    await press('Принять план');
+
+    expect(await getProfile(database)).toMatchObject({ limitations: ['shoulders'] });
+    expect(await database.all('SELECT id FROM workout_set')).toHaveLength(1);
+    expect(await database.all("SELECT id FROM workout_session WHERE state = 'completed'")).toHaveLength(1);
+  });
+});
+
 describe('failures', () => {
+  it('keeps the entered values and retries a failed save exactly once', async () => {
+    await seedOpenWorkout();
+    const exercise = await database.first<{ id: string }>(
+      'SELECT id FROM session_exercise ORDER BY position LIMIT 1 OFFSET 1',
+    );
+    await renderRouter('./src/app', { initialUrl: '/workout' });
+    await screen.findByText('Продолжить');
+    await press('Продолжить');
+    await screen.findByText('Пауза');
+    await testRouter.push(`/workout/${exercise!.id}`);
+    await screen.findByText('Записать подход');
+    const logSet = jest
+      .spyOn(WorkoutEngine.prototype, 'logSet')
+      .mockRejectedValueOnce(new Error('database or disk is full'));
+
+    await type('Вес, кг', '50');
+    await type('Повторы', '9');
+    await press('Записать подход');
+
+    expect(await screen.findByText(/Подход не сохранён.*закончилось место/)).toBeTruthy();
+    expect(screen.getByLabelText('Вес, кг').props.value).toBe('50');
+
+    await press('Записать подход');
+
+    await screen.findByText('Записанные подходы');
+    expect(logSet.mock.calls[0][2]).toBe(logSet.mock.calls[1][2]);
+    expect(
+      await database.all('SELECT id FROM workout_set WHERE session_exercise_id = ?', [exercise!.id]),
+    ).toHaveLength(1);
+  });
+
+  it('opens the app when recovering an interrupted workout fails', async () => {
+    await seedOpenWorkout();
+    jest
+      .spyOn(WorkoutEngine.prototype, 'recoverInterruptedSession')
+      .mockRejectedValueOnce(new Error('disk'));
+
+    await renderRouter('./src/app');
+
+    expect(await screen.findByText('Тренировка не завершена')).toBeTruthy();
+  });
+
+  it('opens the app when the theme settings cannot be read', async () => {
+    await seedProfile();
+    jest.spyOn(SettingsRepository.prototype, 'get').mockRejectedValue(new Error('disk'));
+
+    await renderRouter('./src/app');
+
+    expect(await screen.findByText('Следующая тренировка')).toBeTruthy();
+  });
+
   it('offers a retry when the data cannot be opened', async () => {
     jest.mocked(openAppDatabase).mockRejectedValueOnce(new Error('disk'));
     await seedProfile();

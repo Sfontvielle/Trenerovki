@@ -13,7 +13,7 @@ import { formatRepRange } from '@/lib/format';
 
 export default function WorkoutsScreen() {
   const { database, engine } = useAppData();
-  const { start, starting, failed } = useStartWorkout();
+  const { start, starting, error } = useStartWorkout();
 
   const load = useCallback(async () => {
     const [openSession, program] = await Promise.all([engine.getOpenSession(), getProgram(database)]);
@@ -28,9 +28,9 @@ export default function WorkoutsScreen() {
           <>
             {openSession ? <OpenSessionBanner session={openSession} /> : null}
 
-            {failed ? (
+            {error ? (
               <AppText accessibilityLiveRegion="polite" tone="danger">
-                Тренировка не началась. Попробуйте ещё раз.
+                {error}
               </AppText>
             ) : null}
 

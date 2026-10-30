@@ -14,7 +14,7 @@ import { pluralize } from '@/lib/format';
 
 export default function HomeScreen() {
   const { database, engine } = useAppData();
-  const { start, starting, failed } = useStartWorkout();
+  const { start, starting, error } = useStartWorkout();
 
   const load = useCallback(async () => {
     const [openSession, program, summary] = await Promise.all([
@@ -44,9 +44,9 @@ export default function HomeScreen() {
                     {exerciseName(exercise.exerciseId)}
                   </AppText>
                 ))}
-                {failed ? (
+                {error ? (
                   <AppText accessibilityLiveRegion="polite" tone="danger">
-                    Тренировка не началась. Попробуйте ещё раз.
+                    {error}
                   </AppText>
                 ) : null}
                 <Button
@@ -65,7 +65,7 @@ export default function HomeScreen() {
             </Panel>
 
             <AppText variant="caption" tone="secondary">
-              Шаги, сон и питание появятся здесь, когда будут подключены эти разделы.
+              Шаги и сон пока не отслеживаются, а раздел питания в разработке.
             </AppText>
           </>
         )}

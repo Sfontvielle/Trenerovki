@@ -12,6 +12,8 @@ import {
 const MAX_WEIGHT_KG = 1000;
 const MAX_REPS = 1000;
 const MAX_RIR = 10;
+const DISCOMFORT_EVENT = 'discomfort_reported';
+const DISCOMFORT_MEMORY_MS = 14 * 24 * 60 * 60 * 1000;
 
 type SessionRow = {
   id: string;
@@ -226,22 +228,19 @@ export class WorkoutEngine {
         );
       }
 
-      const pauseEnded = session.paused_at && state !== 'paused';
-      const pausedMs = pauseEnded
+      const resumed = session.paused_at !== null && state === 'active';
+      const pausedMs = resumed
         ? session.paused_ms + Date.parse(timestamp) - Date.parse(session.paused_at as string)
         : session.paused_ms;
-      const finished = state === 'completed' || state === 'cancelled';
+      // A session finished from a pause ended when the pause began: the date
+      // stays right even if the user closes it days after an interruption.
+      const finishedAt =
+        state === 'completed' || state === 'cancelled' ? (session.paused_at ?? timestamp) : null;
 
       await tx.run(
         `UPDATE workout_session SET state = ?, paused_at = ?, paused_ms = ?, finished_at = ?
          WHERE id = ?`,
-        [
-          state,
-          state === 'paused' ? timestamp : null,
-          pausedMs,
-          finished ? timestamp : null,
-          sessionId,
-        ],
+        [state, state === 'paused' ? timestamp : null, pausedMs, finishedAt, sessionId],
       );
       return { sessionId, entityId: sessionId, type: `session_${command}` };
     });
@@ -281,6 +280,59 @@ export class WorkoutEngine {
       });
       return { sessionId, entityId, type: 'exercise_added', payload: { exerciseId } };
     });
+  }
+
+  removeExercise(sessionExerciseId: string, operationId: string) {
+    return this.apply(operationId, async (tx) => {
+      const exercise = await this.requireActiveExercise(tx, sessionExerciseId);
+      const sets = await tx.first<{ count: number }>(
+        'SELECT COUNT(*) AS count FROM workout_set WHERE session_exercise_id = ?',
+        [sessionExerciseId],
+      );
+      if (sets?.count) {
+        throw new WorkoutError('exercise_has_sets', 'Exercise already has recorded sets');
+      }
+      await tx.run('DELETE FROM session_exercise WHERE id = ?', [sessionExerciseId]);
+      await tx.run(
+        'UPDATE session_exercise SET position = position - 1 WHERE session_id = ? AND position > ?',
+        [exercise.session_id, exercise.position],
+      );
+      return {
+        sessionId: exercise.session_id,
+        entityId: sessionExerciseId,
+        type: 'exercise_removed',
+        payload: { exerciseId: exercise.exercise_id },
+      };
+    });
+  }
+
+  reportDiscomfort(sessionExerciseId: string, operationId: string) {
+    return this.apply(operationId, async (tx) => {
+      const exercise = await tx.first<ExerciseRow>('SELECT * FROM session_exercise WHERE id = ?', [
+        sessionExerciseId,
+      ]);
+      if (!exercise) {
+        throw new WorkoutError('exercise_not_found', 'Session exercise does not exist');
+      }
+      return {
+        sessionId: exercise.session_id,
+        entityId: sessionExerciseId,
+        type: DISCOMFORT_EVENT,
+        payload: { exerciseId: exercise.exercise_id },
+      };
+    });
+  }
+
+  async hasRecentDiscomfort(exerciseId: string) {
+    const since = new Date(this.now().getTime() - DISCOMFORT_MEMORY_MS).toISOString();
+    const event = await this.database.first(
+      `SELECT workout_event.sequence FROM workout_event
+       JOIN session_exercise ON session_exercise.id = workout_event.entity_id
+       WHERE workout_event.type = ? AND session_exercise.exercise_id = ? AND workout_event.occurred_at >= ?
+       LIMIT 1`,
+      [DISCOMFORT_EVENT, exerciseId, since],
+    );
+    return event !== null;
   }
 
   logSet(sessionExerciseId: string, input: SetInput, operationId: string) {
@@ -346,16 +398,23 @@ export class WorkoutEngine {
   }
 
   // An active session found at launch means the app stopped mid-workout: time
-  // after the last recorded activity must not count as training.
-  async recoverInterruptedSession() {
+  // after the last recorded activity must not count as training. The same
+  // applies to a phone left idle, so callers can pass an allowed idle time.
+  async recoverInterruptedSession(allowedIdleMs = 0) {
     const interrupted = await this.database.first<SessionRow>(
       "SELECT * FROM workout_session WHERE state = 'active'",
     );
     if (!interrupted) {
       return null;
     }
+    const idleMs = this.now().getTime() - Date.parse(interrupted.last_activity_at);
+    if (idleMs < allowedIdleMs) {
+      return null;
+    }
+
     await this.apply(this.createId(), async (tx) => {
-      await tx.run("UPDATE workout_session SET state = 'paused', paused_at = ? WHERE id = ?", [
+      await tx.run('UPDATE workout_session SET state = ?, paused_at = ? WHERE id = ?', [
+        nextState(interrupted.state, 'pause'),
         interrupted.last_activity_at,
         interrupted.id,
       ]);

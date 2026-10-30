@@ -1,17 +1,10 @@
-import { Redirect } from 'expo-router';
 import { NativeTabs } from 'expo-router/native-tabs';
 
-import { useAppData } from '@/app-data/app-data';
 import { useTheme } from '@/design-system';
 
 export default function TabsLayout() {
-  const { profile } = useAppData();
   const { theme } = useTheme();
   const { colors } = theme;
-
-  if (!profile) {
-    return <Redirect href="/welcome" />;
-  }
 
   return (
     <NativeTabs

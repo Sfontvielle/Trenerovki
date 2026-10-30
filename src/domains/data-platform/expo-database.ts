@@ -1,25 +1,18 @@
 import * as SQLite from 'expo-sqlite';
 
 import type { Database, DatabaseExecutor, SqlValue } from './database';
+import { createQueue } from './write-queue';
 
 const DATABASE_NAME = 'ironvant.db';
-
-// withTransactionAsync is not exclusive: any query issued meanwhile joins the
-// transaction, so every write goes through one queue.
-function createWriteQueue() {
-  let tail: Promise<unknown> = Promise.resolve();
-
-  return function enqueue<Result>(task: () => Promise<Result>): Promise<Result> {
-    const result = tail.then(task, task);
-    tail = result.catch(() => undefined);
-    return result;
-  };
-}
 
 export async function openAppDatabase(): Promise<Database> {
   const connection = await SQLite.openDatabaseAsync(DATABASE_NAME);
   await connection.execAsync('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
-  const enqueue = createWriteQueue();
+
+  // withTransactionAsync is not exclusive: any query issued meanwhile joins the
+  // transaction and can see rows that are later rolled back. Every query waits
+  // its turn, while transaction bodies use the raw executor and cannot deadlock.
+  const enqueue = createQueue();
 
   const executor: DatabaseExecutor = {
     run: async (sql: string, params: SqlValue[] = []) => {
@@ -30,8 +23,9 @@ export async function openAppDatabase(): Promise<Database> {
   };
 
   return {
-    ...executor,
     run: (sql, params) => enqueue(() => executor.run(sql, params)),
+    all: <Row>(sql: string, params?: SqlValue[]) => enqueue(() => executor.all<Row>(sql, params)),
+    first: <Row>(sql: string, params?: SqlValue[]) => enqueue(() => executor.first<Row>(sql, params)),
     transaction: <Result>(task: (tx: DatabaseExecutor) => Promise<Result>) =>
       enqueue(async () => {
         let result: Result | undefined;

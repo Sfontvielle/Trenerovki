@@ -17,6 +17,7 @@ import {
 import { deleteAllData, exportAllData } from '@/domains/data-platform/data-transfer';
 import { equipmentLabels, experienceLabels, goalLabels, limitationLabels } from '@/features/profile/labels';
 import { confirm } from '@/lib/confirm';
+import { describeFailure } from '@/lib/describe-failure';
 
 const themeChoices: { value: ThemePreference; label: string }[] = [
   { value: 'system', label: 'Как на iPhone' },
@@ -43,7 +44,7 @@ export default function ProfileScreen() {
       await save;
     } catch (error) {
       console.error(error);
-      setMessage('Настройка действует до перезапуска: сохранить её не удалось.');
+      setMessage(`Настройка действует до перезапуска: сохранить её не удалось. ${describeFailure(error)}`);
     }
   };
 
@@ -53,27 +54,34 @@ export default function ProfileScreen() {
       await Share.share({ message: await exportAllData(database) });
     } catch (error) {
       console.error(error);
-      setMessage('Не удалось подготовить экспорт. Попробуйте ещё раз.');
+      setMessage(`Экспорт не подготовлен. ${describeFailure(error)}`);
     }
   };
 
   const deleteData = async () => {
     const approved = await confirm({
       title: 'Удалить все данные?',
-      message: 'Профиль, план и вся история тренировок будут удалены с этого iPhone без возможности восстановления.',
+      message: 'Профиль, план и вся история тренировок будут удалены из приложения.',
       confirmLabel: 'Удалить всё',
       destructive: true,
     });
     if (!approved) {
       return;
     }
+
+    setMessage(null);
     try {
       await deleteAllData(database);
-      await refreshProfile();
-      router.replace('/welcome');
     } catch (error) {
       console.error(error);
-      setMessage('Данные не удалены. Попробуйте ещё раз.');
+      setMessage(`Данные не удалены. ${describeFailure(error)}`);
+      return;
+    }
+    try {
+      await refreshProfile();
+    } catch (error) {
+      console.error(error);
+      setMessage('Данные удалены, но экран не обновился. Перезапустите приложение.');
     }
   };
 
@@ -91,12 +99,17 @@ export default function ProfileScreen() {
           <AppText variant="callout" tone="secondary">
             {`Режим: ${profile.daysPerWeek} дн. в неделю по ${profile.sessionMinutes} мин`}
           </AppText>
-          <AppText variant="callout" tone="secondary">{`Место: ${equipmentLabels[profile.equipment]}`}</AppText>
+          <AppText variant="callout" tone="secondary">{`Условия: ${equipmentLabels[profile.equipment]}`}</AppText>
           {profile.limitations.length > 0 ? (
             <AppText variant="callout" tone="secondary">
               {`Ограничения: ${profile.limitations.map((item) => limitationLabels[item]).join(', ')}`}
             </AppText>
           ) : null}
+          <Button
+            label="Изменить ответы и план"
+            variant="secondary"
+            onPress={() => router.push('/edit-profile')}
+          />
         </Panel>
       ) : null}
 
@@ -118,8 +131,12 @@ export default function ProfileScreen() {
       <Panel>
         <AppText variant="heading">Ваши данные</AppText>
         <AppText variant="callout" tone="secondary">
-          Всё хранится только на этом iPhone. Копии в облаке нет, поэтому после удаления приложения
-          данные пропадут. Сохраняйте экспорт, если он вам нужен.
+          IRONVANT хранит данные на этом iPhone и никуда их не отправляет. Они могут попасть в
+          резервную копию iPhone, если она включена.
+        </AppText>
+        <AppText variant="callout" tone="secondary">
+          Экспорт создаёт текстовую копию с вашими ответами и тренировками. Загрузить её обратно в
+          приложение пока нельзя.
         </AppText>
         <Button label="Экспортировать данные" variant="secondary" onPress={exportData} />
         <Button label="Удалить все данные" variant="secondary" onPress={deleteData} />

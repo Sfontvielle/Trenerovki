@@ -1,4 +1,4 @@
-import { type MovementPattern, exercises } from '../exercises/catalog';
+import { type Exercise, type MovementPattern, exercises } from '../exercises/catalog';
 import type { DaysPerWeek, Experience, Goal, Profile, SessionMinutes } from '../profile/profile';
 
 type PlanProfile = Pick<
@@ -22,6 +22,8 @@ type DayTemplate = {
   name: string;
   patterns: MovementPattern[];
 };
+
+const MIN_EXERCISES_PER_DAY = 3;
 
 const fullBodyA: DayTemplate = {
   name: 'Всё тело А',
@@ -51,6 +53,8 @@ const lowerB: DayTemplate = {
   name: 'Низ тела Б',
   patterns: ['hinge', 'squat', 'lunge', 'calves', 'core'],
 };
+const upper: DayTemplate = { ...upperA, name: 'Верх тела' };
+const lower: DayTemplate = { ...lowerA, name: 'Низ тела' };
 const push: DayTemplate = {
   name: 'Жимовой день',
   patterns: ['horizontal_push', 'vertical_push', 'horizontal_push', 'vertical_push', 'triceps'],
@@ -68,16 +72,33 @@ const splits: Record<DaysPerWeek, DayTemplate[]> = {
   2: [fullBodyA, fullBodyB],
   3: [fullBodyA, fullBodyB, fullBodyC],
   4: [upperA, lowerA, upperB, lowerB],
-  5: [upperA, lowerA, push, pull, legs],
+  5: [upper, lower, push, pull, legs],
 };
 
-const repRanges: Record<Goal, { min: number; max: number }> = {
+const allPatterns: MovementPattern[] = [
+  'squat',
+  'horizontal_push',
+  'hinge',
+  'horizontal_pull',
+  'lunge',
+  'vertical_push',
+  'vertical_pull',
+  'core',
+  'biceps',
+  'triceps',
+  'calves',
+];
+
+const compoundRepRanges: Record<Goal, { min: number; max: number }> = {
   strength: { min: 4, max: 6 },
   muscle: { min: 8, max: 12 },
   recomposition: { min: 8, max: 12 },
   fat_loss: { min: 10, max: 15 },
   maintenance: { min: 8, max: 12 },
 };
+
+const beginnerStrengthRange = { min: 8, max: 10 };
+const isolationRange = { min: 10, max: 15 };
 
 const setsByExperience: Record<Experience, number> = {
   beginner: 2,
@@ -92,36 +113,74 @@ const exercisesPerSession: Record<SessionMinutes, number> = {
   75: 6,
 };
 
-export function generatePlan(profile: PlanProfile): PlannedDay[] {
-  const available = exercises.filter(
-    (exercise) =>
-      exercise.equipment.includes(profile.equipment) &&
-      !exercise.loads.some((area) => profile.limitations.includes(area)),
-  );
-  const range = repRanges[profile.goal];
+function repRange(exercise: Exercise, goal: Goal, experience: Experience) {
+  if (exercise.isolation) {
+    return isolationRange;
+  }
+  return goal === 'strength' && experience === 'beginner'
+    ? beginnerStrengthRange
+    : compoundRepRanges[goal];
+}
 
-  const days = splits[profile.daysPerWeek].map((template, dayIndex) => {
-    const chosen = new Set<string>();
+function pickExercises(patterns: MovementPattern[], pool: Exercise[], dayIndex: number) {
+  const chosen = new Map<string, Exercise>();
 
-    for (const pattern of template.patterns) {
-      const candidates = available.filter(
-        (exercise) => exercise.pattern === pattern && !chosen.has(exercise.id),
-      );
-      if (candidates.length > 0) {
-        chosen.add(candidates[dayIndex % candidates.length].id);
-      }
+  for (const pattern of patterns) {
+    const candidates = pool.filter((exercise) => exercise.pattern === pattern && !chosen.has(exercise.id));
+    if (candidates.length > 0) {
+      const exercise = candidates[dayIndex % candidates.length];
+      chosen.set(exercise.id, exercise);
     }
+  }
 
-    return {
-      name: template.name,
-      exercises: [...chosen].slice(0, exercisesPerSession[profile.sessionMinutes]).map((exerciseId) => ({
-        exerciseId,
-        targetSets: setsByExperience[profile.experience],
+  return [...chosen.values()];
+}
+
+function rotated<Item>(items: Item[], offset: number) {
+  const start = offset % items.length;
+  return [...items.slice(start), ...items.slice(0, start)];
+}
+
+export function generatePlan(profile: PlanProfile): PlannedDay[] {
+  const { daysPerWeek, equipment, experience, goal, limitations, sessionMinutes } = profile;
+  const usable = exercises.filter(
+    (exercise) =>
+      exercise.equipment.includes(equipment) &&
+      !exercise.loads.some((area) => limitations.includes(area)) &&
+      (experience !== 'beginner' || !exercise.demanding),
+  );
+  const pool = [
+    ...usable.filter((exercise) => exercise.demanding),
+    ...usable.filter((exercise) => !exercise.demanding),
+  ];
+  const limit = exercisesPerSession[sessionMinutes];
+  const templates = splits[daysPerWeek];
+
+  const fromTemplates = templates.map((template, index) => ({
+    name: template.name,
+    chosen: pickExercises(template.patterns, pool, index),
+  }));
+
+  // Limitations can empty a themed day, so the split falls back to neutral days
+  // built from whatever movements are still available.
+  const minimum = Math.min(MIN_EXERCISES_PER_DAY, limit);
+  const days = fromTemplates.some(({ chosen }) => chosen.length < minimum)
+    ? templates.map((_, index) => ({
+        name: `Тренировка ${index + 1}`,
+        chosen: pickExercises(rotated(allPatterns, index * 3), pool, index),
+      }))
+    : fromTemplates;
+
+  return days.map(({ name, chosen }) => ({
+    name,
+    exercises: chosen.slice(0, limit).map((exercise) => {
+      const range = repRange(exercise, goal, experience);
+      return {
+        exerciseId: exercise.id,
+        targetSets: setsByExperience[experience],
         repsMin: range.min,
         repsMax: range.max,
-      })),
-    };
-  });
-
-  return days.filter((day) => day.exercises.length > 0);
+      };
+    }),
+  }));
 }

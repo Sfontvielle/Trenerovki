@@ -16,7 +16,7 @@ export default function WelcomeScreen() {
             IRONVANT
           </AppText>
           <AppText tone="secondary" style={styles.centered}>
-            Персональный план, запись каждого подхода и прогресс, который хранится на вашем iPhone.
+            План под вашу цель, запись каждого подхода и прогресс в одном приложении.
           </AppText>
         </View>
       </View>

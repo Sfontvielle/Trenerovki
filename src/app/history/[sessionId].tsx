@@ -1,4 +1,4 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useCallback } from 'react';
 import { View } from 'react-native';
 
@@ -9,6 +9,7 @@ import { AppText, Button, Panel, Screen, useTheme } from '@/design-system';
 import { exerciseName } from '@/domains/exercises/catalog';
 import { formatDuration, sessionDurationMs } from '@/domains/workout/session-time';
 import { formatDate, formatNumber, formatWeight } from '@/lib/format';
+import { returnToTabs } from '@/lib/navigation';
 
 export default function SessionHistoryScreen() {
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
@@ -25,7 +26,7 @@ export default function SessionHistoryScreen() {
             return (
               <Panel>
                 <AppText variant="heading">Тренировка не найдена</AppText>
-                <Button label="Открыть главную" variant="secondary" onPress={() => router.replace('/')} />
+                <Button label="Открыть главную" variant="secondary" onPress={returnToTabs} />
               </Panel>
             );
           }
@@ -42,9 +43,9 @@ export default function SessionHistoryScreen() {
                   {session.title}
                 </AppText>
                 <AppText tone="secondary">
-                  {`${formatDate(session.finishedAt)}, ${formatDuration(sessionDurationMs(session, new Date()))}`}
+                  {`${formatDate(session.startedAt)}, ${formatDuration(sessionDurationMs(session, new Date()))}`}
                 </AppText>
-                <AppText tone="secondary">{`Объём: ${formatNumber(volume)} кг`}</AppText>
+                {volume > 0 ? <AppText tone="secondary">{`Объём: ${formatNumber(volume)} кг`}</AppText> : null}
               </View>
 
               {performed.map((exercise) => (
@@ -52,13 +53,13 @@ export default function SessionHistoryScreen() {
                   <AppText variant="heading">{exerciseName(exercise.exerciseId)}</AppText>
                   {exercise.sets.map((set) => (
                     <AppText key={set.id} variant="callout" tone="secondary">
-                      {`${set.position}. ${formatWeight(set.weightKg)} × ${set.reps}`}
+                      {`${set.position}. ${formatWeight(set.weightKg)} × ${set.reps}${set.rir === null ? '' : `, запас ${set.rir}`}`}
                     </AppText>
                   ))}
                 </Panel>
               ))}
 
-              <Button label="Готово" variant="secondary" onPress={() => router.replace('/')} />
+              <Button label="Готово" variant="secondary" onPress={returnToTabs} />
             </>
           );
         }}

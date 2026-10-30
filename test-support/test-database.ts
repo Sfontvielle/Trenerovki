@@ -1,4 +1,5 @@
 import type { Database, DatabaseExecutor, SqlValue } from '@/domains/data-platform/database';
+import { createQueue } from '@/domains/data-platform/write-queue';
 
 type NodeStatement = {
   run(...params: SqlValue[]): unknown;
@@ -17,6 +18,7 @@ export function createTestDatabase(path = ':memory:'): Database {
   };
   const connection = new DatabaseSync(path);
   connection.exec('PRAGMA foreign_keys = ON');
+  const enqueue = createQueue();
 
   const executor: DatabaseExecutor = {
     run: async (sql, params = []) => {
@@ -29,17 +31,20 @@ export function createTestDatabase(path = ':memory:'): Database {
   };
 
   return {
-    ...executor,
-    transaction: async (task) => {
-      connection.exec('BEGIN');
-      try {
-        const result = await task(executor);
-        connection.exec('COMMIT');
-        return result;
-      } catch (error) {
-        connection.exec('ROLLBACK');
-        throw error;
-      }
-    },
+    run: (sql, params) => enqueue(() => executor.run(sql, params)),
+    all: <Row>(sql: string, params?: SqlValue[]) => enqueue(() => executor.all<Row>(sql, params)),
+    first: <Row>(sql: string, params?: SqlValue[]) => enqueue(() => executor.first<Row>(sql, params)),
+    transaction: (task) =>
+      enqueue(async () => {
+        connection.exec('BEGIN');
+        try {
+          const result = await task(executor);
+          connection.exec('COMMIT');
+          return result;
+        } catch (error) {
+          connection.exec('ROLLBACK');
+          throw error;
+        }
+      }),
   };
 }

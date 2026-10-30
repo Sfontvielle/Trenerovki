@@ -20,7 +20,7 @@ export type SessionSummary = {
 
 export type ExerciseRecord = {
   exerciseId: string;
-  bestWeightKg: number;
+  bestWeightKg: number | null;
   repsAtBest: number;
   lastPerformedAt: string;
 };
@@ -28,8 +28,8 @@ export type ExerciseRecord = {
 export type ExerciseTrendPoint = {
   sessionId: string;
   finishedAt: string;
-  topWeightKg: number;
-  volumeKg: number;
+  topWeightKg: number | null;
+  bestReps: number;
 };
 
 export async function getSummary(database: Database, now: Date): Promise<ProgressSummary> {
@@ -88,7 +88,7 @@ export async function listCompletedSessions(database: Database): Promise<Session
 export async function getExerciseRecords(database: Database): Promise<ExerciseRecord[]> {
   const rows = await database.all<{
     exercise_id: string;
-    weight_kg: number;
+    weight_kg: number | null;
     reps: number;
     finished_at: string;
   }>(
@@ -97,16 +97,18 @@ export async function getExerciseRecords(database: Database): Promise<ExerciseRe
      FROM workout_set
      JOIN session_exercise ON session_exercise.id = workout_set.session_exercise_id
      JOIN workout_session ON workout_session.id = session_exercise.session_id
-     WHERE workout_session.state = 'completed' AND workout_set.weight_kg > 0`,
+     WHERE workout_session.state = 'completed'`,
   );
 
   const records = new Map<string, ExerciseRecord>();
   for (const row of rows) {
     const current = records.get(row.exercise_id);
+    const weight = row.weight_kg ?? 0;
+    const currentWeight = current?.bestWeightKg ?? 0;
     const stronger =
       !current ||
-      row.weight_kg > current.bestWeightKg ||
-      (row.weight_kg === current.bestWeightKg && row.reps > current.repsAtBest);
+      weight > currentWeight ||
+      (weight === currentWeight && row.reps > current.repsAtBest);
     const lastPerformedAt =
       current && current.lastPerformedAt > row.finished_at
         ? current.lastPerformedAt
@@ -133,18 +135,16 @@ export async function getExerciseTrend(
   const rows = await database.all<{
     session_id: string;
     finished_at: string;
-    top_weight: number;
-    volume: number;
+    top_weight: number | null;
+    best_reps: number;
   }>(
     `SELECT workout_session.id AS session_id, workout_session.finished_at,
             MAX(workout_set.weight_kg) AS top_weight,
-            SUM(workout_set.weight_kg * workout_set.reps) AS volume
+            MAX(workout_set.reps) AS best_reps
      FROM workout_set
      JOIN session_exercise ON session_exercise.id = workout_set.session_exercise_id
      JOIN workout_session ON workout_session.id = session_exercise.session_id
-     WHERE workout_session.state = 'completed'
-       AND session_exercise.exercise_id = ?
-       AND workout_set.weight_kg > 0
+     WHERE workout_session.state = 'completed' AND session_exercise.exercise_id = ?
      GROUP BY workout_session.id
      ORDER BY workout_session.finished_at DESC
      LIMIT ?`,
@@ -155,6 +155,6 @@ export async function getExerciseTrend(
     sessionId: row.session_id,
     finishedAt: row.finished_at,
     topWeightKg: row.top_weight,
-    volumeKg: row.volume,
+    bestReps: row.best_reps,
   }));
 }

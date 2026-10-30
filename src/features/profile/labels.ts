@@ -8,7 +8,7 @@ export const sexLabels: Record<Sex, string> = {
 export const goalLabels: Record<Goal, string> = {
   muscle: 'Набрать мышечную массу',
   fat_loss: 'Снизить долю жира',
-  recomposition: 'Рекомпозиция',
+  recomposition: 'Меньше жира, больше мышц',
   strength: 'Стать сильнее',
   maintenance: 'Поддерживать форму',
 };
@@ -22,6 +22,7 @@ export const experienceLabels: Record<Experience, string> = {
 export const equipmentLabels: Record<Equipment, string> = {
   gym: 'Тренажёрный зал',
   dumbbells: 'Гантели дома',
+  bar: 'Свой вес и турник',
   bodyweight: 'Только свой вес',
 };
 

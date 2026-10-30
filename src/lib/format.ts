@@ -3,8 +3,11 @@ export function parseDecimal(text: string) {
   if (normalized === '') {
     return null;
   }
-  const value = Number(normalized);
-  return Number.isFinite(value) ? value : Number.NaN;
+  return /^\d+(\.\d+)?$/.test(normalized) ? Number(normalized) : Number.NaN;
+}
+
+export function formatInputNumber(value: number | null | undefined) {
+  return value === null || value === undefined ? '' : String(value).replace('.', ',');
 }
 
 export function formatNumber(value: number) {
@@ -21,6 +24,10 @@ export function formatDate(iso: string) {
     month: 'long',
     year: 'numeric',
   });
+}
+
+export function normalizeSearch(text: string) {
+  return text.trim().toLocaleLowerCase('ru-RU').replaceAll('ё', 'е');
 }
 
 export function pluralize(count: number, [one, few, many]: [string, string, string]) {

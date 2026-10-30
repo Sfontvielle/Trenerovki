@@ -274,6 +274,34 @@ describe('WorkoutEngine', () => {
       expect(sessionDurationMs(session!, new Date(clock.time))).toBe(30 * MINUTE);
     });
 
+    it('dates a session finished days later by when it was interrupted', async () => {
+      const { clock, engine } = await setup();
+      const { sessionId, exerciseId } = await start(engine);
+      clock.time += 20 * MINUTE;
+      await engine.logSet(exerciseId, set, randomUUID());
+      const interruptedAt = clock.time;
+      clock.time += 4 * 24 * 60 * MINUTE;
+
+      await engine.recoverInterruptedSession();
+      await engine.completeSession(sessionId, randomUUID());
+
+      const session = await engine.getSession(sessionId);
+      expect(Date.parse(session!.finishedAt!)).toBe(interruptedAt);
+      expect(sessionDurationMs(session!, new Date(clock.time))).toBe(20 * MINUTE);
+    });
+
+    it('pauses an idle session only after the allowed time', async () => {
+      const { clock, engine } = await setup();
+      const { sessionId } = await start(engine);
+      const allowedIdle = 180 * MINUTE;
+
+      clock.time += 60 * MINUTE;
+      expect(await engine.recoverInterruptedSession(allowedIdle)).toBeNull();
+
+      clock.time += 180 * MINUTE;
+      expect(await engine.recoverInterruptedSession(allowedIdle)).toBe(sessionId);
+    });
+
     it('leaves a paused session alone', async () => {
       const { engine } = await setup();
       const { sessionId } = await start(engine);
@@ -281,6 +309,37 @@ describe('WorkoutEngine', () => {
 
       expect(await engine.recoverInterruptedSession()).toBeNull();
     });
+  });
+
+  it('removes an empty exercise and closes the numbering gap', async () => {
+    const { engine } = await setup();
+    const { sessionId, exerciseId } = await start(engine);
+    await engine.addExercise(sessionId, 'plank', randomUUID());
+
+    await engine.removeExercise(exerciseId, randomUUID());
+
+    const session = await engine.getSession(sessionId);
+    expect(session?.exercises.map(({ exerciseId: id, position }) => [id, position])).toEqual([['plank', 1]]);
+  });
+
+  it('refuses to remove an exercise with recorded sets', async () => {
+    const { engine } = await setup();
+    const { exerciseId } = await start(engine);
+    await engine.logSet(exerciseId, set, randomUUID());
+
+    await expectCode(engine.removeExercise(exerciseId, randomUUID()), 'exercise_has_sets');
+  });
+
+  it('remembers reported discomfort for two weeks', async () => {
+    const { clock, engine } = await setup();
+    const { exerciseId } = await start(engine);
+
+    expect(await engine.hasRecentDiscomfort('bench-press')).toBe(false);
+    await engine.reportDiscomfort(exerciseId, randomUUID());
+    expect(await engine.hasRecentDiscomfort('bench-press')).toBe(true);
+
+    clock.time += 15 * 24 * 60 * MINUTE;
+    expect(await engine.hasRecentDiscomfort('bench-press')).toBe(false);
   });
 
   describe('last performance', () => {
@@ -320,25 +379,39 @@ describe('suggestNextWeight', () => {
     ...overrides,
   });
 
-  it('suggests a step up when every set reached the top of the range', () => {
-    expect(suggestNextWeight([makeSet({}), makeSet({})], 12)).toBe(82.5);
+  it('suggests a step up when every planned set reached the top of the range', () => {
+    expect(suggestNextWeight([makeSet({}), makeSet({})], 12, 2)).toBe(82.5);
+    expect(suggestNextWeight([makeSet({ rir: 1 })], 12, 1)).toBe(82.5);
+  });
+
+  it('uses a smaller step for light weights', () => {
+    expect(suggestNextWeight([makeSet({ weightKg: 4 })], 12, 1)).toBe(5);
   });
 
   it('stays quiet when a set fell short', () => {
-    expect(suggestNextWeight([makeSet({}), makeSet({ reps: 10 })], 12)).toBeNull();
+    expect(suggestNextWeight([makeSet({}), makeSet({ reps: 10 })], 12, 2)).toBeNull();
   });
 
-  it('stays quiet when a set was at failure', () => {
-    expect(suggestNextWeight([makeSet({ rir: 0 })], 12)).toBeNull();
+  it('stays quiet when fewer sets than planned were done', () => {
+    expect(suggestNextWeight([makeSet({})], 12, 3)).toBeNull();
+  });
+
+  it('stays quiet when a set was at failure or the reserve is unknown', () => {
+    expect(suggestNextWeight([makeSet({ rir: 0 })], 12, 1)).toBeNull();
+    expect(suggestNextWeight([makeSet({ rir: null })], 12, 1)).toBeNull();
+  });
+
+  it('stays quiet after sets with different weights', () => {
+    expect(suggestNextWeight([makeSet({}), makeSet({ weightKg: 75 })], 12, 2)).toBeNull();
   });
 
   it('stays quiet without a target or without history', () => {
-    expect(suggestNextWeight([makeSet({})], null)).toBeNull();
-    expect(suggestNextWeight([], 12)).toBeNull();
+    expect(suggestNextWeight([makeSet({})], null, null)).toBeNull();
+    expect(suggestNextWeight([], 12, 3)).toBeNull();
   });
 
   it('stays quiet for bodyweight sets', () => {
-    expect(suggestNextWeight([makeSet({ weightKg: null })], 12)).toBeNull();
+    expect(suggestNextWeight([makeSet({ weightKg: null })], 12, 1)).toBeNull();
   });
 });
 

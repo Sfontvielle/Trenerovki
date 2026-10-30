@@ -11,7 +11,9 @@ import { exerciseName } from '@/domains/exercises/catalog';
 import { formatDuration, sessionDurationMs } from '@/domains/workout/session-time';
 import type { SessionExercise, WorkoutSession } from '@/domains/workout/types';
 import { confirm } from '@/lib/confirm';
-import { formatRepRange } from '@/lib/format';
+import { describeFailure } from '@/lib/describe-failure';
+import { formatRepRange, pluralize } from '@/lib/format';
+import { returnToTabs } from '@/lib/navigation';
 
 function useNow(running: boolean) {
   const [now, setNow] = useState(() => new Date());
@@ -20,8 +22,13 @@ function useNow(running: boolean) {
     if (!running) {
       return;
     }
-    const timer = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(timer);
+    const tick = () => setNow(new Date());
+    const first = setTimeout(tick, 0);
+    const timer = setInterval(tick, 1000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(timer);
+    };
   }, [running]);
 
   return now;
@@ -45,17 +52,17 @@ function SessionOverview({ session, onChanged }: SessionOverviewProps) {
   const paused = session.state === 'paused';
   const now = useNow(!paused);
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const setCount = session.exercises.reduce((total, exercise) => total + exercise.sets.length, 0);
 
   const run = async (action: () => Promise<void>) => {
     setBusy(true);
-    setFailed(false);
+    setError(null);
     try {
       await action();
-    } catch (error) {
-      console.error(error);
-      setFailed(true);
+    } catch (cause) {
+      console.error(cause);
+      setError(`Действие не выполнено. Записанные подходы сохранены. ${describeFailure(cause)}`);
     } finally {
       setBusy(false);
     }
@@ -69,23 +76,35 @@ function SessionOverview({ session, onChanged }: SessionOverviewProps) {
       onChanged();
     });
 
-  const finish = () =>
-    run(async () => {
-      await engine.completeSession(session.id, createId());
-      router.replace(`/history/${session.id}`);
+  const finish = async () => {
+    const approved = await confirm({
+      title: 'Завершить тренировку?',
+      message: `Записано ${setCount} ${pluralize(setCount, ['подход', 'подхода', 'подходов'])}. После завершения изменить их будет нельзя.`,
+      confirmLabel: 'Завершить',
     });
+    if (approved) {
+      await run(async () => {
+        await engine.completeSession(session.id, createId());
+        router.replace(`/history/${session.id}`);
+      });
+    }
+  };
 
   const cancel = async () => {
+    const lost =
+      setCount > 0
+        ? `Записанные подходы (${setCount}) не попадут в историю и прогресс. Вернуть их нельзя.`
+        : 'Она не попадёт в историю и прогресс.';
     const approved = await confirm({
       title: 'Отменить тренировку?',
-      message: 'Она не попадёт в историю и прогресс.',
+      message: lost,
       confirmLabel: 'Отменить тренировку',
       destructive: true,
     });
     if (approved) {
       await run(async () => {
         await engine.cancelSession(session.id, createId());
-        router.replace('/');
+        returnToTabs();
       });
     }
   };
@@ -127,9 +146,9 @@ function SessionOverview({ session, onChanged }: SessionOverviewProps) {
         onPress={() => router.push('/workout/add')}
       />
 
-      {failed ? (
+      {error ? (
         <AppText accessibilityLiveRegion="polite" tone="danger">
-          Действие не выполнено. Записанные подходы сохранены, попробуйте ещё раз.
+          {error}
         </AppText>
       ) : null}
 
@@ -165,7 +184,7 @@ export default function WorkoutScreen() {
             <Panel>
               <AppText variant="heading">Нет открытой тренировки</AppText>
               <AppText tone="secondary">Начните тренировку на вкладке «Тренировки».</AppText>
-              <Button label="Открыть главную" variant="secondary" onPress={() => router.replace('/')} />
+              <Button label="Открыть главную" variant="secondary" onPress={returnToTabs} />
             </Panel>
           )
         }

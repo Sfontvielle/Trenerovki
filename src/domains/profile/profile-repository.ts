@@ -14,6 +14,20 @@ type ProfileRow = {
   limitations: string;
 };
 
+const knownLimitations: Limitation[] = ['shoulders', 'knees', 'lower_back'];
+
+function parseLimitations(stored: string) {
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    return Array.isArray(parsed)
+      ? knownLimitations.filter((limitation) => parsed.includes(limitation))
+      : [];
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
+}
+
 export async function getProfile(database: Database): Promise<Profile | null> {
   const row = await database.first<ProfileRow>('SELECT * FROM profile WHERE id = 1');
   if (!row) {
@@ -29,7 +43,7 @@ export async function getProfile(database: Database): Promise<Profile | null> {
     daysPerWeek: row.days_per_week,
     sessionMinutes: row.session_minutes,
     equipment: row.equipment,
-    limitations: JSON.parse(row.limitations) as Limitation[],
+    limitations: parseLimitations(row.limitations),
   };
 }
 

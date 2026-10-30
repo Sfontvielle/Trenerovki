@@ -4,6 +4,9 @@ export type Migration = {
   version: number;
   name: string;
   statements: string[];
+  // Required when a migration drops a table: with foreign keys on, DROP TABLE
+  // cascades into child rows and silently deletes recorded sets.
+  rebuildsTables?: boolean;
 };
 
 export class DatabaseTooNewError extends Error {
@@ -122,9 +125,26 @@ export async function migrate(database: Database, available: Migration[] = migra
     .sort((first, second) => first.version - second.version);
 
   for (const migration of pending) {
+    await applyMigration(database, migration);
+  }
+}
+
+async function applyMigration(database: Database, migration: Migration) {
+  // This pragma has no effect inside a transaction, so it wraps the transaction.
+  if (migration.rebuildsTables) {
+    await database.run('PRAGMA foreign_keys = OFF');
+  }
+
+  try {
     await database.transaction(async (tx) => {
       for (const statement of migration.statements) {
         await tx.run(statement);
+      }
+      if (migration.rebuildsTables) {
+        const violations = await tx.all('PRAGMA foreign_key_check');
+        if (violations.length > 0) {
+          throw new Error(`Migration ${migration.version} broke foreign keys`);
+        }
       }
       await tx.run('INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)', [
         migration.version,
@@ -132,5 +152,9 @@ export async function migrate(database: Database, available: Migration[] = migra
         new Date().toISOString(),
       ]);
     });
+  } finally {
+    if (migration.rebuildsTables) {
+      await database.run('PRAGMA foreign_keys = ON');
+    }
   }
 }

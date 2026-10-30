@@ -51,9 +51,11 @@ export default function ProgressScreen() {
                 <AppText tone="secondary">
                   {`${pluralize(summary.completedWorkouts, ['тренировка', 'тренировки', 'тренировок'])} всего, ${summary.workoutsLastWeek} за 7 дней`}
                 </AppText>
-                <AppText variant="callout" tone="secondary">
-                  {`Общий объём: ${formatNumber(summary.totalVolumeKg)} кг`}
-                </AppText>
+                {summary.totalVolumeKg > 0 ? (
+                  <AppText variant="callout" tone="secondary">
+                    {`Общий объём: ${formatNumber(summary.totalVolumeKg)} кг`}
+                  </AppText>
+                ) : null}
               </Panel>
 
               {records.length > 0 ? (
@@ -91,10 +93,10 @@ export default function ProgressScreen() {
                     <Panel>
                       <AppText>{session.title}</AppText>
                       <AppText variant="callout" tone="secondary">
-                        {`${formatDate(session.finishedAt)}, ${formatDuration(sessionDurationMs(session, new Date()))}`}
+                        {`${formatDate(session.startedAt)}, ${formatDuration(sessionDurationMs(session, new Date()))}`}
                       </AppText>
                       <AppText variant="callout" tone="secondary">
-                        {`${session.setCount} ${pluralize(session.setCount, ['подход', 'подхода', 'подходов'])}, ${formatNumber(session.volumeKg)} кг`}
+                        {`${session.setCount} ${pluralize(session.setCount, ['подход', 'подхода', 'подходов'])}${session.volumeKg > 0 ? `, ${formatNumber(session.volumeKg)} кг` : ''}`}
                       </AppText>
                     </Panel>
                   </Pressable>

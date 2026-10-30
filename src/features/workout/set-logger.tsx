@@ -8,18 +8,16 @@ import { suggestNextWeight } from '@/domains/workout/progression';
 import type { SessionExercise, SetInput, WorkoutSet } from '@/domains/workout/types';
 import { validateSet } from '@/domains/workout/workout-engine';
 import { confirm } from '@/lib/confirm';
-import { formatNumber, formatWeight, parseDecimal } from '@/lib/format';
+import { describeFailure } from '@/lib/describe-failure';
+import { formatInputNumber, formatWeight, parseDecimal } from '@/lib/format';
 
 type SetLoggerProps = {
   exercise: SessionExercise;
   lastSets: WorkoutSet[];
   paused: boolean;
+  suggestionsAllowed: boolean;
   onChanged: () => void;
 };
-
-function toText(value: number | null | undefined) {
-  return value === null || value === undefined ? '' : formatNumber(value);
-}
 
 function describeSet(set: WorkoutSet) {
   const rir = set.rir === null ? '' : `, запас ${set.rir}`;
@@ -40,31 +38,38 @@ function parseSet(weightText: string, repsText: string, rirText: string): SetInp
   }
 }
 
-export function SetLogger({ exercise, lastSets, paused, onChanged }: SetLoggerProps) {
+export function SetLogger({ exercise, lastSets, paused, suggestionsAllowed, onChanged }: SetLoggerProps) {
   const { engine } = useAppData();
   const { theme } = useTheme();
   const previous = exercise.sets.at(-1) ?? lastSets[exercise.sets.length] ?? lastSets.at(-1);
-  const suggestion = exercise.sets.length === 0 ? suggestNextWeight(lastSets, exercise.repsMax) : null;
+  const suggestion =
+    suggestionsAllowed && exercise.sets.length === 0
+      ? suggestNextWeight(lastSets, exercise.repsMax, exercise.plannedSets)
+      : null;
 
   const [editing, setEditing] = useState<WorkoutSet | null>(null);
-  const [weightText, setWeightText] = useState(toText(previous?.weightKg));
-  const [repsText, setRepsText] = useState(toText(previous?.reps));
-  const [rirText, setRirText] = useState(toText(previous?.rir));
+  const [weightText, setWeightText] = useState(formatInputNumber(previous?.weightKg));
+  const [repsText, setRepsText] = useState(formatInputNumber(previous?.reps));
+  const [rirText, setRirText] = useState(formatInputNumber(previous?.rir));
   const [operationId, setOperationId] = useState(createId);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const fillForm = (set: WorkoutSet | undefined) => {
+    setWeightText(formatInputNumber(set?.weightKg));
+    setRepsText(formatInputNumber(set?.reps));
+    setRirText(formatInputNumber(set?.rir));
+    setError(null);
+  };
+
   const startEditing = (set: WorkoutSet) => {
     setEditing(set);
-    setWeightText(toText(set.weightKg));
-    setRepsText(toText(set.reps));
-    setRirText(toText(set.rir));
-    setError(null);
+    fillForm(set);
   };
 
   const stopEditing = () => {
     setEditing(null);
-    setError(null);
+    fillForm(previous);
   };
 
   const submit = async () => {
@@ -79,7 +84,6 @@ export function SetLogger({ exercise, lastSets, paused, onChanged }: SetLoggerPr
     try {
       if (editing) {
         await engine.updateSet(editing.id, input, operationId);
-        setEditing(null);
       } else {
         await engine.logSet(exercise.id, input, operationId);
       }
@@ -87,7 +91,7 @@ export function SetLogger({ exercise, lastSets, paused, onChanged }: SetLoggerPr
       onChanged();
     } catch (cause) {
       console.error(cause);
-      setError('Подход не сохранён. Попробуйте ещё раз.');
+      setError(`Подход не сохранён. ${describeFailure(cause)}`);
     } finally {
       setSaving(false);
     }
@@ -105,13 +109,10 @@ export function SetLogger({ exercise, lastSets, paused, onChanged }: SetLoggerPr
     }
     try {
       await engine.deleteSet(set.id, createId());
-      if (editing?.id === set.id) {
-        stopEditing();
-      }
       onChanged();
     } catch (cause) {
       console.error(cause);
-      setError('Подход не удалён. Попробуйте ещё раз.');
+      setError(`Подход не удалён. ${describeFailure(cause)}`);
     }
   };
 
@@ -132,12 +133,13 @@ export function SetLogger({ exercise, lastSets, paused, onChanged }: SetLoggerPr
         <Panel>
           <AppText variant="heading">{`Попробовать ${formatWeight(suggestion)}?`}</AppText>
           <AppText variant="callout" tone="secondary">
-            В прошлый раз вы выполнили верх диапазона во всех подходах с запасом. Решение за вами.
+            В прошлый раз вы сделали все подходы по плану, дошли до верха диапазона и оставили запас.
+            Решение за вами.
           </AppText>
           <Button
             label="Подставить вес"
             variant="secondary"
-            onPress={() => setWeightText(toText(suggestion))}
+            onPress={() => setWeightText(formatInputNumber(suggestion))}
           />
         </Panel>
       ) : null}
@@ -154,11 +156,17 @@ export function SetLogger({ exercise, lastSets, paused, onChanged }: SetLoggerPr
                     <Button
                       label="Изменить"
                       variant="secondary"
+                      disabled={saving}
                       onPress={() => startEditing(set)}
                     />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Button label="Удалить" variant="secondary" onPress={() => remove(set)} />
+                    <Button
+                      label="Удалить"
+                      variant="secondary"
+                      disabled={saving || editing !== null}
+                      onPress={() => remove(set)}
+                    />
                   </View>
                 </View>
               )}
@@ -205,7 +213,7 @@ export function SetLogger({ exercise, lastSets, paused, onChanged }: SetLoggerPr
             onPress={submit}
           />
           {editing ? (
-            <Button label="Не менять" variant="secondary" disabled={saving} onPress={stopEditing} />
+            <Button label="Отмена" variant="secondary" disabled={saving} onPress={stopEditing} />
           ) : null}
         </Panel>
       )}
