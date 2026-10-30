@@ -108,6 +108,10 @@ export const sizes = {
   control: 52,
   swatch: 16,
   border: 1,
+  coreInner: 88,
+  coreOuter: 168,
+  chartHeight: 160,
+  chartBar: 24,
 } as const;
 
 export const maxFontScale = 1.6;

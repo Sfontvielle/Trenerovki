@@ -67,9 +67,7 @@ export default function DesignSystemScreen() {
   const rowStyle = [styles.row, { gap: theme.spacing.s }];
 
   return (
-    <Screen scroll>
-      <AppText variant="title">Дизайн-система</AppText>
-
+    <Screen scroll belowHeader>
       <Panel>
         <AppText variant="heading">Тема</AppText>
         <View accessibilityRole="radiogroup" style={rowStyle}>
@@ -110,7 +108,7 @@ export default function DesignSystemScreen() {
           ))}
         </View>
         <AppText variant="callout" tone="secondary">
-          Выбор темы и акцента сбросится при перезапуске: хранилища настроек пока нет.
+          Здесь выбор действует до перезапуска. Постоянный выбор находится в профиле.
         </AppText>
       </Panel>
 

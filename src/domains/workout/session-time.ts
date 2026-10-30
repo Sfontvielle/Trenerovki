@@ -1,6 +1,7 @@
 import type { WorkoutSession } from './types';
 
-type TimedSession = Pick<WorkoutSession, 'startedAt' | 'pausedAt' | 'pausedMs' | 'finishedAt'>;
+type TimedSession = Pick<WorkoutSession, 'startedAt' | 'pausedMs'> &
+  Partial<Pick<WorkoutSession, 'pausedAt' | 'finishedAt'>>;
 
 export function sessionDurationMs(session: TimedSession, now: Date) {
   const end = session.finishedAt ?? session.pausedAt ?? now.toISOString();
