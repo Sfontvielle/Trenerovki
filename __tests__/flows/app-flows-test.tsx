@@ -40,7 +40,7 @@ const profile: Profile = {
 let database: Database;
 let confirmButton = 1;
 
-async function press(name: string | RegExp, role: 'button' | 'radio' = 'button') {
+async function press(name: string | RegExp, role: 'button' | 'radio' | 'checkbox' = 'button') {
   await act(async () => {
     await fireEvent.press(screen.getAllByRole(role, { name })[0]);
   });
@@ -101,32 +101,34 @@ describe('new user', () => {
     await press('Начать');
     expect(screen).toHavePathname('/onboarding');
 
+    expect(screen.getByRole('button', { name: 'Продолжить', disabled: true })).toBeTruthy();
     await type('Как вас зовут', 'Ислам');
+    await press('Продолжить');
+
     await type('Возраст', '17');
-    await press('Далее');
     expect(screen.getByText(/приложение рассчитано на взрослых/)).toBeTruthy();
-
+    expect(screen.getByRole('button', { name: 'Продолжить', disabled: true })).toBeTruthy();
     await type('Возраст', '30');
-    await press('Далее');
-    await press('Не указывать', 'radio');
-    await press('Далее');
+    await press('Продолжить');
 
-    await press('Далее');
-    expect(screen.getByText('Выберите вариант, чтобы продолжить')).toBeTruthy();
+    await press('Пропустить');
+    await press('Пропустить');
 
+    expect(screen.getByRole('button', { name: 'Продолжить', disabled: true })).toBeTruthy();
     await press('Стать сильнее', 'radio');
-    await press('Далее');
-    await press('Новичок, до 6 месяцев', 'radio');
-    await press('Далее');
-    await press('3', 'radio');
-    await press('45 мин', 'radio');
-    await press('Далее');
+    await press('Продолжить');
+    await press('Новичок', 'radio');
+    await press('Продолжить');
+    await press(/^3 раза/, 'radio');
+    await press('Продолжить');
+    await press('45 минут', 'radio');
+    await press('Продолжить');
     await press('Тренажёрный зал', 'radio');
-    await press('Далее');
-    await press('Колени', 'radio');
+    await press('Продолжить');
+    await press('Колени', 'checkbox');
     await press('Показать план');
 
-    expect(screen.getByText('Ваш стартовый план')).toBeTruthy();
+    expect(await screen.findByText('Ваш стартовый план', {}, { timeout: 4000 })).toBeTruthy();
     expect(screen.queryByText(/Приседания/)).toBeNull();
 
     await press('Принять план');
@@ -137,13 +139,79 @@ describe('new user', () => {
     expect(await screen.findByText('Следующая тренировка')).toBeTruthy();
   });
 
+  it('takes the age from the wheel and the weight from the ruler', async () => {
+    await renderRouter('./src/app');
+    await screen.findByText('Начать');
+    await press('Начать');
+    await type('Как вас зовут', 'Ислам');
+    await press('Продолжить');
+
+    expect(screen.getByRole('button', { name: 'Продолжить', disabled: true })).toBeTruthy();
+    await act(async () => {
+      await fireEvent.press(screen.getByText('35'));
+    });
+    await press('Продолжить');
+    await press('Женщина', 'radio');
+    await press('Продолжить');
+
+    expect(screen.getByRole('button', { name: 'Пропустить' })).toBeTruthy();
+    await press('Вес: больше');
+    expect(screen.getByLabelText('Вес, кг').props.value).toBe('75,5');
+    await type('Вес, кг', '500');
+    expect(screen.getByText(/Укажите вес от 30 до 300 кг/)).toBeTruthy();
+    await type('Вес, кг', '62,5');
+    await press('Продолжить');
+
+    await press('Стать сильнее', 'radio');
+    await press('Продолжить');
+    await press('Средний', 'radio');
+    await press('Продолжить');
+    await press(/^4 раза/, 'radio');
+    await press('Продолжить');
+    await press('60 минут', 'radio');
+    await press('Продолжить');
+    await press('Гантели дома', 'radio');
+    await press('Продолжить');
+    await press('Показать план');
+    await screen.findByText('Ваш стартовый план', {}, { timeout: 4000 });
+    await press('Принять план');
+
+    expect(await getProfile(database)).toMatchObject({
+      age: 35,
+      sex: 'female',
+      weightKg: 62.5,
+      daysPerWeek: 4,
+      equipment: 'dumbbells',
+    });
+  });
+
+  it('leaves the age empty until it is chosen', async () => {
+    await renderRouter('./src/app');
+    await screen.findByText('Начать');
+    await press('Начать');
+    await type('Как вас зовут', 'Ислам');
+    await press('Продолжить');
+
+    expect(screen.getByLabelText('Возраст').props.value).toBe('');
+    expect(screen.getByRole('button', { name: 'Продолжить', disabled: true })).toBeTruthy();
+  });
+
+  it('returns to the welcome screen from the first question', async () => {
+    await renderRouter('./src/app');
+    await screen.findByText('Начать');
+    await press('Начать');
+
+    await press('Назад');
+
+    expect(screen).toHavePathname('/welcome');
+  });
+
   it('keeps the entered answers when going back', async () => {
     await renderRouter('./src/app');
     await screen.findByText('Начать');
     await press('Начать');
     await type('Как вас зовут', 'Ислам');
-    await type('Возраст', '30');
-    await press('Далее');
+    await press('Продолжить');
     await press('Назад');
 
     expect(screen.getByLabelText('Как вас зовут').props.value).toBe('Ислам');
@@ -647,13 +715,13 @@ describe('changing the answers', () => {
     await press('Изменить ответы и план');
     await screen.findByLabelText('Как вас зовут');
     expect(screen.getByLabelText('Как вас зовут').props.value).toBe('Ислам');
-    for (let step = 0; step < 6; step += 1) {
-      await press('Далее');
+    for (let step = 0; step < 9; step += 1) {
+      await press(/^(Продолжить|Пропустить)$/);
     }
-    await press('Плечи', 'radio');
+    await press('Плечи', 'checkbox');
     await press('Показать план');
 
-    expect(screen.getByText('Ваш новый план')).toBeTruthy();
+    expect(await screen.findByText('Ваш новый план', {}, { timeout: 4000 })).toBeTruthy();
     expect(await getProfile(database)).toMatchObject({ limitations: [] });
 
     await press('Принять план');

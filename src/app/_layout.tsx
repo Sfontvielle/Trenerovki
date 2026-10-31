@@ -42,12 +42,12 @@ function RootStack() {
       >
         <Stack.Protected guard={!hasProfile}>
           <Stack.Screen name="welcome" />
-          <Stack.Screen name="onboarding" options={{ ...withHeader, title: 'Анкета' }} />
+          <Stack.Screen name="onboarding" />
         </Stack.Protected>
         <Stack.Protected guard={hasProfile}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="profile" options={{ presentation: 'modal' }} />
-          <Stack.Screen name="edit-profile" options={{ ...withHeader, title: 'Ответы и план' }} />
+          <Stack.Screen name="edit-profile" />
           <Stack.Screen name="workout/index" options={{ ...withHeader, title: 'Тренировка' }} />
           <Stack.Screen name="workout/[sessionExerciseId]" options={{ ...withHeader, title: 'Упражнение' }} />
           <Stack.Screen

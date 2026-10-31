@@ -112,6 +112,11 @@ export const sizes = {
   coreOuter: 168,
   chartHeight: 160,
   chartBar: 24,
+  choiceMinHeight: 76,
+  choiceTallHeight: 104,
+  progressBar: 5,
+  rulerHeight: 76,
+  wheelRow: 44,
 } as const;
 
 export const maxFontScale = 1.6;
@@ -136,6 +141,9 @@ export const motion = {
 } as const;
 
 export const shadowOpacity = {
+  ambient: '1A',
   soft: '14',
+  tint: '1F',
+  selected: '59',
   glow: '66',
 } as const;

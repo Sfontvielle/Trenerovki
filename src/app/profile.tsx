@@ -15,7 +15,13 @@ import {
   useTheme,
 } from '@/design-system';
 import { deleteAllData, exportAllData } from '@/domains/data-platform/data-transfer';
-import { equipmentLabels, experienceLabels, goalLabels, limitationLabels } from '@/features/profile/labels';
+import {
+  equipmentLabels,
+  experienceHints,
+  experienceLabels,
+  goalLabels,
+  limitationLabels,
+} from '@/features/profile/labels';
 import { confirm } from '@/lib/confirm';
 import { describeFailure } from '@/lib/describe-failure';
 
@@ -95,7 +101,7 @@ export default function ProfileScreen() {
         <Panel>
           <AppText variant="heading">{profile.name}</AppText>
           <AppText variant="callout" tone="secondary">{`Цель: ${goalLabels[profile.goal]}`}</AppText>
-          <AppText variant="callout" tone="secondary">{`Опыт: ${experienceLabels[profile.experience]}`}</AppText>
+          <AppText variant="callout" tone="secondary">{`Опыт: ${experienceLabels[profile.experience].toLowerCase()}, ${experienceHints[profile.experience].toLowerCase()}`}</AppText>
           <AppText variant="callout" tone="secondary">
             {`Режим: ${profile.daysPerWeek} дн. в неделю по ${profile.sessionMinutes} мин`}
           </AppText>

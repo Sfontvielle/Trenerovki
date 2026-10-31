@@ -1,9 +1,12 @@
-import { useState } from 'react';
-import { View } from 'react-native';
+import { router } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { TextInput, View } from 'react-native';
 
 import { useAppData } from '@/app-data/app-data';
-import { ChoiceGroup } from '@/components/choice-group';
-import { AppText, Button, Panel, Screen, TextField, useTheme } from '@/design-system';
+import { FadeIn } from '@/components/fade-in';
+import { RulerPicker } from '@/components/ruler-picker';
+import { WheelPicker } from '@/components/wheel-picker';
+import { AppText, Button, Panel, Screen, useTheme } from '@/design-system';
 import { createId } from '@/domains/data-platform/ids';
 import { exerciseName } from '@/domains/exercises/catalog';
 import { completeOnboarding } from '@/domains/profile/complete-onboarding';
@@ -20,7 +23,6 @@ import {
   type Profile,
   type SessionMinutes,
   type Sex,
-  allowedDaysPerWeek,
   allowedSessionMinutes,
   isValidAge,
   isValidName,
@@ -28,23 +30,66 @@ import {
 } from '@/domains/profile/profile';
 import { generatePlan } from '@/domains/program/generate-plan';
 import {
+  equipmentHints,
   equipmentLabels,
+  experienceHints,
   experienceLabels,
+  goalHints,
   goalLabels,
   limitationLabels,
-  sexLabels,
 } from '@/features/profile/labels';
+import { PlanAnalysis } from '@/features/profile/plan-analysis';
+import {
+  ChoiceCard,
+  FrequencyPicker,
+  QuestionHeader,
+  QuestionTitle,
+  SexCards,
+  type SymbolName,
+} from '@/features/profile/questionnaire-parts';
 import { describeFailure } from '@/lib/describe-failure';
-import { formatInputNumber, formatRepRange, parseDecimal, pluralize } from '@/lib/format';
+import { formatRepRange, parseDecimal, pluralize } from '@/lib/format';
 
-const LAST_QUESTION_STEP = 6;
-const REVIEW_STEP = 7;
+const pages = [
+  'name',
+  'age',
+  'sex',
+  'weight',
+  'goal',
+  'experience',
+  'days',
+  'duration',
+  'equipment',
+  'limitations',
+] as const;
+type Page = (typeof pages)[number];
+
+const REVIEW_PAGE = pages.length;
+const WEIGHT_START_KG = 75;
+const WEIGHT_STEP_KG = 0.5;
+const AGE_START = 30;
+const ages = Array.from({ length: MAX_AGE - MIN_AGE + 1 }, (_, index) => MIN_AGE + index);
+
+const goalSymbols: Record<Goal, SymbolName> = {
+  muscle: 'figure.strengthtraining.traditional',
+  fat_loss: 'flame.fill',
+  recomposition: 'arrow.triangle.2.circlepath',
+  strength: 'dumbbell.fill',
+  maintenance: 'heart.fill',
+};
+
+const equipmentSymbols: Record<Equipment, SymbolName> = {
+  gym: 'dumbbell.fill',
+  dumbbells: 'house.fill',
+  bar: 'figure.strengthtraining.functional',
+  bodyweight: 'figure.core.training',
+};
 
 type Draft = {
   name: string;
   ageText: string;
   sex: Sex | null;
-  weightText: string;
+  weightKg: number | null;
   goal: Goal | null;
   experience: Experience | null;
   daysPerWeek: DaysPerWeek | null;
@@ -57,7 +102,7 @@ const emptyDraft: Draft = {
   name: '',
   ageText: '',
   sex: null,
-  weightText: '',
+  weightKg: null,
   goal: null,
   experience: null,
   daysPerWeek: null,
@@ -67,32 +112,43 @@ const emptyDraft: Draft = {
 };
 
 function toDraft(profile: Profile | null): Draft {
-  return profile
-    ? { ...profile, ageText: String(profile.age), weightText: formatInputNumber(profile.weightKg) }
-    : emptyDraft;
+  return profile ? { ...profile, ageText: String(profile.age) } : emptyDraft;
 }
 
-function choices<Value extends string>(labels: Record<Value, string>) {
-  return (Object.keys(labels) as Value[]).map((value) => ({ value, label: labels[value] }));
+function keysOf<Key extends string>(labels: Record<Key, string>) {
+  return Object.keys(labels) as Key[];
 }
 
-function isStepComplete(step: number, draft: Draft) {
-  switch (step) {
-    case 0:
-      return isValidName(draft.name) && isValidAge(parseDecimal(draft.ageText));
-    case 1:
-      return isValidWeight(parseDecimal(draft.weightText));
-    case 2:
+function isPageComplete(page: Page, draft: Draft) {
+  switch (page) {
+    case 'name':
+      return isValidName(draft.name);
+    case 'age':
+      return isValidAge(parseDecimal(draft.ageText));
+    case 'weight':
+      return isValidWeight(draft.weightKg);
+    case 'goal':
       return draft.goal !== null;
-    case 3:
+    case 'experience':
       return draft.experience !== null;
-    case 4:
-      return draft.daysPerWeek !== null && draft.sessionMinutes !== null;
-    case 5:
+    case 'days':
+      return draft.daysPerWeek !== null;
+    case 'duration':
+      return draft.sessionMinutes !== null;
+    case 'equipment':
       return draft.equipment !== null;
     default:
       return true;
   }
+}
+
+function continueLabel(page: Page, draft: Draft) {
+  if (page === 'limitations') {
+    return 'Показать план';
+  }
+  const skippable =
+    (page === 'sex' && draft.sex === null) || (page === 'weight' && draft.weightKg === null);
+  return skippable ? 'Пропустить' : 'Продолжить';
 }
 
 function toProfile(draft: Draft): Profile {
@@ -100,7 +156,7 @@ function toProfile(draft: Draft): Profile {
     name: draft.name.trim(),
     sex: draft.sex,
     age: parseDecimal(draft.ageText) as number,
-    weightKg: parseDecimal(draft.weightText),
+    weightKg: draft.weightKg,
     goal: draft.goal as Goal,
     experience: draft.experience as Experience,
     daysPerWeek: draft.daysPerWeek as DaysPerWeek,
@@ -118,43 +174,35 @@ type QuestionnaireProps = {
 export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
   const { database, refreshProfile } = useAppData();
   const { theme } = useTheme();
-  const [step, setStep] = useState(0);
+  const { colors, radii, sizes, spacing, typography } = theme;
+  const [pageIndex, setPageIndex] = useState(0);
   const [draft, setDraft] = useState(() => toDraft(initial));
-  const [showErrors, setShowErrors] = useState(false);
+  const [analyzing, setAnalyzing] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const finishAnalysis = useCallback(() => setAnalyzing(false), []);
 
   const update = (changes: Partial<Draft>) => {
     setDraft((current) => ({ ...current, ...changes }));
   };
 
-  const toggleLimitation = (limitation: Limitation) => {
-    setDraft((current) => ({
-      ...current,
-      limitations: current.limitations.includes(limitation)
-        ? current.limitations.filter((item) => item !== limitation)
-        : [...current.limitations, limitation],
-    }));
-  };
-
-  const goNext = () => {
-    if (!isStepComplete(step, draft)) {
-      setShowErrors(true);
-      return;
+  const goBack = () => {
+    if (pageIndex > 0) {
+      setPageIndex(pageIndex - 1);
+    } else if (router.canGoBack()) {
+      router.back();
     }
-    setShowErrors(false);
-    setStep((current) => current + 1);
   };
 
-  const age = parseDecimal(draft.ageText);
-  const ageError = !isValidAge(age)
-    ? `Укажите полный возраст от ${MIN_AGE} до ${MAX_AGE} лет: приложение рассчитано на взрослых`
-    : null;
-  const weightError = !isValidWeight(parseDecimal(draft.weightText))
-    ? `Укажите вес от ${MIN_WEIGHT_KG} до ${MAX_WEIGHT_KG} кг или оставьте поле пустым`
-    : null;
+  if (pageIndex === REVIEW_PAGE) {
+    if (analyzing) {
+      return (
+        <Screen fill ambient>
+          <PlanAnalysis onDone={finishAnalysis} />
+        </Screen>
+      );
+    }
 
-  if (step === REVIEW_STEP) {
     const profile = toProfile(draft);
     const plan = generatePlan(profile);
 
@@ -180,183 +228,293 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
     };
 
     return (
-      <Screen scroll belowHeader>
-        <View style={{ gap: theme.spacing.s }}>
-          <AppText accessibilityRole="header" variant="title">
-            {initial ? 'Ваш новый план' : 'Ваш стартовый план'}
-          </AppText>
-          <AppText tone="secondary">
-            {`${plan.length} ${pluralize(plan.length, ['тренировка', 'тренировки', 'тренировок'])} в цикле. Учтены цель, опыт, режим, условия и ограничения. План составлен правилами приложения, а не специалистом.`}
-          </AppText>
+      <Screen scroll ambient>
+        <FadeIn style={{ gap: spacing.xl }}>
+          <QuestionTitle
+            hint={`${plan.length} ${pluralize(plan.length, ['тренировка', 'тренировки', 'тренировок'])} в цикле. Учтены цель, опыт, режим, условия и ограничения. План составлен правилами приложения, а не специалистом.`}
+            title={initial ? 'Ваш новый план' : 'Ваш стартовый план'}
+          />
           {initial ? (
-            <AppText tone="secondary">Новый план заменит текущий. История тренировок сохранится.</AppText>
+            <AppText tone="secondary" style={{ textAlign: 'center' }}>
+              Новый план заменит текущий. История тренировок сохранится.
+            </AppText>
           ) : null}
-        </View>
 
-        {plan.map((day) => (
-          <Panel key={day.name}>
-            <AppText variant="heading">{day.name}</AppText>
-            {day.exercises.map((exercise) => (
-              <AppText key={exercise.exerciseId} variant="callout" tone="secondary">
-                {`${exerciseName(exercise.exerciseId)}: ${exercise.targetSets} × ${formatRepRange(exercise.repsMin, exercise.repsMax)}`}
-              </AppText>
-            ))}
-          </Panel>
-        ))}
+          {plan.map((day) => (
+            <Panel key={day.name}>
+              <AppText variant="heading">{day.name}</AppText>
+              {day.exercises.map((exercise) => (
+                <AppText key={exercise.exerciseId} variant="callout" tone="secondary">
+                  {`${exerciseName(exercise.exerciseId)}: ${exercise.targetSets} × ${formatRepRange(exercise.repsMin, exercise.repsMax)}`}
+                </AppText>
+              ))}
+            </Panel>
+          ))}
 
-        <AppText variant="callout" tone="secondary">
-          Начинайте с лёгкого веса: подходы должны даваться с запасом.
-        </AppText>
-        {profile.limitations.length > 0 ? (
           <AppText variant="callout" tone="secondary">
-            Мы исключили упражнения, отмеченные в нашем каталоге для выбранных зон. Это не медицинская
-            рекомендация.
+            Начинайте с лёгкого веса: подходы должны даваться с запасом.
           </AppText>
-        ) : null}
-        <AppText variant="caption" tone="secondary">
-          IRONVANT не диагностирует и не лечит. Если есть боль, травма или заболевание, сначала
-          посоветуйтесь с врачом и прекращайте упражнение при боли.
-        </AppText>
+          {profile.limitations.length > 0 ? (
+            <AppText variant="callout" tone="secondary">
+              Мы исключили упражнения, отмеченные в нашем каталоге для выбранных зон. Это не медицинская
+              рекомендация.
+            </AppText>
+          ) : null}
+          <AppText variant="caption" tone="secondary">
+            IRONVANT не диагностирует и не лечит. Если есть боль, травма или заболевание, сначала
+            посоветуйтесь с врачом и прекращайте упражнение при боли.
+          </AppText>
 
-        {saveError ? (
-          <AppText accessibilityLiveRegion="polite" tone="danger">
-            {saveError}
-          </AppText>
-        ) : null}
-        <Button label="Принять план" loading={saving} onPress={accept} />
-        <Button
-          label="Изменить ответы"
-          variant="secondary"
-          disabled={saving}
-          onPress={() => setStep(LAST_QUESTION_STEP)}
-        />
+          {saveError ? (
+            <AppText accessibilityLiveRegion="polite" tone="danger">
+              {saveError}
+            </AppText>
+          ) : null}
+          <Button label="Принять план" loading={saving} onPress={accept} />
+          <Button
+            label="Изменить ответы"
+            variant="secondary"
+            disabled={saving}
+            onPress={() => {
+              setAnalyzing(true);
+              setPageIndex(REVIEW_PAGE - 1);
+            }}
+          />
+        </FadeIn>
       </Screen>
     );
   }
 
+  const page = pages[pageIndex];
+  const age = parseDecimal(draft.ageText);
+  const ageError =
+    draft.ageText !== '' && !isValidAge(age)
+      ? `Укажите полный возраст от ${MIN_AGE} до ${MAX_AGE} лет: приложение рассчитано на взрослых`
+      : null;
+  const weightError = !isValidWeight(draft.weightKg)
+    ? `Укажите вес от ${MIN_WEIGHT_KG} до ${MAX_WEIGHT_KG} кг`
+    : null;
+  const inputSurface = {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: sizes.border,
+    color: colors.textPrimary,
+  };
+
   return (
-    <Screen scroll belowHeader>
-      <AppText variant="callout" tone="secondary">
-        {`Шаг ${step + 1} из ${LAST_QUESTION_STEP + 1}`}
-      </AppText>
+    <Screen scroll fill ambient>
+      <QuestionHeader current={pageIndex + 1} total={pages.length} onBack={goBack} />
 
-      {step === 0 ? (
-        <View style={{ gap: theme.spacing.xl }}>
-          <TextField
-            autoCapitalize="words"
-            autoComplete="given-name"
-            error={showErrors && !isValidName(draft.name) ? 'Укажите имя' : null}
-            label="Как вас зовут"
-            onChangeText={(name) => update({ name })}
-            value={draft.name}
-          />
-          <TextField
-            error={showErrors ? ageError : null}
-            keyboardType="number-pad"
-            label="Возраст"
-            onChangeText={(ageText) => update({ ageText })}
-            value={draft.ageText}
-          />
-        </View>
-      ) : null}
+      <FadeIn key={page} style={{ flex: 1, gap: spacing.xl }}>
+        {page === 'name' ? (
+          <>
+            <QuestionTitle title="Как вас зовут?" hint="Так мы будем к вам обращаться" />
+            <TextInput
+              accessibilityLabel="Как вас зовут"
+              autoCapitalize="words"
+              autoComplete="given-name"
+              autoFocus={!draft.name}
+              keyboardAppearance={theme.mode}
+              maxFontSizeMultiplier={theme.maxFontScale}
+              maxLength={40}
+              onChangeText={(name) => update({ name })}
+              placeholder="Ваше имя"
+              placeholderTextColor={colors.textSecondary}
+              selectionColor={colors.accent}
+              style={[
+                typography.heading,
+                inputSurface,
+                { borderRadius: radii.panel, minHeight: sizes.choiceMinHeight, paddingHorizontal: spacing.l },
+              ]}
+              value={draft.name}
+            />
+          </>
+        ) : null}
 
-      {step === 1 ? (
-        <View style={{ gap: theme.spacing.xl }}>
-          <ChoiceGroup
-            choices={[...choices(sexLabels), { value: null, label: 'Не указывать' }]}
-            isSelected={(value) => draft.sex === value}
-            label="Пол"
-            onSelect={(sex) => update({ sex })}
-          />
-          <TextField
-            error={showErrors ? weightError : null}
-            keyboardType="decimal-pad"
-            label="Вес, кг"
-            onChangeText={(weightText) => update({ weightText })}
-            value={draft.weightText}
-          />
-          <AppText variant="caption" tone="secondary">
-            Оба ответа необязательны и пока не влияют на план.
-          </AppText>
-        </View>
-      ) : null}
+        {page === 'age' ? (
+          <>
+            <QuestionTitle title="Сколько вам лет?" hint={`Приложение рассчитано на взрослых от ${MIN_AGE} лет`} />
+            <WheelPicker
+              label="Возраст, лет"
+              onChange={(value) => update({ ageText: String(value) })}
+              start={AGE_START}
+              value={isValidAge(age) ? age : null}
+              values={ages}
+            />
+            <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.s, justifyContent: 'center' }}>
+              <AppText variant="callout" tone="secondary">
+                или введите:
+              </AppText>
+              <TextInput
+                accessibilityLabel="Возраст"
+                keyboardAppearance={theme.mode}
+                keyboardType="number-pad"
+                maxFontSizeMultiplier={theme.maxFontScale}
+                maxLength={3}
+                onChangeText={(ageText) => update({ ageText })}
+                placeholder="—"
+                placeholderTextColor={colors.textSecondary}
+                selectionColor={colors.accent}
+                style={[
+                  typography.heading,
+                  inputSurface,
+                  {
+                    borderRadius: radii.chip,
+                    minHeight: sizes.minTouch,
+                    textAlign: 'center',
+                    width: sizes.control * 1.4,
+                  },
+                ]}
+                value={draft.ageText}
+              />
+            </View>
+            {ageError ? (
+              <AppText accessibilityLiveRegion="polite" variant="callout" tone="danger" style={{ textAlign: 'center' }}>
+                {ageError}
+              </AppText>
+            ) : null}
+          </>
+        ) : null}
 
-      {step === 2 ? (
-        <ChoiceGroup
-          choices={choices(goalLabels)}
-          isSelected={(value) => draft.goal === value}
-          label="Главная цель"
-          onSelect={(goal) => update({ goal })}
-        />
-      ) : null}
+        {page === 'sex' ? (
+          <>
+            <QuestionTitle title="Ваш пол" hint="Необязательно. Пока не влияет на план" />
+            <SexCards value={draft.sex} onChange={(sex) => update({ sex })} />
+          </>
+        ) : null}
 
-      {step === 3 ? (
-        <ChoiceGroup
-          choices={choices(experienceLabels)}
-          isSelected={(value) => draft.experience === value}
-          label="Опыт силовых тренировок"
-          onSelect={(experience) => update({ experience })}
-        />
-      ) : null}
+        {page === 'weight' ? (
+          <>
+            <QuestionTitle title="Сколько вы весите?" hint="Необязательно. Пока не влияет на план" />
+            <RulerPicker
+              label="Вес"
+              max={MAX_WEIGHT_KG}
+              min={MIN_WEIGHT_KG}
+              onChange={(weightKg) => update({ weightKg })}
+              start={WEIGHT_START_KG}
+              step={WEIGHT_STEP_KG}
+              unit="кг"
+              value={draft.weightKg}
+            />
+            {weightError ? (
+              <AppText accessibilityLiveRegion="polite" variant="callout" tone="danger" style={{ textAlign: 'center' }}>
+                {weightError}
+              </AppText>
+            ) : null}
+          </>
+        ) : null}
 
-      {step === 4 ? (
-        <View style={{ gap: theme.spacing.xl }}>
-          <ChoiceGroup
-            choices={allowedDaysPerWeek.map((value) => ({ value, label: String(value) }))}
-            isSelected={(value) => draft.daysPerWeek === value}
-            label="Сколько дней в неделю"
-            onSelect={(daysPerWeek) => update({ daysPerWeek })}
-          />
-          <ChoiceGroup
-            choices={allowedSessionMinutes.map((value) => ({ value, label: `${value} мин` }))}
-            isSelected={(value) => draft.sessionMinutes === value}
-            label="Сколько длится тренировка"
-            onSelect={(sessionMinutes) => update({ sessionMinutes })}
-          />
-        </View>
-      ) : null}
+        {page === 'goal' ? (
+          <>
+            <QuestionTitle title="Ваша главная цель" />
+            <View accessibilityRole="radiogroup" style={{ gap: spacing.m }}>
+              {keysOf(goalLabels).map((goal) => (
+                <ChoiceCard
+                  key={goal}
+                  hint={goalHints[goal]}
+                  onPress={() => update({ goal })}
+                  selected={draft.goal === goal}
+                  symbol={goalSymbols[goal]}
+                  title={goalLabels[goal]}
+                />
+              ))}
+            </View>
+          </>
+        ) : null}
 
-      {step === 5 ? (
-        <ChoiceGroup
-          choices={choices(equipmentLabels)}
-          isSelected={(value) => draft.equipment === value}
-          label="Условия для тренировок"
-          onSelect={(equipment) => update({ equipment })}
-        />
-      ) : null}
+        {page === 'experience' ? (
+          <>
+            <QuestionTitle title="Ваш опыт силовых тренировок" />
+            <View accessibilityRole="radiogroup" style={{ gap: spacing.m }}>
+              {keysOf(experienceLabels).map((experience) => (
+                <ChoiceCard
+                  key={experience}
+                  hint={experienceHints[experience]}
+                  onPress={() => update({ experience })}
+                  selected={draft.experience === experience}
+                  title={experienceLabels[experience]}
+                />
+              ))}
+            </View>
+          </>
+        ) : null}
 
-      {step === 6 ? (
-        <View style={{ gap: theme.spacing.xl }}>
-          <ChoiceGroup
-            choices={choices(limitationLabels)}
-            isSelected={(value) => draft.limitations.includes(value)}
-            label="Что нельзя сильно нагружать"
-            onSelect={toggleLimitation}
-          />
-          <AppText variant="caption" tone="secondary">
-            Необязательно. Мы исключим упражнения, отмеченные в нашем каталоге для этих зон. Это не
-            медицинская рекомендация.
-          </AppText>
-        </View>
-      ) : null}
+        {page === 'days' ? (
+          <>
+            <QuestionTitle title="Сколько раз в неделю вы планируете тренироваться?" />
+            <FrequencyPicker value={draft.daysPerWeek} onChange={(daysPerWeek) => update({ daysPerWeek })} />
+          </>
+        ) : null}
 
-      {showErrors && !isStepComplete(step, draft) && step >= 2 ? (
-        <AppText accessibilityLiveRegion="polite" variant="callout" tone="danger">
-          Выберите вариант, чтобы продолжить
-        </AppText>
-      ) : null}
+        {page === 'duration' ? (
+          <>
+            <QuestionTitle title="Сколько длится одна тренировка?" />
+            <View accessibilityRole="radiogroup" style={{ gap: spacing.m }}>
+              {allowedSessionMinutes.map((minutes) => (
+                <ChoiceCard
+                  key={minutes}
+                  onPress={() => update({ sessionMinutes: minutes })}
+                  selected={draft.sessionMinutes === minutes}
+                  title={`${minutes} минут`}
+                />
+              ))}
+            </View>
+          </>
+        ) : null}
 
-      <Button label={step === LAST_QUESTION_STEP ? 'Показать план' : 'Далее'} onPress={goNext} />
-      {step > 0 ? (
-        <Button
-          label="Назад"
-          variant="secondary"
-          onPress={() => {
-            setShowErrors(false);
-            setStep((current) => current - 1);
-          }}
-        />
-      ) : null}
+        {page === 'equipment' ? (
+          <>
+            <QuestionTitle title="В каких условиях вы тренируетесь?" />
+            <View accessibilityRole="radiogroup" style={{ gap: spacing.m }}>
+              {keysOf(equipmentLabels).map((equipment) => (
+                <ChoiceCard
+                  key={equipment}
+                  hint={equipmentHints[equipment]}
+                  onPress={() => update({ equipment })}
+                  selected={draft.equipment === equipment}
+                  symbol={equipmentSymbols[equipment]}
+                  title={equipmentLabels[equipment]}
+                />
+              ))}
+            </View>
+          </>
+        ) : null}
+
+        {page === 'limitations' ? (
+          <>
+            <QuestionTitle
+              hint="Необязательно. Мы исключим упражнения, отмеченные в нашем каталоге для этих зон. Это не медицинская рекомендация."
+              title="Что нельзя сильно нагружать?"
+            />
+            <View style={{ gap: spacing.m }}>
+              {keysOf(limitationLabels).map((limitation) => (
+                <ChoiceCard
+                  key={limitation}
+                  multiple
+                  onPress={() =>
+                    update({
+                      limitations: draft.limitations.includes(limitation)
+                        ? draft.limitations.filter((item) => item !== limitation)
+                        : [...draft.limitations, limitation],
+                    })
+                  }
+                  selected={draft.limitations.includes(limitation)}
+                  title={limitationLabels[limitation]}
+                />
+              ))}
+            </View>
+          </>
+        ) : null}
+      </FadeIn>
+
+      <Button
+        disabled={!isPageComplete(page, draft)}
+        label={continueLabel(page, draft)}
+        onPress={() => {
+          setAnalyzing(true);
+          setPageIndex(pageIndex + 1);
+        }}
+      />
     </Screen>
   );
 }

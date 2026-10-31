@@ -13,10 +13,24 @@ export const goalLabels: Record<Goal, string> = {
   maintenance: 'Поддерживать форму',
 };
 
+export const goalHints: Record<Goal, string> = {
+  muscle: 'Рост мышц за счёт объёма',
+  fat_loss: 'Больше повторов в подходах',
+  recomposition: 'Сбалансированная нагрузка',
+  strength: 'Упор на рабочие веса',
+  maintenance: 'Регулярно, без гонки за весом',
+};
+
 export const experienceLabels: Record<Experience, string> = {
-  beginner: 'Новичок, до 6 месяцев',
-  intermediate: 'Средний, от 6 месяцев до 2 лет',
-  advanced: 'Опытный, больше 2 лет',
+  beginner: 'Новичок',
+  intermediate: 'Средний',
+  advanced: 'Опытный',
+};
+
+export const experienceHints: Record<Experience, string> = {
+  beginner: 'До 6 месяцев',
+  intermediate: 'От 6 месяцев до 2 лет',
+  advanced: 'Больше 2 лет',
 };
 
 export const equipmentLabels: Record<Equipment, string> = {
@@ -24,6 +38,13 @@ export const equipmentLabels: Record<Equipment, string> = {
   dumbbells: 'Гантели дома',
   bar: 'Свой вес и турник',
   bodyweight: 'Только свой вес',
+};
+
+export const equipmentHints: Record<Equipment, string> = {
+  gym: 'Штанга, блоки и тренажёры',
+  dumbbells: 'Скамья не нужна',
+  bar: 'Дома или на площадке',
+  bodyweight: 'Без инвентаря',
 };
 
 export const limitationLabels: Record<Limitation, string> = {
