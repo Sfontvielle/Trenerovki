@@ -69,6 +69,7 @@ export default function ProfileScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [backupPassword, setBackupPassword] = useState('');
+  const [passwordRepeat, setPasswordRepeat] = useState('');
   const [lockedBackup, setLockedBackup] = useState<string | null>(null);
   const [unlockPassword, setUnlockPassword] = useState('');
   const [encrypting, setEncrypting] = useState(false);
@@ -91,11 +92,16 @@ export default function ProfileScreen() {
       setMessage(t('Пароль должен быть не короче {0} символов.', { 0: MIN_PASSWORD_LENGTH }));
       return;
     }
+    if (backupPassword !== passwordRepeat && backupPassword) {
+      setMessage(t('Пароли не совпадают.'));
+      return;
+    }
     setEncrypting(true);
     try {
       if (await shareBackup(database, backupPassword || null)) {
-        setNotice(t('Резервная копия сохранена.'));
+        setNotice(t('Резервная копия передана. Проверьте, что файл появился там, куда вы его сохранили.'));
         setBackupPassword('');
+        setPasswordRepeat('');
       }
     } catch (error) {
       console.error(error);
@@ -110,7 +116,7 @@ export default function ProfileScreen() {
     setNotice(null);
     try {
       if (await shareLatestSnapshot()) {
-        setNotice(t('Копия сохранена.'));
+        setNotice(t('Копия передана. Проверьте, что файл появился там, куда вы его сохранили.'));
       }
     } catch (error) {
       console.error(error);
@@ -123,7 +129,7 @@ export default function ProfileScreen() {
     setNotice(null);
     try {
       if (await shareWorkoutsCsv(database)) {
-        setNotice(t('Таблица тренировок сохранена.'));
+        setNotice(t('Таблица тренировок передана. Проверьте, что файл появился там, куда вы его сохранили.'));
       }
     } catch (error) {
       console.error(error);
@@ -175,7 +181,7 @@ export default function ProfileScreen() {
       console.error(error);
       setMessage(
         error instanceof WrongPasswordError
-          ? t('Пароль не подходит к этой копии. Текущие данные не изменились.')
+          ? t('Пароль не подходит или файл копии повреждён. Текущие данные не изменились.')
           : error instanceof BackupError
             ? backupProblems[error.problem]
             : t('Данные не восстановлены. Текущие данные не изменились. {0}', { 0: describeFailure(error) }),
@@ -219,7 +225,7 @@ export default function ProfileScreen() {
   const deleteData = async () => {
     const approved = await confirm({
       title: t('Удалить все данные?'),
-      message: t('Будут удалены профиль, план, тренировки, питание, вес тела, ваши упражнения и настройки. Вернуть их можно только из резервной копии.'),
+      message: t('Будут удалены все данные IRONVANT на этом iPhone: профиль, план, тренировки, питание, вес, отметки о сне и самочувствии, шаги, записи Coach и настройки. Вернуть их можно только из резервной копии, сохранённой заранее. Резервные копии iPhone и файлы, которые вы сохранили сами, это не затрагивает.'),
       confirmLabel: t('Удалить всё'),
       destructive: true,
     });
@@ -309,10 +315,10 @@ export default function ProfileScreen() {
       <Panel>
         <AppText variant="heading">{t('Ваши данные')}</AppText>
         <AppText variant="callout" tone="secondary">
-          {t('IRONVANT хранит данные на этом iPhone. Наружу уходит только номер штрихкода, когда вы сканируете продукт: его получает открытая база Open Food Facts. Они могут попасть в резервную копию iPhone, если она включена.')}
+          {t('IRONVANT хранит данные на этом iPhone и никуда их не отправляет, кроме одного случая: при сканировании номер штрихкода уходит в открытую базу Open Food Facts, а её сервер видит IP-адрес устройства. Если включено резервное копирование iPhone, данные приложения попадают в него.')}
         </AppText>
         <AppText variant="callout" tone="secondary">
-          {t('Резервная копия — это файл с вашими ответами, планом, тренировками, питанием и весом. Без пароля его может открыть любой, у кого есть файл. С паролем он зашифрован, но забытый пароль восстановить нельзя.')}
+          {t('Резервная копия — это файл со всеми вашими данными: ответами и ограничениями, планом, тренировками, питанием, весом, отметками о сне и самочувствии, шагами и записями Coach. Без пароля его может открыть любой, у кого есть файл. С паролем он зашифрован, но забытый пароль восстановить нельзя.')}
         </AppText>
         <TextField
           hint={t('Необязательно. Не короче {0} символов', { 0: MIN_PASSWORD_LENGTH })}
@@ -321,6 +327,14 @@ export default function ProfileScreen() {
           secureTextEntry
           value={backupPassword}
         />
+        {backupPassword ? (
+          <TextField
+            label={t('Повторите пароль')}
+            onChangeText={setPasswordRepeat}
+            secureTextEntry
+            value={passwordRepeat}
+          />
+        ) : null}
         <Button label={t('Сохранить резервную копию')} variant="secondary" loading={encrypting} onPress={saveBackup} />
         <Button label={t('Восстановить из копии')} variant="secondary" onPress={restoreBackup} />
         {lockedBackup ? (

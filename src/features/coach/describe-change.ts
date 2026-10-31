@@ -10,8 +10,8 @@ export function describeChange(change: ProposalChange) {
     case 'sets':
       return t('Было: подходов {0}. Станет: подходов {1}.', { 0: change.from, 1: change.to });
     case 'deload':
-      return t('До {0} на один подход меньше в каждом упражнении.', { 0: formatDate(`${change.untilDay}T12:00:00`) });
+      return t('До {0} на один подход меньше в упражнениях, где их два и больше.', { 0: formatDate(`${change.untilDay}T12:00:00`) });
     case 'days':
-      return t('Было: {0} тренировки в неделю. Станет: {1}. План будет составлен заново, вернуть прежний можно в истории решений.', { 0: change.from, 1: change.to });
+      return t('Тренировок в неделю: было {0}, станет {1}. План будет составлен заново, вернуть прежний можно в истории решений.', { 0: change.from, 1: change.to });
   }
 }

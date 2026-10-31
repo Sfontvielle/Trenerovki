@@ -2,7 +2,7 @@ import type { Database } from '../data-platform/database';
 import type { MuscleGroup } from '../exercises/catalog';
 import { findExercise } from '../exercises/catalog';
 import { findPlateaus } from '../insights/local-insights';
-import { dayKey } from '../nutrition/nutrition';
+import { dayKey, shiftDay } from '../nutrition/nutrition';
 import { getProgram } from '../program/program-repository';
 import type { Profile } from '../profile/profile';
 import { assessReadiness } from '../recovery/recovery';
@@ -14,7 +14,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * DAY_MS;
 const PLATEAU_WINDOW_MS = 28 * DAY_MS;
 const WEEKS_LOOKED_BACK = 6;
-const READINESS_DAYS = 5;
+const READINESS_DAYS = 7;
 
 async function workoutsByWeek(database: Database, now: Date) {
   const counts: number[] = [];
@@ -81,7 +81,11 @@ export async function readCoachFacts(database: Database, profile: Profile, now: 
     weeksSinceFirstWorkout(database, now),
   ]);
 
-  const lowReadinessDays = checkins.filter((checkin) => assessReadiness(checkin, 0)?.level === 'low').length;
+  // Only the last week counts: an old check-in says nothing about today.
+  const weekStart = shiftDay(today, 1 - READINESS_DAYS);
+  const lowReadinessDays = checkins.filter(
+    (checkin) => checkin.day >= weekStart && assessReadiness(checkin, 0)?.level === 'low',
+  ).length;
 
   return {
     today,

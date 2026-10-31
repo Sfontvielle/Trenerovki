@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import { useAppData } from '@/app-data/app-data';
 import { AppText, Button, Panel, useTheme } from '@/design-system';
 import { createId } from '@/domains/data-platform/ids';
-import { exerciseTracking } from '@/domains/exercises/catalog';
+import { exerciseTracking, findExercise } from '@/domains/exercises/catalog';
 import { type Suggestion, suggestNextSet } from '@/domains/workout/progression';
 import type { SessionExercise, WorkoutSet } from '@/domains/workout/types';
 import { SetFields, type SetFormValues, parseSetForm, setFormProblem, toSetForm } from '@/features/workout/set-form';
@@ -38,7 +38,7 @@ function describeSuggestion({ kind, weightKg, reps, durationSec }: Suggestion) {
     case 'add_time':
       return {
         title: t('Попробовать {0}?', { 0: formatSeconds(durationSec as number) }),
-        body: t('Прошлые подходы выполнены полностью, можно добавить немного времени. Решение за вами.'),
+        body: t('Можно добавить немного времени. Решение за вами.'),
       };
     case 'reduce_weight':
       return {
@@ -60,8 +60,10 @@ export function SetLogger({ exercise, recentSets, paused, suggestionsAllowed, on
   const lastSets = recentSets[0] ?? [];
   const previous = exercise.sets.at(-1) ?? lastSets[exercise.sets.length] ?? lastSets.at(-1);
   const prefill = { reps: exercise.repsMin, durationSec: exercise.targetDurationSec };
+  // Cardio and stretching have no target to beat, so they get no suggestions.
+  const progressive = tracking !== 'cardio' && findExercise(exercise.exerciseId)?.category !== 'mobility';
   const suggestion =
-    suggestionsAllowed && exercise.sets.length === 0 ? suggestNextSet(recentSets, exercise) : null;
+    suggestionsAllowed && progressive && exercise.sets.length === 0 ? suggestNextSet(recentSets, exercise) : null;
   const advice = suggestion ? describeSuggestion(suggestion) : null;
 
   const [editing, setEditing] = useState<WorkoutSet | null>(null);

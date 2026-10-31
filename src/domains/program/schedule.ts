@@ -1,13 +1,13 @@
 import { t } from '@/lib/i18n';
 
 export const weekdays = [
-  { value: 1, short: t('Пн'), accusative: t('понедельник') },
-  { value: 2, short: t('Вт'), accusative: t('вторник') },
-  { value: 3, short: t('Ср'), accusative: t('среду') },
-  { value: 4, short: t('Чт'), accusative: t('четверг') },
-  { value: 5, short: t('Пт'), accusative: t('пятницу') },
-  { value: 6, short: t('Сб'), accusative: t('субботу') },
-  { value: 0, short: t('Вс'), accusative: t('воскресенье') },
+  { value: 1, short: t('Пн'), accusative: t('в понедельник') },
+  { value: 2, short: t('Вт'), accusative: t('во вторник') },
+  { value: 3, short: t('Ср'), accusative: t('в среду') },
+  { value: 4, short: t('Чт'), accusative: t('в четверг') },
+  { value: 5, short: t('Пт'), accusative: t('в пятницу') },
+  { value: 6, short: t('Сб'), accusative: t('в субботу') },
+  { value: 0, short: t('Вс'), accusative: t('в воскресенье') },
 ] as const;
 
 export function scheduleHeading(trainingDays: number[], now: Date) {
@@ -21,5 +21,5 @@ export function scheduleHeading(trainingDays: number[], now: Date) {
 
   const daysAhead = [1, 2, 3, 4, 5, 6].find((offset) => trainingDays.includes((today + offset) % 7));
   const nextDay = weekdays.find(({ value }) => value === (today + (daysAhead ?? 1)) % 7);
-  return t('Сегодня отдых. Следующая тренировка в {0}', { 0: nextDay?.accusative });
+  return t('Сегодня отдых. Следующая тренировка {0}', { 0: nextDay?.accusative });
 }

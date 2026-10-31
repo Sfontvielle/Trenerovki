@@ -73,7 +73,7 @@ export default function HomeScreen() {
                 <AppText variant="title">{nextDay.name}</AppText>
                 {deload ? (
                   <AppText variant="callout" tone="accent">
-                    {t('Лёгкая неделя: на один подход меньше в каждом упражнении')}
+                    {t('Лёгкая неделя: на один подход меньше в упражнениях, где их два и больше. Вес не прибавляйте.')}
                   </AppText>
                 ) : null}
                 {nextDay.exercises.map((exercise) => (

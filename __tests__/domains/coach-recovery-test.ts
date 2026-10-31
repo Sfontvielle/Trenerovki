@@ -29,6 +29,7 @@ import { getProgram } from '@/domains/program/program-repository';
 import { completeOnboarding } from '@/domains/profile/complete-onboarding';
 import type { Profile } from '@/domains/profile/profile';
 import { getProfile } from '@/domains/profile/profile-repository';
+import { findExercise } from '@/domains/exercises/catalog';
 import { type Checkin, assessReadiness, isValidSleep } from '@/domains/recovery/recovery';
 import {
   countRecentWorkouts,
@@ -272,6 +273,72 @@ describe('buildProposals', () => {
 
     expect(passesGuardrails({ change }, facts(context, program))).toBe(true);
     expect(passesGuardrails({ change }, facts(limited, program))).toBe(false);
+  });
+
+  it('does not send a beginner to a demanding lift', async () => {
+    const context = await setup({ experience: 'beginner' });
+    const program = await getProgram(context.database);
+    const entry = program[0].exercises[0];
+
+    const [draft] = buildProposals(facts(context, program, { discomfort: [entry.exerciseId] }));
+
+    expect(draft.change).toMatchObject({ type: 'replace' });
+    const target = draft.change.type === 'replace' ? findExercise(draft.change.toExerciseId) : null;
+    expect(target?.demanding).toBe(false);
+    expect(
+      passesGuardrails(
+        {
+          change: {
+            type: 'replace',
+            programExerciseId: entry.id,
+            fromExerciseId: entry.exerciseId,
+            toExerciseId: 'deadlift',
+            target: { repsMin: 8, repsMax: 12, targetDurationSec: null },
+          },
+        },
+        facts(context, program),
+      ),
+    ).toBe(false);
+  });
+
+  it('never proposes extra sets of a warm-up stretch', async () => {
+    const context = await setup({ sessionMinutes: 60 });
+    const program = await getProgram(context.database);
+
+    const drafts = buildProposals(facts(context, program, { weeklySetsByGroup: { back: 1 } }));
+    const extra = drafts.filter(({ kind }) => kind === 'low_volume');
+
+    for (const { change } of extra) {
+      expect(change.type === 'sets' ? findExercise(change.exerciseId)?.category : null).toBe('strength');
+    }
+  });
+
+  it('ignores old check-ins when judging readiness', async () => {
+    const context = await setup();
+    for (const day of ['2026-10-01', '2026-10-02', '2026-10-03']) {
+      await saveCheckin(context.database, checkin({ day, sleepHours: 4, energy: 1, soreness: 5 }), NOW);
+    }
+
+    expect((await readCoachFacts(context.database, context.profile, NOW)).lowReadinessDays).toBe(0);
+
+    await saveCheckin(context.database, checkin({ day: '2026-11-15', sleepHours: 4, energy: 1, soreness: 5 }), NOW);
+
+    expect((await readCoachFacts(context.database, context.profile, NOW)).lowReadinessDays).toBe(1);
+  });
+
+  it('keeps avoided and painful exercises out of a rebuilt plan', async () => {
+    const context = await setup({ daysPerWeek: 4 });
+    const program = await getProgram(context.database);
+    const unwanted = program[1].exercises[0].exerciseId;
+    const current = facts(context, program, { workoutsByWeek: [1, 2, 1, 0, 0, 0], avoided: [unwanted] });
+    await syncProposals(context.database, buildProposals(current), NOW, createId);
+    const open = await listOpenProposals(context.database);
+    const fewer = open.find(({ kind }) => kind === 'fewer_days');
+
+    await acceptProposal(context.database, fewer!.id, { facts: current, now: NOW, createId });
+
+    const ids = (await getProgram(context.database)).flatMap((day) => day.exercises.map(({ exerciseId }) => exerciseId));
+    expect(ids).not.toContain(unwanted);
   });
 
   it('refuses a replacement that is already in the plan', async () => {

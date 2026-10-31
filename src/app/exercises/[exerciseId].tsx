@@ -17,6 +17,7 @@ import {
   muscleLabels,
 } from '@/domains/exercises/catalog';
 import { techniqueCues } from '@/domains/exercises/technique';
+import { readyForDemanding } from '@/domains/profile/profile';
 import { equipmentLabels, limitationLabels } from '@/features/profile/labels';
 import { describeFailure } from '@/lib/describe-failure';
 import { t } from '@/lib/i18n';
@@ -28,20 +29,29 @@ export default function ExerciseDetailsScreen() {
   const exercise = findExercise(exerciseId);
   const cues = techniqueCues[exerciseId] ?? [];
   const restricted = exercise?.loads.filter((area) => profile?.limitations.includes(area)) ?? [];
-  const alternatives = profile
-    ? findAlternatives(exerciseId, { equipment: profile.equipment, limitations: profile.limitations })
-    : [];
 
   const load = useCallback(async () => {
     const memory = await listMemory(database);
-    return memory.find((entry) => entry.exerciseId === exerciseId) ?? null;
+    return {
+      own: memory.find((entry) => entry.exerciseId === exerciseId) ?? null,
+      excluded: memory.flatMap((entry) => (entry.exerciseId ? [entry.exerciseId] : [])),
+    };
   }, [database, exerciseId]);
   const avoided = useScreenData(load);
+  const alternatives =
+    profile && avoided.status === 'ready'
+      ? findAlternatives(exerciseId, {
+          equipment: profile.equipment,
+          limitations: profile.limitations,
+          allowDemanding: readyForDemanding(profile),
+          excluded: avoided.data.excluded,
+        })
+      : [];
 
   const toggleAvoided = async () => {
     try {
-      if (avoided.status === 'ready' && avoided.data) {
-        await deleteMemory(database, avoided.data.id);
+      if (avoided.status === 'ready' && avoided.data.own) {
+        await deleteMemory(database, avoided.data.own.id);
       } else {
         await addMemory(
           database,
@@ -107,7 +117,7 @@ export default function ExerciseDetailsScreen() {
       )}
 
       {restricted.length > 0 ? (
-        <AppText tone="warning">{t('Это упражнение заметно нагружает зону из ваших ограничений: {0}.', { 0: restricted.map((area) => limitationLabels[area]).join(', ') })}</AppText>
+        <AppText tone="warning">{t('По нашей разметке это упражнение заметно нагружает зону из ваших ограничений: {0}.', { 0: restricted.map((area) => limitationLabels[area]).join(', ') })}</AppText>
       ) : null}
 
       {cues.length > 0 ? (
@@ -151,7 +161,7 @@ export default function ExerciseDetailsScreen() {
       />
       {exercise ? (
         <Button
-          label={avoided.status === 'ready' && avoided.data ? t('Снова предлагать это упражнение') : t('Не предлагать это упражнение')}
+          label={avoided.status === 'ready' && avoided.data.own ? t('Снова предлагать это упражнение') : t('Не предлагать это упражнение')}
           variant="secondary"
           onPress={toggleAvoided}
         />

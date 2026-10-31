@@ -1,7 +1,7 @@
 import { type MuscleGroup, exerciseName, findAlternatives, findExercise } from '../exercises/catalog';
 import { type ExerciseTarget, type ProgramDay, type ProgramExercise } from '../program/program-repository';
 import { targetFor } from '../program/generate-plan';
-import { type DaysPerWeek, type Profile, allowedDaysPerWeek } from '../profile/profile';
+import { type DaysPerWeek, type Profile, allowedDaysPerWeek, readyForDemanding } from '../profile/profile';
 import { t } from '@/lib/i18n';
 
 export type ProposalChange =
@@ -60,6 +60,7 @@ function findReplacement(entry: ProgramExercise, facts: CoachFacts) {
   const [option] = findAlternatives(entry.exerciseId, {
     equipment: facts.profile.equipment,
     limitations: facts.profile.limitations,
+    allowDemanding: readyForDemanding(facts.profile),
     excluded: [...inPlan, ...facts.avoided, ...facts.discomfort],
   });
   return option ?? null;
@@ -106,7 +107,7 @@ export function buildProposals(facts: CoachFacts): ProposalDraft[] {
     drafts.push(
       replaceDraft('discomfort', entry, facts, (from, to) => ({
         title: t('Заменить «{0}»', { 0: from }),
-        why: t('Вы отмечали дискомфорт в этом упражнении за последние 14 дней. Вместо него можно делать «{0}». Если боль не проходит, обратитесь к врачу.', { 0: to }),
+        why: t('Вы отмечали дискомфорт в этом упражнении за последние 14 дней. Можно попробовать «{0}» с небольшим весом. Замена не гарантирует, что боли не будет: при боли остановитесь. Если боль не проходит, обратитесь к врачу.', { 0: to }),
       })),
     );
   }
@@ -130,11 +131,11 @@ export function buildProposals(facts: CoachFacts): ProposalDraft[] {
   if (!deloadActive && (steadyTraining || facts.lowReadinessDays >= LOW_READINESS_LIMIT)) {
     drafts.push({
       kind: 'deload',
-      fingerprint: `deload:${facts.today.slice(0, 7)}`,
+      fingerprint: 'deload',
       title: t('Лёгкая неделя'),
       why: steadyTraining
-        ? t('Вы тренируетесь по плану {0} недель подряд. Неделя с меньшим числом подходов поможет восстановиться.', { 0: WEEKS_BEFORE_DELOAD })
-        : t('Несколько дней подряд вы отмечали низкую готовность. Неделя с меньшей нагрузкой может помочь восстановиться.'),
+        ? t('Вы выполняете план {0} недель подряд. Неделя с меньшим числом подходов может помочь восстановиться.', { 0: WEEKS_BEFORE_DELOAD })
+        : t('Дней с низкой готовностью за последнюю неделю: {0}. Неделя с меньшей нагрузкой может помочь восстановиться.', { 0: facts.lowReadinessDays }),
       change: { type: 'deload', untilDay: shiftDay(facts.today, DELOAD_DAYS) },
     });
   }
@@ -145,7 +146,7 @@ export function buildProposals(facts: CoachFacts): ProposalDraft[] {
       drafts.push(
         replaceDraft('plateau', entry, facts, (from, to) => ({
           title: t('Сменить «{0}»', { 0: from }),
-          why: t('Вес не растёт три тренировки подряд. Смена упражнения на «{0}» даст новый стимул. Это необязательно: можно продолжать прибавлять по одному повтору.', { 0: to }),
+          why: t('Вес не менялся три тренировки подряд. Если повторы растут, всё идёт по плану и менять ничего не нужно. Если нет, смена упражнения на «{0}» может дать новый стимул.', { 0: to }),
         })),
       );
     }
@@ -154,14 +155,17 @@ export function buildProposals(facts: CoachFacts): ProposalDraft[] {
   if (volumeGoals.includes(facts.profile.goal) && facts.workoutsByWeek[0] >= facts.profile.daysPerWeek) {
     for (const [group, sets] of Object.entries(facts.weeklySetsByGroup) as [MuscleGroup, number][]) {
       const entry = entries.find(
-        (item) => findExercise(item.exerciseId)?.muscleGroup === group && item.targetSets < MAX_TARGET_SETS,
+        (item) =>
+          findExercise(item.exerciseId)?.category === 'strength' &&
+          findExercise(item.exerciseId)?.muscleGroup === group &&
+          item.targetSets < MAX_TARGET_SETS,
       );
       if (sets < MIN_WEEKLY_SETS && entry && !facts.discomfort.includes(entry.exerciseId) && !deloadActive) {
         drafts.push({
           kind: 'low_volume',
           fingerprint: `low_volume:${group}`,
           title: t('Добавить подход: {0}', { 0: exerciseName(entry.exerciseId) }),
-          why: t('На эту группу мышц за неделю пришлось подходов: {0}. Один дополнительный подход немного увеличит объём.', { 0: sets }),
+          why: t('Подходов на эту группу мышц за последние 7 дней: {0}. Один дополнительный подход немного увеличит объём.', { 0: sets }),
           change: {
             type: 'sets',
             programExerciseId: entry.id,
@@ -207,14 +211,18 @@ export function passesGuardrails({ change }: Pick<ProposalDraft, 'change'>, fact
       stillPlanned &&
       !planEntries(facts.program).some((entry) => entry.exerciseId === change.toExerciseId) &&
       target.equipment.includes(facts.profile.equipment) &&
+      (readyForDemanding(facts.profile) || !target.demanding) &&
       !target.loads.some((area) => facts.profile.limitations.includes(area)) &&
       !facts.discomfort.includes(change.toExerciseId) &&
       !facts.avoided.includes(change.toExerciseId)
     );
   }
   if (change.type === 'sets') {
+    const exercise = findExercise(change.exerciseId);
     return (
       change.to <= MAX_TARGET_SETS &&
+      exercise?.category === 'strength' &&
+      !exercise.loads.some((area) => facts.profile.limitations.includes(area)) &&
       !facts.discomfort.includes(change.exerciseId) &&
       planEntries(facts.program).some(
         (entry) => entry.id === change.programExerciseId && entry.targetSets === change.from,

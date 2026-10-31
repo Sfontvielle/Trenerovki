@@ -215,7 +215,13 @@ export function isDeloadActive(deloadUntil: string | null, today: string) {
   return deloadUntil !== null && deloadUntil >= today;
 }
 
-async function applyChange(tx: DatabaseExecutor, change: ProposalChange, createId: () => string, now: Date) {
+async function applyChange(
+  tx: DatabaseExecutor,
+  change: ProposalChange,
+  createId: () => string,
+  now: Date,
+  excluded: string[],
+) {
   switch (change.type) {
     case 'replace':
       await tx.run(
@@ -244,7 +250,7 @@ async function applyChange(tx: DatabaseExecutor, change: ProposalChange, createI
       }
       // The chosen weekdays no longer match the new count, so they are cleared.
       await tx.run("UPDATE profile SET days_per_week = ?, training_days = '[]'", [change.to]);
-      await replaceProgram(tx, generatePlan({ ...profile, daysPerWeek: change.to }), createId);
+      await replaceProgram(tx, generatePlan({ ...profile, daysPerWeek: change.to, excluded }), createId);
     }
   }
 }
@@ -273,7 +279,7 @@ export async function acceptProposal(database: Database, proposalId: string, { f
       throw new CoachError('stale');
     }
     const versionId = await savePlanVersion(tx, describeReason(proposal), createId, now);
-    await applyChange(tx, applied, createId, now);
+    await applyChange(tx, applied, createId, now, [...facts.avoided, ...facts.discomfort]);
     await tx.run(
       `UPDATE coach_proposal SET status = 'accepted', decided_at = ?, plan_version_id = ?, change = ? WHERE id = ?`,
       [now.toISOString(), versionId, JSON.stringify(applied), proposalId],

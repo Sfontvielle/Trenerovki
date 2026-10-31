@@ -22,6 +22,7 @@ import { createId } from '@/domains/data-platform/ids';
 import { exerciseName, findAlternatives, findExercise } from '@/domains/exercises/catalog';
 import { buildInsights, getInsightData } from '@/domains/insights/local-insights';
 import { targetFor } from '@/domains/program/generate-plan';
+import { readyForDemanding } from '@/domains/profile/profile';
 import { useCoachStyle } from '@/features/coach/use-coach-style';
 import { describeChange } from '@/features/coach/describe-change';
 import { SessionBar } from '@/features/workout/session-bar';
@@ -50,6 +51,7 @@ function ProposalCard({ proposal, detailed, facts: loadedFacts, onChanged }: Pro
           ...findAlternatives(change.fromExerciseId, {
             equipment: profile.equipment,
             limitations: profile.limitations,
+            allowDemanding: readyForDemanding(profile),
             // The same exclusions the guardrails apply when the choice is accepted.
             excluded: [
               change.toExerciseId,

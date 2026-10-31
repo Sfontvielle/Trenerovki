@@ -6,7 +6,9 @@ import { useScreenData } from '@/app-data/use-screen-data';
 import { DataView } from '@/components/states';
 import { TabScreen } from '@/components/tab-screen';
 import { AppText, Button, Panel } from '@/design-system';
+import { getDeloadUntil, isDeloadActive } from '@/domains/coach/coach-repository';
 import { exerciseName } from '@/domains/exercises/catalog';
+import { dayKey } from '@/domains/nutrition/nutrition';
 import { getProgram } from '@/domains/program/program-repository';
 import { OpenSessionBanner } from '@/features/workout/open-session-banner';
 import { describeTarget } from '@/features/workout/set-labels';
@@ -18,17 +20,25 @@ export default function WorkoutsScreen() {
   const { start, starting, error } = useStartWorkout();
 
   const load = useCallback(async () => {
-    const [openSession, program] = await Promise.all([engine.getOpenSession(), getProgram(database)]);
-    return { openSession, program };
+    const [openSession, program, deloadUntil] = await Promise.all([
+      engine.getOpenSession(),
+      getProgram(database),
+      getDeloadUntil(database),
+    ]);
+    return { openSession, program, deload: isDeloadActive(deloadUntil, dayKey(new Date())) };
   }, [database, engine]);
   const state = useScreenData(load);
 
   return (
     <TabScreen title={t('Тренировки')}>
       <DataView state={state}>
-        {({ openSession, program }) => (
+        {({ openSession, program, deload }) => (
           <>
             {openSession ? <OpenSessionBanner session={openSession} /> : null}
+
+            {deload ? (
+              <AppText tone="accent">{t('Лёгкая неделя: на один подход меньше в упражнениях, где их два и больше. Вес не прибавляйте.')}</AppText>
+            ) : null}
 
             {error ? (
               <AppText accessibilityLiveRegion="polite" tone="danger">

@@ -7,7 +7,7 @@ import { DataView } from '@/components/states';
 import { AppText, Button, Panel, Screen, TextField } from '@/design-system';
 import type { Nutrients } from '@/domains/nutrition/nutrition';
 import { clearManualTarget, getManualTarget, saveManualTarget } from '@/domains/nutrition/nutrition-repository';
-import { estimateTargets } from '@/domains/nutrition/targets';
+import { MIN_KCAL_OTHER, estimateTargets } from '@/domains/nutrition/targets';
 import { formatEnergy, formatMacros } from '@/features/nutrition/format-nutrition';
 import { describeFailure } from '@/lib/describe-failure';
 import { formatInputNumber, parseDecimal } from '@/lib/format';
@@ -18,7 +18,7 @@ const MAX_DAILY_GRAMS = 1000;
 
 type TargetsFormProps = {
   manual: Nutrients | null;
-  estimate: Nutrients | null;
+  estimate: ReturnType<typeof estimateTargets>;
 };
 
 function TargetsForm({ manual, estimate }: TargetsFormProps) {
@@ -29,6 +29,7 @@ function TargetsForm({ manual, estimate }: TargetsFormProps) {
   const [fatText, setFatText] = useState(formatInputNumber(start?.fat));
   const [carbsText, setCarbsText] = useState(formatInputNumber(start?.carbs));
   const [error, setError] = useState<string | null>(null);
+  const typedKcal = parseDecimal(kcalText);
 
   const run = async (action: () => Promise<void>) => {
     setError(null);
@@ -68,8 +69,13 @@ function TargetsForm({ manual, estimate }: TargetsFormProps) {
         <Panel>
           <AppText variant="heading">{t('Расчёт по вашим ответам')}</AppText>
           <AppText tone="secondary">{`${formatEnergy(estimate.kcal)}, ${formatMacros(estimate)}`}</AppText>
+          {estimate.lowWeight ? (
+            <AppText variant="callout" tone="warning">
+              {t('Для вашего роста и веса приложение не рассчитывает дефицит калорий. Поговорите с врачом или диетологом, прежде чем снижать вес.')}
+            </AppText>
+          ) : null}
           <AppText variant="caption" tone="secondary">
-            {t('Ориентир по формуле Миффлина — Сан Жеора с учётом активности и цели. Это не медицинская рекомендация. Если у вас есть заболевания, беременность или расстройство пищевого поведения, обсудите цели с врачом.')}
+            {t('Ориентир по формуле Миффлина — Сан Жеора с учётом активности и цели. Если пол не указан, берётся среднее значение. Есть нижняя граница: 1200 ккал, для мужчин 1500 ккал. При высоком весе белки и жиры считаются от меньшего расчётного веса. Расчёт идёт по весу из анкеты и сам не меняется. Это не медицинская рекомендация. Если у вас есть заболевания, беременность, кормление грудью или расстройство пищевого поведения, обсудите цели с врачом.')}
           </AppText>
         </Panel>
       ) : (
@@ -82,6 +88,11 @@ function TargetsForm({ manual, estimate }: TargetsFormProps) {
       <TextField keyboardType="decimal-pad" label={t('Белки, г')} onChangeText={setProteinText} value={proteinText} />
       <TextField keyboardType="decimal-pad" label={t('Жиры, г')} onChangeText={setFatText} value={fatText} />
       <TextField keyboardType="decimal-pad" label={t('Углеводы, г')} onChangeText={setCarbsText} value={carbsText} />
+      {typedKcal !== null && typedKcal < MIN_KCAL_OTHER ? (
+        <AppText accessibilityLiveRegion="polite" tone="warning">
+          {t('Это ниже нижней границы расчёта. Очень низкая калорийность может быть опасна: обсудите её с врачом.')}
+        </AppText>
+      ) : null}
       {error ? (
         <AppText accessibilityLiveRegion="polite" tone="danger">
           {error}

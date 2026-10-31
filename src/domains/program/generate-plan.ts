@@ -1,12 +1,15 @@
 import { type Exercise, type MovementPattern, exerciseTracking, exercises, findExercise } from '../exercises/catalog';
-import type { DaysPerWeek, Experience, Goal, Profile, SessionMinutes } from '../profile/profile';
+import { type DaysPerWeek, type Experience, type Goal, type Profile, type SessionMinutes, readyForDemanding } from '../profile/profile';
 import { t } from '@/lib/i18n';
 
 type PlanProfile = Pick<
   Profile,
   'goal' | 'experience' | 'daysPerWeek' | 'sessionMinutes' | 'equipment' | 'limitations'
 > &
-  Partial<Pick<Profile, 'baseline'>>;
+  Partial<Pick<Profile, 'baseline'>> & {
+    // Exercises the user asked not to see or recently reported pain in.
+    excluded?: string[];
+  };
 
 export type PlannedDayExercise = {
   exerciseId: string;
@@ -145,6 +148,8 @@ export function targetFor(exerciseId: string, goal: Goal, experience: Experience
 const FINISHER_MIN_MINUTES = 45;
 const WARM_UP_MIN_MINUTES = 60;
 const cardioGoals: Goal[] = ['fat_loss', 'recomposition', 'maintenance'];
+// These need a bike, a pool or a build-up, so they are never added on their own.
+const unplannedFinishers = ['running', 'cycling', 'swimming', 'stair-climber', 'jump-rope'];
 
 function pickOne(pool: Exercise[], pattern: MovementPattern, dayIndex: number) {
   const candidates = pool.filter((exercise) => exercise.pattern === pattern);
@@ -171,14 +176,13 @@ function rotated<Item>(items: Item[], offset: number) {
 }
 
 export function generatePlan(profile: PlanProfile): PlannedDay[] {
-  const { baseline, daysPerWeek, equipment, experience, goal, limitations, sessionMinutes } = profile;
-  // Self-reported starting form counts alongside experience, so nobody meets
-  // a demanding lift or a full push-up before they are ready for it.
-  const cautious = experience === 'beginner' || baseline === 'low';
+  const { baseline, daysPerWeek, equipment, excluded = [], experience, goal, limitations, sessionMinutes } = profile;
+  const cautious = !readyForDemanding(profile);
   const usable = exercises.filter(
     (exercise) =>
       exercise.tracking === 'reps' &&
       exercise.category === 'strength' &&
+      !excluded.includes(exercise.id) &&
       exercise.equipment.includes(equipment) &&
       !exercise.loads.some((area) => limitations.includes(area)) &&
       (!cautious || (!exercise.demanding && (baseline !== 'low' || exercise.id !== 'push-up'))),
@@ -207,6 +211,8 @@ export function generatePlan(profile: PlanProfile): PlannedDay[] {
 
   const extras = exercises.filter(
     (exercise) =>
+      !excluded.includes(exercise.id) &&
+      !unplannedFinishers.includes(exercise.id) &&
       exercise.equipment.includes(equipment) &&
       !exercise.loads.some((area) => limitations.includes(area)) &&
       !exercise.demanding,

@@ -84,7 +84,7 @@ export function assessReadiness(checkin: Checkin | null, workoutsInTwoDays: numb
 
   if (workoutsInTwoDays >= CLOSE_WORKOUTS) {
     penalty += 1;
-    reasons.push(t('две тренировки за последние два дня'));
+    reasons.push(t('две тренировки или больше за последние два дня'));
   }
   sources.push(t('история тренировок'));
 

@@ -46,6 +46,7 @@ export default function ScanBarcodeScreen() {
       const found = known ?? (result?.status === 'found' ? result.product : null);
       if (found) {
         openForm({
+          ...(known ? {} : { fromLookup: '1' }),
           barcode: data,
           name: found.name,
           kcal: String(found.kcal),
@@ -91,7 +92,7 @@ export default function ScanBarcodeScreen() {
       {!permission?.granted ? (
         <Panel>
           <AppText tone="secondary">
-            {t('Камера нужна только для чтения штрихкода. Фото не сохраняются. Номер штрихкода отправляется в открытую базу Open Food Facts, больше никаких данных.')}
+            {t('Камера нужна только для чтения штрихкода. Фото не сохраняются. Номер штрихкода отправляется в открытую базу Open Food Facts, и её сервер видит IP-адрес устройства. Других данных приложение не отправляет.')}
           </AppText>
           {permission && !permission.canAskAgain ? (
             <AppText tone="secondary">{t('Доступ к камере выключен. Его можно включить в настройках iPhone.')}</AppText>

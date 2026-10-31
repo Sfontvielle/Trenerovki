@@ -33,6 +33,7 @@ type AddParams = {
   day: string;
   meal: Meal;
   barcode?: string;
+  fromLookup?: string;
   name?: string;
   kcal?: string;
   protein?: string;
@@ -173,7 +174,7 @@ export default function AddFoodScreen() {
 
           {creating ? (
             <Panel>
-              {barcode && params.kcal ? (
+              {params.fromLookup ? (
                 <AppText variant="caption" tone="secondary">
                   {t('Значения из открытой базы Open Food Facts. Сверьте их с упаковкой перед записью.')}
                 </AppText>

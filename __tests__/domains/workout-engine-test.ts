@@ -439,6 +439,24 @@ describe('suggestNextSet', () => {
     expect(suggestNextSet([], target)).toBeNull();
   });
 
+  it('never suggests the same or a zero weight as a reduction', () => {
+    const short = [makeSet({ weightKg: 5, reps: 4 }), makeSet({ weightKg: 5, reps: 4 })];
+    const tiny = [makeSet({ weightKg: 1, reps: 4 }), makeSet({ weightKg: 1, reps: 4 })];
+
+    expect(suggestNextSet([short, short], target)).toMatchObject({ kind: 'reduce_weight', weightKg: 4 });
+    expect(suggestNextSet([tiny, tiny], target)?.kind).toBe('hold');
+  });
+
+  it('adds time only after the planned time was reached', () => {
+    const held = [makeSet({ weightKg: null, reps: null, durationSec: 10 })];
+    const options = { ...target, plannedSets: 1, targetDurationSec: 30 };
+
+    expect(suggestNextSet([held], options)).toBeNull();
+    expect(
+      suggestNextSet([[makeSet({ weightKg: null, reps: null, durationSec: 30 })]], options),
+    ).toMatchObject({ durationSec: 35 });
+  });
+
   it('adds reps to bodyweight work and time to timed work', () => {
     expect(suggestNextSet([[makeSet({ weightKg: null })]], { ...target, plannedSets: 1 })).toMatchObject({
       kind: 'add_rep',

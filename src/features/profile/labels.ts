@@ -25,7 +25,7 @@ export const goalHints: Record<Goal, string> = {
 export const experienceLabels: Record<Experience, string> = {
   beginner: t('Новичок'),
   intermediate: t('Средний'),
-  advanced: t('Опытный'),
+  advanced: t('Продвинутый'),
 };
 
 export const experienceHints: Record<Experience, string> = {

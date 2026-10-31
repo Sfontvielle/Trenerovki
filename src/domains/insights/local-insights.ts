@@ -74,7 +74,7 @@ export function buildInsights(data: InsightData): Insight[] {
     insights.push({
       id: 'sleep',
       title: t('Сон'),
-      body: t('В среднем {0} ч по вашим отметкам за последние дни. Это ваши записи, а не измерение датчиком.', { 0: formatNumber(data.averageSleepHours) }),
+      body: t('В среднем {0} ч по вашим отметкам за неделю. Это ваши записи, а не измерение датчиком.', { 0: formatNumber(data.averageSleepHours) }),
     });
   }
 
@@ -82,7 +82,7 @@ export function buildInsights(data: InsightData): Insight[] {
     insights.push({
       id: 'steps',
       title: t('Шаги'),
-      body: t('В среднем {0} шагов в день по данным iPhone.', { 0: formatNumber(Math.round(data.averageSteps)) }),
+      body: t('Шагов в день в среднем: {0}. Данные iPhone.', { 0: formatNumber(Math.round(data.averageSteps)) }),
     });
   }
 
@@ -156,10 +156,13 @@ export async function getInsightData(
     weekStats(database, twoWeeksAgo, weekAgo),
     findPlateaus(database, new Date(now.getTime() - PLATEAU_WINDOW_MS)),
     database.first<{ average: number | null }>(
-      'SELECT AVG(sleep_hours) AS average FROM (SELECT sleep_hours FROM daily_checkin ORDER BY day DESC LIMIT 7)',
+      'SELECT AVG(sleep_hours) AS average FROM daily_checkin WHERE day >= ?',
+      [dayKey(weekAgo)],
     ),
     database.first<{ average: number | null }>(
-      'SELECT AVG(steps) AS average FROM (SELECT steps FROM daily_steps ORDER BY day DESC LIMIT 7)',
+      // Today is still being counted, so it would only lower the average.
+      'SELECT AVG(steps) AS average FROM daily_steps WHERE day >= ? AND day < ?',
+      [dayKey(weekAgo), dayKey(now)],
     ),
     database.first<{ count: number }>('SELECT COUNT(DISTINCT day) AS count FROM food_entry WHERE day >= ?', [
       dayKey(weekAgo),

@@ -43,6 +43,12 @@ export type Profile = {
   diet: Diet;
 };
 
+// Self-reported starting form counts alongside experience, so nobody meets a
+// demanding lift before they are ready for it, in a plan or as a replacement.
+export function readyForDemanding({ experience, baseline }: Pick<Profile, 'experience'> & Partial<Pick<Profile, 'baseline'>>) {
+  return experience !== 'beginner' && baseline !== 'low';
+}
+
 export function isValidName(name: string) {
   return name.trim().length > 0;
 }

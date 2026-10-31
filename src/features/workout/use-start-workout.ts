@@ -46,13 +46,14 @@ export function useStartWorkout() {
     setStarting(true);
     setError(null);
     try {
+      const deload = isDeloadActive(await getDeloadUntil(database), dayKey(new Date()));
       await engine.startSession({
         operationId: createId(),
         title: session.title,
         programDayId: null,
         exercises: session.exercises.map((exercise) => ({
           exerciseId: exercise.exerciseId,
-          plannedSets: exercise.plannedSets ?? exercise.sets.length,
+          plannedSets: (exercise.plannedSets ?? exercise.sets.length) - (deload && (exercise.plannedSets ?? exercise.sets.length) > 1 ? 1 : 0),
           repsMin: exercise.repsMin,
           repsMax: exercise.repsMax,
           targetDurationSec: exercise.targetDurationSec,

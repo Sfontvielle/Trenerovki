@@ -22,7 +22,7 @@ export type PickedFood = Food & {
 const hiddenGroups: Record<Diet, CatalogFood['group'][]> = {
   any: [],
   vegetarian: ['fish', 'meat'],
-  vegan: ['fish', 'meat', 'dairy', 'egg'],
+  vegan: ['fish', 'meat', 'dairy', 'egg', 'bee'],
 };
 
 function toPicked({ id, name, kcal, protein, fat, carbs, portion }: CatalogFood): PickedFood {

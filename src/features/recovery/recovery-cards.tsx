@@ -6,6 +6,8 @@ import type { StepsState } from '@/features/recovery/use-steps';
 import { formatNumber } from '@/lib/format';
 import { t } from '@/lib/i18n';
 
+const SEVERE_SORENESS = 5;
+
 export const readinessLabels: Record<ReadinessLevel, string> = {
   high: t('Высокая'),
   medium: t('Средняя'),
@@ -65,6 +67,11 @@ export function RecoveryCard({ checkin, readiness }: RecoveryCardProps) {
           <AppText variant="callout" tone="secondary">
             {readinessAdvice[readiness.level]}
           </AppText>
+          {checkin?.soreness === SEVERE_SORENESS ? (
+            <AppText variant="callout" tone="warning">
+              {t('Если сильная мышечная боль не проходит несколько дней, появились отёк или тёмная моча, обратитесь к врачу.')}
+            </AppText>
+          ) : null}
           {readiness.reasons.length > 0 ? (
             <AppText variant="callout" tone="secondary">
               {t('Причины: {0}.', { 0: readiness.reasons.join(', ') })}

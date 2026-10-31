@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { TextInput, View } from 'react-native';
 
 import { useAppData } from '@/app-data/app-data';
@@ -8,6 +8,7 @@ import { FadeIn } from '@/components/fade-in';
 import { RulerPicker } from '@/components/ruler-picker';
 import { WheelPicker } from '@/components/wheel-picker';
 import { AppText, Button, Panel, Screen, useTheme } from '@/design-system';
+import { listAvoidedExercises } from '@/domains/coach/coach-repository';
 import { createId } from '@/domains/data-platform/ids';
 import { exerciseName } from '@/domains/exercises/catalog';
 import { completeOnboarding, saveAnswers } from '@/domains/profile/complete-onboarding';
@@ -237,7 +238,22 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
   const [analyzing, setAnalyzing] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [avoided, setAvoided] = useState<string[]>([]);
   const finishAnalysis = useCallback(() => setAnalyzing(false), []);
+
+  useEffect(() => {
+    let active = true;
+    listAvoidedExercises(database)
+      .then((ids) => {
+        if (active) {
+          setAvoided(ids);
+        }
+      })
+      .catch(console.error);
+    return () => {
+      active = false;
+    };
+  }, [database]);
 
   const update = (changes: Partial<Draft>) => {
     setDraft((current) => ({ ...current, ...changes }));
@@ -261,7 +277,7 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
     }
 
     const profile = toProfile(draft);
-    const plan = generatePlan(profile);
+    const plan = generatePlan({ ...profile, excluded: avoided });
     const targets = profile.nutritionMode === 'diary' ? null : estimateTargets(profile);
 
     const accept = async (replacePlan: boolean) => {
@@ -293,7 +309,7 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
       <Screen scroll ambient>
         <FadeIn style={{ gap: spacing.xl }}>
           <QuestionTitle
-            hint={t('{0} {1} в цикле. Упражнения подобраны автоматически по цели, опыту, числу тренировок, времени и условиям{2}. Специалист план не проверял.', { 0: plan.length, 1: pluralize(plan.length, [t('тренировка'), t('тренировки'), t('тренировок')]), 2: profile.limitations.length > 0 ? t(', а также по выбранным ограничениям') : '' })}
+            hint={t('{0} {1} в цикле. Цель задаёт повторы и кардио. Упражнения подобраны автоматически по опыту, числу тренировок, времени и условиям{2}. Специалист план не проверял.', { 0: plan.length, 1: pluralize(plan.length, [t('тренировка'), t('тренировки'), t('тренировок')]), 2: profile.limitations.length > 0 ? t(', а также по выбранным ограничениям') : '' })}
             title={initial ? t('Ваш новый план') : t('Ваш стартовый план')}
           />
           {initial ? (
@@ -314,11 +330,16 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
           ))}
 
           <AppText variant="callout" tone="secondary">
-            {t('Начинайте с лёгкого веса: подходы должны даваться с запасом.')}
+            {t('Начинайте с лёгкого веса: подходы должны даваться с запасом. Перед первым тяжёлым упражнением сделайте 1–2 лёгких разминочных подхода и отметьте их как «Разминка».')}
           </AppText>
           {targets ? (
             <AppText variant="callout" tone="secondary">
-              {t('Ориентир по питанию на день: {0}, {1}. Его можно изменить на вкладке «Питание».', { 0: formatEnergy(targets.kcal), 1: formatMacros(targets) })}
+              {t('Ориентир по питанию на день: {0}, {1}. Его можно изменить на вкладке «Питание». Это не медицинская рекомендация. При заболеваниях, беременности, кормлении грудью или расстройстве пищевого поведения обсудите цели с врачом.', { 0: formatEnergy(targets.kcal), 1: formatMacros(targets) })}
+            </AppText>
+          ) : null}
+          {targets?.lowWeight ? (
+            <AppText variant="callout" tone="warning">
+              {t('Для вашего роста и веса приложение не рассчитывает дефицит калорий. Поговорите с врачом или диетологом, прежде чем снижать вес.')}
             </AppText>
           ) : null}
           {profile.usualSleepHours !== null && profile.usualSleepHours < SHORT_SLEEP_HOURS ? (
@@ -328,7 +349,7 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
           ) : null}
           {profile.limitations.length > 0 ? (
             <AppText variant="callout" tone="secondary">
-              {t('Мы убрали из плана упражнения, которые заметно нагружают выбранные зоны. Это не медицинская рекомендация.')}
+              {t('Мы убрали упражнения, которые по нашей разметке заметно нагружают выбранные зоны. Разметка не проверена специалистом, и другие упражнения тоже могут нагружать эти зоны. При боли остановитесь. Это не медицинская рекомендация.')}
             </AppText>
           ) : null}
           <AppText variant="caption" tone="secondary">
@@ -634,7 +655,7 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
         {page === 'limitations' ? (
           <>
             <QuestionTitle
-              hint={t('Необязательно. Уберём из плана упражнения, которые заметно нагружают эти зоны. Другие ограничения план не учитывает: посоветуйтесь с врачом. Это не медицинская рекомендация.')}
+              hint={t('Необязательно. Уберём из плана упражнения, которые по нашей разметке заметно нагружают эти зоны. Другие ограничения план не учитывает: посоветуйтесь с врачом. Это не медицинская рекомендация.')}
               title={t('Что нельзя сильно нагружать?')}
             />
             <View style={{ gap: spacing.m }}>
@@ -659,7 +680,7 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
 
         {page === 'lifestyle' ? (
           <>
-            <QuestionTitle hint={t('Необязательно. Нужно для оценки калорий и восстановления')} title={t('Ваш обычный день')} />
+            <QuestionTitle hint={t('Необязательно. Активность нужна для оценки калорий, сон учитывается только в совете к плану')} title={t('Ваш обычный день')} />
             <View accessibilityRole="radiogroup" style={{ gap: spacing.m }}>
               {keysOf(activityLabels).map((activityLevel) => (
                 <ChoiceCard
@@ -699,6 +720,9 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
               label={t('Питание в базе продуктов')}
               onSelect={(diet) => update({ diet })}
             />
+            <AppText variant="caption" tone="secondary">
+              {t('Это только фильтр поиска. Состав проверяйте на упаковке.')}
+            </AppText>
           </>
         ) : null}
       </FadeIn>

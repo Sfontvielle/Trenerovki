@@ -79,6 +79,22 @@ describe('estimateTargets', () => {
     expect(estimateTargets(small)?.kcal).toBe(1200);
   });
 
+  it('never calculates a deficit for a low body weight', () => {
+    const thin = { ...body, weightKg: 50, heightCm: 180, goal: 'fat_loss' as const };
+
+    expect(estimateTargets(thin)).toMatchObject({ lowWeight: true, kcal: estimateTargets({ ...thin, goal: 'maintenance' })?.kcal });
+    expect(estimateTargets(body)?.lowWeight).toBe(false);
+  });
+
+  it('keeps macros inside the calories at a very high body weight', () => {
+    const heavy = { sex: 'female', age: 40, weightKg: 200, heightCm: 165, activityLevel: 'sedentary', goal: 'fat_loss' } as const;
+
+    const { kcal, protein, fat, carbs } = estimateTargets(heavy)!;
+
+    expect(carbs).toBeGreaterThan(0);
+    expect(Math.abs(protein * 4 + fat * 9 + carbs * 4 - kcal)).toBeLessThan(5);
+  });
+
   it('works without sex and stays silent without measurements', () => {
     expect(estimateTargets({ ...body, sex: null })).not.toBeNull();
     expect(estimateTargets({ ...body, heightCm: null })).toBeNull();

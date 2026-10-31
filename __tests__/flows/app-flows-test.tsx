@@ -448,7 +448,7 @@ describe('profile', () => {
     await press('Сохранить резервную копию');
 
     expect(shareBackup).toHaveBeenCalledWith(database, null);
-    expect(await screen.findByText('Резервная копия сохранена.')).toBeTruthy();
+    expect(await screen.findByText(/^Резервная копия передана/)).toBeTruthy();
   });
 
   it('restores a backup after confirmation and refreshes the app', async () => {
@@ -1618,9 +1618,9 @@ describe('nutrition depth', () => {
     await press('Добавить: Завтрак');
     await screen.findByLabelText('Найти продукт');
 
-    await type('Найти продукт', 'куриная');
+    await type('Найти продукт', 'куриная грудка');
 
-    expect(screen.queryByText('Куриная грудка')).toBeNull();
+    expect(screen.queryByText(/^Куриная грудка/)).toBeNull();
     expect(screen.getByText(/Ничего не найдено/)).toBeTruthy();
   });
 
@@ -1724,7 +1724,7 @@ describe('nutrition depth', () => {
   it('prefills a scanned product and keeps its barcode', async () => {
     await seedProfile();
     await renderRouter('./src/app', {
-      initialUrl: `/food/add?day=${dayKey(new Date())}&meal=snack&barcode=3017620422003&name=Nutella&kcal=539&protein=6.3&fat=30.9&carbs=57.5`,
+      initialUrl: `/food/add?day=${dayKey(new Date())}&meal=snack&barcode=3017620422003&fromLookup=1&name=Nutella&kcal=539&protein=6.3&fat=30.9&carbs=57.5`,
     });
 
     expect(await screen.findByText(/Open Food Facts/)).toBeTruthy();
@@ -1795,6 +1795,12 @@ describe('library, analytics and protection', () => {
     expect(shareBackup).not.toHaveBeenCalled();
 
     await type('Пароль для копии', 'достаточно длинный');
+    await type('Повторите пароль', 'другой пароль тут');
+    await press('Сохранить резервную копию');
+    expect(await screen.findByText('Пароли не совпадают.')).toBeTruthy();
+    expect(shareBackup).not.toHaveBeenCalled();
+
+    await type('Повторите пароль', 'достаточно длинный');
     await press('Сохранить резервную копию');
 
     expect(shareBackup).toHaveBeenCalledWith(database, 'достаточно длинный');
@@ -1813,7 +1819,7 @@ describe('library, analytics and protection', () => {
     await screen.findByLabelText('Пароль от копии');
     await type('Пароль от копии', 'неверный пароль');
     await press('Открыть копию');
-    expect(await screen.findByText(/Пароль не подходит/)).toBeTruthy();
+    expect(await screen.findByText(/Пароль не подходит или файл копии повреждён/)).toBeTruthy();
     expect(screen.getByText('Другое имя')).toBeTruthy();
 
     await type('Пароль от копии', 'верный пароль');
@@ -1830,7 +1836,7 @@ describe('library, analytics and protection', () => {
 
     await press('Экспорт тренировок в таблицу');
 
-    expect(await screen.findByText('Таблица тренировок сохранена.')).toBeTruthy();
+    expect(await screen.findByText(/^Таблица тренировок передана/)).toBeTruthy();
   });
 
   it('turns the rest sound off', async () => {
@@ -1850,7 +1856,7 @@ describe('library, analytics and protection', () => {
     await renderRouter('./src/app', { initialUrl: '/about' });
 
     expect(await screen.findByText(/не диагностирует, не лечит/)).toBeTruthy();
-    expect(screen.getByText(/Наружу уходит только номер отсканированного штрихкода/)).toBeTruthy();
+    expect(screen.getByText(/При сканировании номер штрихкода отправляется/)).toBeTruthy();
   });
 });
 

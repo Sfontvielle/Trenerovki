@@ -19,6 +19,7 @@ type Target = {
   repsMin: number | null;
   repsMax: number | null;
   plannedSets: number | null;
+  targetDurationSec?: number | null;
 };
 
 function workingSets(sets: WorkoutSet[]) {
@@ -36,7 +37,10 @@ function missedRange(sets: WorkoutSet[], repsMin: number) {
 
 // Double progression: reps climb through the range first, then the weight goes
 // up and reps start again from the bottom. It only advances on clear evidence.
-export function suggestNextSet(recent: WorkoutSet[][], { repsMin, repsMax, plannedSets }: Target): Suggestion | null {
+export function suggestNextSet(
+  recent: WorkoutSet[][],
+  { repsMin, repsMax, plannedSets, targetDurationSec = null }: Target,
+): Suggestion | null {
   const [latest = [], before = []] = recent;
   const sets = workingSets(latest);
   if (sets.length === 0 || sets.length < (plannedSets ?? 0)) {
@@ -45,6 +49,9 @@ export function suggestNextSet(recent: WorkoutSet[][], { repsMin, repsMax, plann
 
   if (sets.every((set) => set.durationSec !== null && set.reps === null)) {
     const shortest = Math.min(...sets.map((set) => set.durationSec as number));
+    if (targetDurationSec !== null && shortest < targetDurationSec) {
+      return null;
+    }
     return { kind: 'add_time', weightKg: null, reps: null, durationSec: shortest + DURATION_STEP_SEC };
   }
   if (repsMax === null || repsMin === null || sets.some((set) => set.reps === null)) {
@@ -57,7 +64,10 @@ export function suggestNextSet(recent: WorkoutSet[][], { repsMin, repsMax, plann
   const leftReserve = sets.every((set) => set.rir !== null && set.rir >= 1);
 
   if (heaviest > 0 && missedRange(latest, repsMin) && missedRange(before, repsMin)) {
-    return { kind: 'reduce_weight', weightKg: roundWeight(heaviest * REDUCTION), reps: repsMin, durationSec: null };
+    const lowered = Math.min(roundWeight(heaviest * REDUCTION), heaviest - LIGHT_WEIGHT_STEP_KG);
+    return lowered > 0
+      ? { kind: 'reduce_weight', weightKg: lowered, reps: repsMin, durationSec: null }
+      : { kind: 'hold', weightKg: heaviest, reps: repsMin, durationSec: null };
   }
   if (!sameWeight || lowestReps < repsMin) {
     return { kind: 'hold', weightKg: heaviest > 0 ? heaviest : null, reps: repsMin, durationSec: null };

@@ -6,7 +6,9 @@ import { useAppData } from '@/app-data/app-data';
 import { useScreenData } from '@/app-data/use-screen-data';
 import { DataView } from '@/components/states';
 import { AppText, Button, Panel, Screen, useTheme } from '@/design-system';
+import { getDeloadUntil, isDeloadActive } from '@/domains/coach/coach-repository';
 import { createId } from '@/domains/data-platform/ids';
+import { dayKey } from '@/domains/nutrition/nutrition';
 import { exerciseName, exerciseTracking, findExercise } from '@/domains/exercises/catalog';
 import { suggestRestSeconds } from '@/domains/workout/progression';
 import { RestTimer } from '@/features/workout/rest-timer';
@@ -21,7 +23,7 @@ const HEAVY_REPS_LIMIT = 6;
 
 export default function WorkoutExerciseScreen() {
   const { sessionExerciseId } = useLocalSearchParams<{ sessionExerciseId: string }>();
-  const { engine } = useAppData();
+  const { database, engine } = useAppData();
   const { theme } = useTheme();
   const [error, setError] = useState<string | null>(null);
 
@@ -31,12 +33,13 @@ export default function WorkoutExerciseScreen() {
     if (!session || !exercise) {
       return null;
     }
-    const [recentSets, discomfort] = await Promise.all([
+    const [recentSets, discomfort, deloadUntil] = await Promise.all([
       engine.getRecentPerformances(exercise.exerciseId, 2, session.id),
       engine.hasRecentDiscomfort(exercise.exerciseId),
+      getDeloadUntil(database),
     ]);
-    return { session, exercise, recentSets, discomfort };
-  }, [engine, sessionExerciseId]);
+    return { session, exercise, recentSets, discomfort, deload: isDeloadActive(deloadUntil, dayKey(new Date())) };
+  }, [database, engine, sessionExerciseId]);
   const state = useScreenData(load);
 
   const reportDiscomfort = async () => {
@@ -84,7 +87,7 @@ export default function WorkoutExerciseScreen() {
             );
           }
 
-          const { session, exercise, recentSets, discomfort } = data;
+          const { session, exercise, recentSets, discomfort, deload } = data;
           const target = describeTarget({
             sets: exercise.plannedSets,
             repsMin: exercise.repsMin,
@@ -128,7 +131,7 @@ export default function WorkoutExerciseScreen() {
                 exercise={exercise}
                 recentSets={recentSets}
                 paused={paused}
-                suggestionsAllowed={!discomfort}
+                suggestionsAllowed={!discomfort && !deload}
                 onChanged={state.reload}
               />
 
