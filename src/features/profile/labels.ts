@@ -14,11 +14,11 @@ export const goalLabels: Record<Goal, string> = {
 };
 
 export const goalHints: Record<Goal, string> = {
-  muscle: 'Рост мышц за счёт объёма',
-  fat_loss: 'Больше повторов в подходах',
-  recomposition: 'Сбалансированная нагрузка',
-  strength: 'Упор на рабочие веса',
-  maintenance: 'Регулярно, без гонки за весом',
+  muscle: '8–12 повторов в основных упражнениях',
+  fat_loss: '10–15 повторов. На снижение жира сильнее влияет питание',
+  recomposition: '8–12 повторов в основных упражнениях',
+  strength: '4–6 повторов, новичкам 8–10',
+  maintenance: '8–12 повторов в основных упражнениях',
 };
 
 export const experienceLabels: Record<Experience, string> = {
@@ -42,8 +42,8 @@ export const equipmentLabels: Record<Equipment, string> = {
 
 export const equipmentHints: Record<Equipment, string> = {
   gym: 'Штанга, блоки и тренажёры',
-  dumbbells: 'Скамья не нужна',
-  bar: 'Дома или на площадке',
+  dumbbells: 'Скамья не обязательна, нужна устойчивая опора',
+  bar: 'На площадке или с закреплённой низкой перекладиной',
   bodyweight: 'Без инвентаря',
 };
 

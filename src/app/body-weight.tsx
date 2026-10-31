@@ -3,6 +3,7 @@ import { View } from 'react-native';
 
 import { useAppData } from '@/app-data/app-data';
 import { useScreenData } from '@/app-data/use-screen-data';
+import { useToday } from '@/app-data/use-today';
 import { RulerPicker } from '@/components/ruler-picker';
 import { DataView } from '@/components/states';
 import { TrendBars } from '@/components/trend-bars';
@@ -13,8 +14,8 @@ import {
   listBodyWeight,
   saveBodyWeight,
 } from '@/domains/body/body-weight-repository';
-import { dayKey } from '@/domains/nutrition/nutrition';
 import { MAX_WEIGHT_KG, MIN_WEIGHT_KG, isValidWeight } from '@/domains/profile/profile';
+import { confirm } from '@/lib/confirm';
 import { describeFailure } from '@/lib/describe-failure';
 import { formatDate, formatWeight } from '@/lib/format';
 
@@ -33,12 +34,14 @@ type WeightFormProps = {
 function WeightForm({ entries, onChanged }: WeightFormProps) {
   const { database, profile } = useAppData();
   const { theme } = useTheme();
-  const today = dayKey(new Date());
+  const today = useToday();
   const todayEntry = entries.find((entry) => entry.day === today);
   const start = entries.at(-1)?.weightKg ?? profile?.weightKg ?? DEFAULT_WEIGHT_KG;
   const [value, setValue] = useState<number | null>(todayEntry?.weightKg ?? null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const valueError =
+    value !== null && !isValidWeight(value) ? `Укажите вес от ${MIN_WEIGHT_KG} до ${MAX_WEIGHT_KG} кг` : null;
 
   const run = async (action: () => Promise<void>, failure: string) => {
     setSaving(true);
@@ -66,13 +69,13 @@ function WeightForm({ entries, onChanged }: WeightFormProps) {
         unit="кг"
         value={value}
       />
-      {message ? (
+      {valueError ?? message ? (
         <AppText accessibilityLiveRegion="polite" tone="danger">
-          {message}
+          {valueError ?? message}
         </AppText>
       ) : null}
       <Button
-        disabled={value === null || !isValidWeight(value)}
+        disabled={value === null || valueError !== null}
         label={todayEntry ? 'Обновить вес за сегодня' : 'Записать вес'}
         loading={saving}
         onPress={() =>
@@ -84,7 +87,17 @@ function WeightForm({ entries, onChanged }: WeightFormProps) {
           disabled={saving}
           label="Удалить запись за сегодня"
           variant="secondary"
-          onPress={() => run(() => deleteBodyWeight(database, today), 'Запись не удалена.')}
+          onPress={async () => {
+            const approved = await confirm({
+              title: 'Удалить запись за сегодня?',
+              message: formatWeight(todayEntry.weightKg),
+              confirmLabel: 'Удалить',
+              destructive: true,
+            });
+            if (approved) {
+              await run(() => deleteBodyWeight(database, today), 'Запись не удалена.');
+            }
+          }}
         />
       ) : null}
 

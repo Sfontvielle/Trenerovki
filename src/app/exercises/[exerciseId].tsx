@@ -38,7 +38,7 @@ export default function ExerciseDetailsScreen() {
       )}
 
       {restricted.length > 0 ? (
-        <AppText tone="warning">Упражнение отмечено для зоны из ваших ограничений.</AppText>
+        <AppText tone="warning">{`Это упражнение заметно нагружает зону из ваших ограничений: ${restricted.map((area) => limitationLabels[area]).join(', ')}.`}</AppText>
       ) : null}
 
       {cues.length > 0 ? (
@@ -53,7 +53,7 @@ export default function ExerciseDetailsScreen() {
       ) : null}
 
       <AppText variant="caption" tone="secondary">
-        Краткая памятка, экспертной проверки пока не было. При боли прекратите упражнение.
+        {`${cues.length > 0 ? 'Краткая памятка. Специалист её пока не проверял. ' : ''}При боли прекратите упражнение. Если появились боль в груди, сильная одышка, головокружение или слабость, остановите тренировку и обратитесь за неотложной помощью.`}
       </AppText>
 
       <Button

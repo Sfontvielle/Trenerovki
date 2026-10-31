@@ -52,8 +52,8 @@ export default function WorkoutsScreen() {
                   />
                 )}
                 <Button
-                  accessibilityLabel={`Изменить день: ${day.name}`}
-                  label="Изменить день"
+                  accessibilityLabel={`Изменить упражнения: ${day.name}`}
+                  label="Изменить упражнения"
                   variant="secondary"
                   onPress={() => router.push(`/plan/${day.id}`)}
                 />

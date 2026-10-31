@@ -68,7 +68,7 @@ function RootStack() {
             name="exercises/new"
             options={{ ...withHeader, presentation: 'modal', title: 'Новое упражнение' }}
           />
-          <Stack.Screen name="plan/[dayId]" options={{ ...withHeader, title: 'Изменить день' }} />
+          <Stack.Screen name="plan/[dayId]" options={{ ...withHeader, title: 'Изменить упражнения' }} />
           <Stack.Screen
             name="plan/pick"
             options={{ ...withHeader, presentation: 'modal', title: 'Выбрать упражнение' }}

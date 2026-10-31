@@ -333,10 +333,10 @@ export class WorkoutEngine {
 
   async hasRecentDiscomfort(exerciseId: string) {
     const since = new Date(this.now().getTime() - DISCOMFORT_MEMORY_MS).toISOString();
+    // The session exercise may be removed later, so the event's own payload decides.
     const event = await this.database.first(
-      `SELECT workout_event.sequence FROM workout_event
-       JOIN session_exercise ON session_exercise.id = workout_event.entity_id
-       WHERE workout_event.type = ? AND session_exercise.exercise_id = ? AND workout_event.occurred_at >= ?
+      `SELECT sequence FROM workout_event
+       WHERE type = ? AND json_extract(payload, '$.exerciseId') = ? AND occurred_at >= ?
        LIMIT 1`,
       [DISCOMFORT_EVENT, exerciseId, since],
     );

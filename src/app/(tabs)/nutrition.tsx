@@ -4,11 +4,11 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useAppData } from '@/app-data/app-data';
 import { useScreenData } from '@/app-data/use-screen-data';
+import { useToday } from '@/app-data/use-today';
 import { DataView } from '@/components/states';
 import { TabScreen } from '@/components/tab-screen';
 import { AppText, Button, Panel, useTheme } from '@/design-system';
 import {
-  dayKey,
   mealLabels,
   meals,
   shiftDay,
@@ -23,8 +23,9 @@ export default function NutritionScreen() {
   const { database } = useAppData();
   const { theme } = useTheme();
   const { colors, radii, sizes, spacing } = theme;
-  const today = dayKey(new Date());
-  const [day, setDay] = useState(today);
+  const today = useToday();
+  const [pickedDay, setPickedDay] = useState<string | null>(null);
+  const day = pickedDay ?? today;
 
   const load = useCallback(() => listDayEntries(database, day), [database, day]);
   const state = useScreenData(load);
@@ -35,7 +36,7 @@ export default function NutritionScreen() {
       accessibilityRole="button"
       accessibilityState={{ disabled }}
       disabled={disabled}
-      onPress={() => setDay(target)}
+      onPress={() => setPickedDay(target === today ? null : target)}
       style={[
         styles.dayButton,
         {
@@ -57,7 +58,7 @@ export default function NutritionScreen() {
       <View style={[styles.dayRow, { gap: spacing.m }]}>
         {dayButton('‹', 'Предыдущий день', shiftDay(day, -1), false)}
         <AppText accessibilityLiveRegion="polite" variant="heading" style={styles.dayLabel}>
-          {formatDayLabel(day, new Date())}
+          {formatDayLabel(day, today)}
         </AppText>
         {dayButton('›', 'Следующий день', shiftDay(day, 1), day >= today)}
       </View>

@@ -2,8 +2,6 @@ import type { Database, DatabaseExecutor } from '../data-platform/database';
 import type { PlannedDay } from './generate-plan';
 
 const DEFAULT_SETS = 3;
-const DEFAULT_REPS_MIN = 8;
-const DEFAULT_REPS_MAX = 12;
 
 export type ProgramExercise = {
   id: string;
@@ -79,8 +77,21 @@ export async function getProgram(database: Database): Promise<ProgramDay[]> {
   }));
 }
 
-export async function replaceProgramExercise(database: Database, id: string, exerciseId: string) {
-  await database.run('UPDATE program_exercise SET exercise_id = ? WHERE id = ?', [exerciseId, id]);
+type RepRange = {
+  min: number;
+  max: number;
+};
+
+export async function replaceProgramExercise(
+  database: Database,
+  id: string,
+  exerciseId: string,
+  range: RepRange,
+) {
+  await database.run(
+    'UPDATE program_exercise SET exercise_id = ?, reps_min = ?, reps_max = ? WHERE id = ?',
+    [exerciseId, range.min, range.max, id],
+  );
 }
 
 export async function removeProgramExercise(database: Database, id: string) {
@@ -105,13 +116,12 @@ export async function addProgramExercise(
   dayId: string,
   exerciseId: string,
   id: string,
+  range: RepRange,
 ) {
   await database.transaction(async (tx) => {
     const last = await tx.first<{
       position: number;
       target_sets: number;
-      reps_min: number;
-      reps_max: number;
     }>('SELECT * FROM program_exercise WHERE program_day_id = ? ORDER BY position DESC LIMIT 1', [dayId]);
     await tx.run(
       `INSERT INTO program_exercise
@@ -123,8 +133,8 @@ export async function addProgramExercise(
         (last?.position ?? 0) + 1,
         exerciseId,
         last?.target_sets ?? DEFAULT_SETS,
-        last?.reps_min ?? DEFAULT_REPS_MIN,
-        last?.reps_max ?? DEFAULT_REPS_MAX,
+        range.min,
+        range.max,
       ],
     );
   });

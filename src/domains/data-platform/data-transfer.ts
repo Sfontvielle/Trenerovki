@@ -56,6 +56,26 @@ export class BackupError extends Error {
 
 type Row = Record<string, unknown>;
 
+// Tables added by later schema versions may be missing from an older backup.
+const tableSince: Partial<Record<(typeof exportedTables)[number], number>> = {
+  food: 2,
+  food_entry: 2,
+  body_weight: 3,
+  custom_exercise: 3,
+};
+
+export type BackupSummary = {
+  workouts: number;
+  foodDays: number;
+  weights: number;
+  lastWorkoutAt: string | null;
+};
+
+function rowsOf(tables: Record<string, unknown>, table: string) {
+  const rows = tables[table];
+  return Array.isArray(rows) ? (rows as Row[]) : [];
+}
+
 function readBackup(text: string) {
   let parsed: { format?: unknown; schemaVersion?: unknown; tables?: unknown };
   try {
@@ -70,12 +90,7 @@ function readBackup(text: string) {
   return { schemaVersion: schemaVersion as number, tables: tables as Record<string, unknown> };
 }
 
-function isCellValue(value: unknown): value is string | number | null {
-  return value === null || typeof value === 'string' || typeof value === 'number';
-}
-
-// Everything happens in one transaction: a bad backup leaves current data intact.
-export async function restoreAllData(database: Database, text: string) {
+async function validateBackup(database: Database, text: string) {
   const { schemaVersion, tables } = readBackup(text);
   const current = await database.first<{ version: number }>(
     'SELECT MAX(version) AS version FROM schema_migrations',
@@ -86,6 +101,36 @@ export async function restoreAllData(database: Database, text: string) {
   if (!Array.isArray(tables.profile) || tables.profile.length !== 1) {
     throw new BackupError('damaged');
   }
+  for (const table of exportedTables) {
+    if (!Array.isArray(tables[table]) && schemaVersion >= (tableSince[table] ?? 1)) {
+      throw new BackupError('damaged');
+    }
+  }
+  return tables;
+}
+
+export async function inspectBackup(database: Database, text: string): Promise<BackupSummary> {
+  const tables = await validateBackup(database, text);
+  const completed = rowsOf(tables, 'workout_session')
+    .filter((row) => row.state === 'completed')
+    .map((row) => String(row.finished_at))
+    .sort();
+
+  return {
+    workouts: completed.length,
+    foodDays: new Set(rowsOf(tables, 'food_entry').map((row) => row.day)).size,
+    weights: rowsOf(tables, 'body_weight').length,
+    lastWorkoutAt: completed.at(-1) ?? null,
+  };
+}
+
+function isCellValue(value: unknown): value is string | number | null {
+  return value === null || typeof value === 'string' || typeof value === 'number';
+}
+
+// Everything happens in one transaction: a bad backup leaves current data intact.
+export async function restoreAllData(database: Database, text: string) {
+  const tables = await validateBackup(database, text);
 
   await database.transaction(async (tx) => {
     for (const table of deletionOrder) {

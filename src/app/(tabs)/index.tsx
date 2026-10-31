@@ -12,7 +12,7 @@ import { dayKey, sumNutrients } from '@/domains/nutrition/nutrition';
 import { listDayEntries } from '@/domains/nutrition/nutrition-repository';
 import { getNextDay, getProgram } from '@/domains/program/program-repository';
 import { scheduleHeading } from '@/domains/program/schedule';
-import { getSummary } from '@/domains/progress/progress-repository';
+import { finishedWorkoutToday, getSummary } from '@/domains/progress/progress-repository';
 import { formatEnergy, formatMacros } from '@/features/nutrition/format-nutrition';
 import { OpenSessionBanner } from '@/features/workout/open-session-banner';
 import { useStartWorkout } from '@/features/workout/use-start-workout';
@@ -21,36 +21,40 @@ import { formatWeight, pluralize } from '@/lib/format';
 export default function HomeScreen() {
   const { database, engine, profile } = useAppData();
   const { start, starting, error } = useStartWorkout();
+  const trainingDays = profile?.trainingDays;
 
   const load = useCallback(async () => {
-    const [openSession, program, summary, foodEntries, bodyWeight] = await Promise.all([
+    const now = new Date();
+    const [openSession, program, summary, foodEntries, bodyWeight, doneToday] = await Promise.all([
       engine.getOpenSession(),
       getProgram(database),
-      getSummary(database, new Date()),
-      listDayEntries(database, dayKey(new Date())),
+      getSummary(database, now),
+      listDayEntries(database, dayKey(now)),
       listBodyWeight(database, 1),
+      finishedWorkoutToday(database, now),
     ]);
     return {
+      heading: doneToday ? 'Следующая тренировка' : scheduleHeading(trainingDays ?? [], now),
       openSession,
       nextDay: await getNextDay(database, program),
       summary,
       foodEntries,
       latestWeight: bodyWeight.at(-1) ?? null,
     };
-  }, [database, engine]);
+  }, [database, engine, trainingDays]);
   const state = useScreenData(load);
 
   return (
     <TabScreen title="Главная">
       <DataView state={state}>
-        {({ openSession, nextDay, summary, foodEntries, latestWeight }) => (
+        {({ heading, openSession, nextDay, summary, foodEntries, latestWeight }) => (
           <>
             {openSession ? <OpenSessionBanner session={openSession} /> : null}
 
             {!openSession && nextDay ? (
               <Panel>
                 <AppText variant="callout" tone="secondary">
-                  {scheduleHeading(profile?.trainingDays ?? [], new Date())}
+                  {heading}
                 </AppText>
                 <AppText variant="title">{nextDay.name}</AppText>
                 {nextDay.exercises.map((exercise) => (

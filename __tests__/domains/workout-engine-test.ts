@@ -330,6 +330,16 @@ describe('WorkoutEngine', () => {
     await expectCode(engine.removeExercise(exerciseId, randomUUID()), 'exercise_has_sets');
   });
 
+  it('remembers discomfort even after the exercise is removed from the workout', async () => {
+    const { engine } = await setup();
+    const { exerciseId } = await start(engine);
+
+    await engine.reportDiscomfort(exerciseId, randomUUID());
+    await engine.removeExercise(exerciseId, randomUUID());
+
+    expect(await engine.hasRecentDiscomfort('bench-press')).toBe(true);
+  });
+
   it('remembers reported discomfort for two weeks', async () => {
     const { clock, engine } = await setup();
     const { exerciseId } = await start(engine);

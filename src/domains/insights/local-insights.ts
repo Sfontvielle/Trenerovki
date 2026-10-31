@@ -5,6 +5,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * DAY_MS;
 const VOLUME_CHANGE_RATIO = 0.1;
 const PLATEAU_SESSIONS = 3;
+const PLATEAU_WINDOW_MS = 28 * DAY_MS;
 
 export type InsightData = {
   plannedPerWeek: number;
@@ -29,8 +30,8 @@ export function buildInsights(data: InsightData): Insight[] {
     return [
       {
         id: 'no-data',
-        title: 'Пока мало данных',
-        body: 'Подсказки появятся после первых завершённых тренировок.',
+        title: 'Новых подсказок нет',
+        body: 'За последние 14 дней нет завершённых тренировок. Подсказки появятся после следующей.',
       },
     ];
   }
@@ -40,8 +41,8 @@ export function buildInsights(data: InsightData): Insight[] {
     title: 'Регулярность',
     body:
       workoutsThisWeek >= plannedPerWeek
-        ? `За 7 дней выполнено ${workoutsThisWeek} из ${plannedPerWeek} запланированных тренировок.`
-        : `За 7 дней выполнено ${workoutsThisWeek} из ${plannedPerWeek} запланированных тренировок. Если план не подходит, его можно изменить в профиле.`,
+        ? `За 7 дней завершено тренировок: ${workoutsThisWeek}, по плану ${plannedPerWeek} в неделю.`
+        : `За 7 дней завершено тренировок: ${workoutsThisWeek}, по плану ${plannedPerWeek} в неделю. Если план не подходит, упражнения можно изменить на вкладке «Тренировки».`,
   });
 
   if (volumeLastWeek > 0) {
@@ -49,8 +50,8 @@ export function buildInsights(data: InsightData): Insight[] {
     if (Math.abs(change) >= VOLUME_CHANGE_RATIO) {
       insights.push({
         id: 'volume',
-        title: 'Объём нагрузки',
-        body: `Объём за 7 дней ${change > 0 ? 'вырос' : 'снизился'} на ${Math.round(Math.abs(change) * 100)}% по сравнению с предыдущими 7 днями.`,
+        title: 'Суммарная нагрузка',
+        body: `Сумма «вес × повторы» за 7 дней ${change > 0 ? 'выросла' : 'снизилась'} на ${Math.round(Math.abs(change) * 100)}% по сравнению с предыдущими 7 днями.`,
       });
     }
   }
@@ -59,7 +60,7 @@ export function buildInsights(data: InsightData): Insight[] {
     insights.push({
       id: `plateau-${exerciseId}`,
       title: exerciseName(exerciseId),
-      body: `Лучший вес не менялся ${PLATEAU_SESSIONS} тренировки подряд. Можно попробовать добавить повтор. Решение за вами.`,
+      body: `Максимальный вес не менялся ${PLATEAU_SESSIONS} тренировки подряд. Если подходы даются легко и боли нет, можно добавить один повтор. Решение за вами.`,
     });
   }
 
@@ -84,7 +85,7 @@ async function weekStats(database: Database, from: Date, to: Date) {
   return { workouts: workouts?.count ?? 0, volume: volume?.volume ?? 0 };
 }
 
-async function findPlateaus(database: Database) {
+async function findPlateaus(database: Database, since: Date) {
   const rows = await database.all<{ exercise_id: string; session_id: string; top: number }>(
     `SELECT session_exercise.exercise_id, workout_session.id AS session_id,
             MAX(workout_set.weight_kg) AS top
@@ -93,8 +94,10 @@ async function findPlateaus(database: Database) {
      JOIN workout_session ON workout_session.id = session_exercise.session_id
      WHERE workout_session.state = 'completed' AND workout_set.kind != 'warmup'
        AND workout_set.weight_kg > 0
+       AND workout_session.finished_at >= ?
      GROUP BY session_exercise.exercise_id, workout_session.id
      ORDER BY workout_session.finished_at DESC`,
+    [since.toISOString()],
   );
 
   const recent = new Map<string, number[]>();
@@ -121,7 +124,7 @@ export async function getInsightData(
   const [thisWeek, lastWeek, plateauExercises] = await Promise.all([
     weekStats(database, weekAgo, now),
     weekStats(database, twoWeeksAgo, weekAgo),
-    findPlateaus(database),
+    findPlateaus(database, new Date(now.getTime() - PLATEAU_WINDOW_MS)),
   ]);
 
   return {

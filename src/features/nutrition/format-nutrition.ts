@@ -1,4 +1,4 @@
-import { type Nutrients, dayKey, shiftDay } from '@/domains/nutrition/nutrition';
+import { type Nutrients, shiftDay } from '@/domains/nutrition/nutrition';
 import { formatDate, formatNumber } from '@/lib/format';
 
 export function formatEnergy(kcal: number) {
@@ -9,8 +9,7 @@ export function formatMacros({ protein, fat, carbs }: Nutrients) {
   return `Б ${Math.round(protein)} г, Ж ${Math.round(fat)} г, У ${Math.round(carbs)} г`;
 }
 
-export function formatDayLabel(day: string, now: Date) {
-  const today = dayKey(now);
+export function formatDayLabel(day: string, today: string) {
   if (day === today) {
     return 'Сегодня';
   }

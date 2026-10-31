@@ -29,6 +29,7 @@ type Services = {
 type AppDataValue = Services & {
   profile: Profile | null;
   hapticsEnabled: boolean;
+  resumeCount: number;
   refreshProfile: () => Promise<void>;
   reloadAll: () => Promise<void>;
   changeThemePreference: (preference: ThemePreference) => Promise<void>;
@@ -79,6 +80,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
   const { setPreference, setAccent } = useTheme();
   const [state, setState] = useState<LoadState>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
+  const [resumeCount, setResumeCount] = useState(0);
 
   const readAll = useCallback(
     async (services: Services) => {
@@ -133,7 +135,11 @@ export function AppDataProvider({ children }: PropsWithChildren) {
     }
     const subscription = AppState.addEventListener('change', (appState) => {
       if (appState === 'active') {
-        services.engine.recoverInterruptedSession(ALLOWED_IDLE_MS).catch(console.error);
+        // Screens reload after recovery, so they show the state it left behind.
+        services.engine
+          .recoverInterruptedSession(ALLOWED_IDLE_MS)
+          .catch(console.error)
+          .finally(() => setResumeCount((count) => count + 1));
       }
     });
     return () => subscription.remove();
@@ -206,6 +212,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
         ...state.services,
         profile: state.profile,
         hapticsEnabled: state.hapticsEnabled,
+        resumeCount,
         refreshProfile,
         reloadAll,
         changeThemePreference,

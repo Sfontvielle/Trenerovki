@@ -9,7 +9,7 @@ import { WheelPicker } from '@/components/wheel-picker';
 import { AppText, Button, Panel, Screen, useTheme } from '@/design-system';
 import { createId } from '@/domains/data-platform/ids';
 import { exerciseName } from '@/domains/exercises/catalog';
-import { completeOnboarding } from '@/domains/profile/complete-onboarding';
+import { completeOnboarding, saveAnswers } from '@/domains/profile/complete-onboarding';
 import {
   type DaysPerWeek,
   type Equipment,
@@ -215,11 +215,15 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
     const profile = toProfile(draft);
     const plan = generatePlan(profile);
 
-    const accept = async () => {
+    const accept = async (replacePlan: boolean) => {
       setSaving(true);
       setSaveError(null);
       try {
-        await completeOnboarding(database, profile, plan, createId, new Date());
+        if (replacePlan) {
+          await completeOnboarding(database, profile, plan, createId, new Date());
+        } else {
+          await saveAnswers(database, profile, new Date());
+        }
       } catch (error) {
         console.error(error);
         setSaveError(`План не сохранён. ${describeFailure(error)}`);
@@ -240,12 +244,13 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
       <Screen scroll ambient>
         <FadeIn style={{ gap: spacing.xl }}>
           <QuestionTitle
-            hint={`${plan.length} ${pluralize(plan.length, ['тренировка', 'тренировки', 'тренировок'])} в цикле. Учтены цель, опыт, режим, условия и ограничения. План составлен правилами приложения, а не специалистом.`}
+            hint={`${plan.length} ${pluralize(plan.length, ['тренировка', 'тренировки', 'тренировок'])} в цикле. Упражнения подобраны автоматически по цели, опыту, числу тренировок, времени и условиям${profile.limitations.length > 0 ? ', а также по выбранным ограничениям' : ''}. Специалист план не проверял.`}
             title={initial ? 'Ваш новый план' : 'Ваш стартовый план'}
           />
           {initial ? (
             <AppText tone="secondary" style={{ textAlign: 'center' }}>
-              Новый план заменит текущий. История тренировок сохранится.
+              Новый план заменит текущий вместе с вашими заменами и добавленными упражнениями. Вернуть
+              прежний план будет нельзя. История тренировок сохранится.
             </AppText>
           ) : null}
 
@@ -265,13 +270,15 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
           </AppText>
           {profile.limitations.length > 0 ? (
             <AppText variant="callout" tone="secondary">
-              Мы исключили упражнения, отмеченные в нашем каталоге для выбранных зон. Это не медицинская
+              Мы убрали из плана упражнения, которые заметно нагружают выбранные зоны. Это не медицинская
               рекомендация.
             </AppText>
           ) : null}
           <AppText variant="caption" tone="secondary">
-            IRONVANT не диагностирует и не лечит. Если есть боль, травма или заболевание, сначала
-            посоветуйтесь с врачом и прекращайте упражнение при боли.
+            IRONVANT не диагностирует и не лечит. Если у вас есть боль, травма, заболевание или
+            беременность, посоветуйтесь с врачом до начала тренировок. При боли прекратите упражнение. При
+            боли в груди, сильной одышке, головокружении или слабости остановите тренировку и обратитесь за
+            неотложной помощью.
           </AppText>
 
           {saveError ? (
@@ -279,7 +286,19 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
               {saveError}
             </AppText>
           ) : null}
-          <Button label="Принять план" loading={saving} onPress={accept} />
+          <Button
+            label={initial ? 'Заменить план' : 'Принять план'}
+            loading={saving}
+            onPress={() => accept(true)}
+          />
+          {initial ? (
+            <Button
+              disabled={saving}
+              label="Сохранить ответы, план не менять"
+              variant="secondary"
+              onPress={() => accept(false)}
+            />
+          ) : null}
           <Button
             label="Изменить ответы"
             variant="secondary"
@@ -317,7 +336,7 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
       <FadeIn key={page} style={{ flex: 1, gap: spacing.xl }}>
         {page === 'name' ? (
           <>
-            <QuestionTitle title="Как вас зовут?" hint="Так мы будем к вам обращаться" />
+            <QuestionTitle title="Как вас зовут?" hint="Имя видно только в вашем профиле" />
             <TextInput
               accessibilityLabel="Как вас зовут"
               autoCapitalize="words"
@@ -342,7 +361,7 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
 
         {page === 'age' ? (
           <>
-            <QuestionTitle title="Сколько вам лет?" hint={`Приложение рассчитано на взрослых от ${MIN_AGE} лет`} />
+            <QuestionTitle title="Сколько вам лет?" hint={`Прокрутите колесо или коснитесь своего возраста. Приложение рассчитано на взрослых от ${MIN_AGE} лет`} />
             <WheelPicker
               label="Возраст, лет"
               onChange={(value) => update({ ageText: String(value) })}
@@ -410,6 +429,13 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
                 {weightError}
               </AppText>
             ) : null}
+            {draft.weightKg !== null ? (
+              <Button
+                label="Не указывать вес"
+                variant="secondary"
+                onPress={() => update({ weightKg: null })}
+              />
+            ) : null}
           </>
         ) : null}
 
@@ -476,7 +502,7 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
 
         {page === 'duration' ? (
           <>
-            <QuestionTitle title="Сколько длится одна тренировка?" />
+            <QuestionTitle title="Сколько времени вы готовы тратить на тренировку?" />
             <View accessibilityRole="radiogroup" style={{ gap: spacing.m }}>
               {allowedSessionMinutes.map((minutes) => (
                 <ChoiceCard
@@ -511,7 +537,7 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
         {page === 'limitations' ? (
           <>
             <QuestionTitle
-              hint="Необязательно. Мы исключим упражнения, отмеченные в нашем каталоге для этих зон. Это не медицинская рекомендация."
+              hint="Необязательно. Уберём из плана упражнения, которые заметно нагружают эти зоны. Другие ограничения план не учитывает: посоветуйтесь с врачом. Это не медицинская рекомендация."
               title="Что нельзя сильно нагружать?"
             />
             <View style={{ gap: spacing.m }}>

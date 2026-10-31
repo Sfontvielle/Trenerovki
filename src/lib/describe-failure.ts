@@ -9,7 +9,7 @@ const workoutMessages: Record<WorkoutErrorCode, string> = {
   exercise_not_found: 'Упражнение больше не входит в тренировку.',
   exercise_has_sets: 'Сначала удалите записанные подходы этого упражнения.',
   set_not_found: 'Подход уже удалён.',
-  invalid_transition: 'Тренировка уже завершена или отменена.',
+  invalid_transition: 'Состояние тренировки уже изменилось. Проверьте её и повторите.',
   session_not_active: 'Тренировка на паузе или уже завершена.',
   invalid_set: 'Проверьте значения подхода.',
 };

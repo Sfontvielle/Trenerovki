@@ -1,6 +1,8 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 
+import { useAppData } from '@/app-data/app-data';
+
 type LoadResult<Data> =
   | { status: 'loading' }
   | { status: 'error' }
@@ -11,6 +13,7 @@ export type ScreenData<Data> = LoadResult<Data> & { reload: () => void };
 export function useScreenData<Data>(load: () => Promise<Data>): ScreenData<Data> {
   const [result, setResult] = useState<LoadResult<Data>>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
+  const { resumeCount } = useAppData();
 
   useFocusEffect(
     useCallback(() => {
@@ -31,8 +34,8 @@ export function useScreenData<Data>(load: () => Promise<Data>): ScreenData<Data>
       return () => {
         active = false;
       };
-      // eslint-disable-next-line react-hooks/exhaustive-deps -- attempt re-runs the load.
-    }, [load, attempt]),
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- attempt and resumeCount re-run the load.
+    }, [load, attempt, resumeCount]),
   );
 
   const reload = useCallback(() => setAttempt((current) => current + 1), []);

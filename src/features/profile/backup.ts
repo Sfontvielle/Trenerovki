@@ -13,7 +13,14 @@ export async function shareBackup(database: Database) {
   }
   file.create();
   await file.write(await exportAllData(database));
-  await Share.share({ url: file.uri });
+  try {
+    const { action } = await Share.share({ url: file.uri });
+    return action === Share.sharedAction;
+  } finally {
+    if (file.exists) {
+      file.delete();
+    }
+  }
 }
 
 export async function pickBackup() {

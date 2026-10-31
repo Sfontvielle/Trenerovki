@@ -1,6 +1,6 @@
 import { deleteBodyWeight, listBodyWeight, saveBodyWeight } from '@/domains/body/body-weight-repository';
 import type { Database } from '@/domains/data-platform/database';
-import { BackupError, exportAllData, restoreAllData } from '@/domains/data-platform/data-transfer';
+import { BackupError, exportAllData, inspectBackup, restoreAllData } from '@/domains/data-platform/data-transfer';
 import { migrate, migrations } from '@/domains/data-platform/migrations';
 import { exerciseName, registerCustomExerciseNames } from '@/domains/exercises/catalog';
 import { addCustomExercise, listCustomExercises } from '@/domains/exercises/custom-exercise-repository';
@@ -172,14 +172,15 @@ describe('editing the plan', () => {
     const [day] = await getProgram(database);
     const [first] = day.exercises;
 
-    await replaceProgramExercise(database, first.id, 'leg-press');
-    await addProgramExercise(database, day.id, 'crunch', createId());
+    await replaceProgramExercise(database, first.id, 'leg-press', { min: 8, max: 12 });
+    await addProgramExercise(database, day.id, 'crunch', createId(), { min: 10, max: 15 });
     await removeProgramExercise(database, first.id);
 
     const [edited] = await getProgram(database);
     const ids = edited.exercises.map(({ exerciseId }) => exerciseId);
     expect(ids).not.toContain('leg-press');
     expect(ids.at(-1)).toBe('crunch');
+    expect(edited.exercises.at(-1)).toMatchObject({ repsMin: 10, repsMax: 15 });
     const positions = await database.all<{ position: number }>(
       'SELECT position FROM program_exercise WHERE program_day_id = ? ORDER BY position',
       [day.id],
@@ -220,13 +221,13 @@ describe('insights', () => {
   });
 
   it('reports consistency against the plan', () => {
-    expect(buildInsights(base)[0].body).toContain('2 из 3');
+    expect(buildInsights(base)[0].body).toContain('завершено тренировок: 2, по плану 3');
   });
 
   it('reports a real volume change only', () => {
     expect(buildInsights(base).some(({ id }) => id === 'volume')).toBe(false);
     const insights = buildInsights({ ...base, volumeThisWeek: 1300 });
-    expect(insights.find(({ id }) => id === 'volume')?.body).toContain('вырос на 30%');
+    expect(insights.find(({ id }) => id === 'volume')?.body).toContain('выросла на 30%');
   });
 
   it('finds an exercise stuck at the same weight', async () => {
@@ -240,6 +241,19 @@ describe('insights', () => {
 
     expect(data.plateauExercises).toEqual(['bench-press']);
     expect(data.workoutsThisWeek).toBe(3);
+  });
+
+  it('ignores old sessions when looking for a plateau', async () => {
+    const { clock, database, engine } = await setup();
+    for (let index = 0; index < 3; index += 1) {
+      await finishWorkout(engine, [{ weightKg: 80, reps: 8 }]);
+      clock.time += DAY_MS;
+    }
+    clock.time += 30 * DAY_MS;
+
+    const data = await getInsightData(database, 3, new Date(clock.time));
+
+    expect(data.plateauExercises).toEqual([]);
   });
 
   it('does not call rising weights a plateau', async () => {
@@ -306,6 +320,24 @@ describe('backup', () => {
 
     await expect(restoreAllData(database, text)).rejects.toMatchObject({ problem });
     await expect(restoreAllData(database, text)).rejects.toBeInstanceOf(BackupError);
+  });
+
+  it('summarises a backup before anything is replaced', async () => {
+    const { database } = await seedData();
+    const backup = await exportAllData(database);
+
+    expect(await inspectBackup(database, backup)).toMatchObject({ workouts: 1, foodDays: 1, weights: 1 });
+    expect((await inspectBackup(database, backup)).lastWorkoutAt).toBeTruthy();
+  });
+
+  it('refuses a current backup with missing tables instead of erasing them', async () => {
+    const { database } = await seedData();
+    const parsed = JSON.parse(await exportAllData(database));
+    delete parsed.tables.workout_set;
+
+    await expect(restoreAllData(database, JSON.stringify(parsed))).rejects.toMatchObject({ problem: 'damaged' });
+
+    expect(await database.all('SELECT id FROM workout_set')).toHaveLength(1);
   });
 
   it('keeps current data when a backup fails half way', async () => {

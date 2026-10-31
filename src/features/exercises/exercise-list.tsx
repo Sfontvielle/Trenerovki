@@ -73,7 +73,7 @@ export function ExerciseList({ onPick }: ExerciseListProps) {
                       </AppText>
                       {restricted ? (
                         <AppText variant="caption" tone="warning">
-                          Отмечено для зоны из ваших ограничений
+                          Нагружает зону из ваших ограничений
                         </AppText>
                       ) : null}
                     </Panel>

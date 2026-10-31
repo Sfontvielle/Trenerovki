@@ -13,7 +13,13 @@ import {
   accentNames,
   useTheme,
 } from '@/design-system';
-import { BackupError, type BackupProblem, deleteAllData, restoreAllData } from '@/domains/data-platform/data-transfer';
+import {
+  BackupError,
+  type BackupProblem,
+  deleteAllData,
+  inspectBackup,
+  restoreAllData,
+} from '@/domains/data-platform/data-transfer';
 import { pickBackup, shareBackup } from '@/features/profile/backup';
 import {
   equipmentLabels,
@@ -24,6 +30,7 @@ import {
 } from '@/features/profile/labels';
 import { confirm } from '@/lib/confirm';
 import { describeFailure } from '@/lib/describe-failure';
+import { formatDate } from '@/lib/format';
 
 const themeChoices: { value: ThemePreference; label: string }[] = [
   { value: 'system', label: 'Как на iPhone' },
@@ -51,6 +58,7 @@ export default function ProfileScreen() {
     changeHaptics,
     changeThemePreference,
     database,
+    engine,
     hapticsEnabled,
     profile,
     refreshProfile,
@@ -74,7 +82,9 @@ export default function ProfileScreen() {
     setMessage(null);
     setNotice(null);
     try {
-      await shareBackup(database);
+      if (await shareBackup(database)) {
+        setNotice('Резервная копия сохранена.');
+      }
     } catch (error) {
       console.error(error);
       setMessage(`Копия не создана. ${describeFailure(error)}`);
@@ -82,25 +92,29 @@ export default function ProfileScreen() {
   };
 
   const restoreBackup = async () => {
-    const approved = await confirm({
-      title: 'Восстановить из копии?',
-      message: 'Все текущие данные будут заменены данными из файла.',
-      confirmLabel: 'Выбрать файл',
-      destructive: true,
-    });
-    if (!approved) {
-      return;
-    }
     setMessage(null);
     setNotice(null);
     try {
+      if (await engine.getOpenSession()) {
+        setMessage('Сначала завершите или отмените тренировку.');
+        return;
+      }
       const text = await pickBackup();
       if (text === null) {
         return;
       }
+      const summary = await inspectBackup(database, text);
+      const last = summary.lastWorkoutAt ? ` Последняя тренировка: ${formatDate(summary.lastWorkoutAt)}.` : '';
+      const approved = await confirm({
+        title: 'Заменить все данные?',
+        message: `В копии: тренировок ${summary.workouts}, дней с питанием ${summary.foodDays}, записей веса ${summary.weights}.${last} Текущие данные будут удалены. Отменить замену нельзя: если они нужны, сначала сохраните резервную копию.`,
+        confirmLabel: 'Заменить данные',
+        destructive: true,
+      });
+      if (!approved) {
+        return;
+      }
       await restoreAllData(database, text);
-      await reloadAll();
-      setNotice('Данные восстановлены из копии.');
     } catch (error) {
       console.error(error);
       setMessage(
@@ -108,13 +122,22 @@ export default function ProfileScreen() {
           ? backupProblems[error.problem]
           : `Данные не восстановлены. Текущие данные не изменились. ${describeFailure(error)}`,
       );
+      return;
+    }
+    try {
+      await engine.recoverInterruptedSession().catch(console.error);
+      await reloadAll();
+      setNotice('Данные восстановлены из копии.');
+    } catch (error) {
+      console.error(error);
+      setMessage('Данные восстановлены, но экран не обновился. Перезапустите приложение.');
     }
   };
 
   const deleteData = async () => {
     const approved = await confirm({
       title: 'Удалить все данные?',
-      message: 'Профиль, план и вся история тренировок будут удалены из приложения.',
+      message: 'Будут удалены профиль, план, тренировки, питание, вес тела, ваши упражнения и настройки. Вернуть их можно только из резервной копии.',
       confirmLabel: 'Удалить всё',
       destructive: true,
     });
@@ -176,7 +199,7 @@ export default function ProfileScreen() {
         <ChoiceGroup
           choices={accentNames.map((value) => ({ value, label: accentLabels[value] }))}
           isSelected={(value) => theme.accent === value}
-          label="Акцент"
+          label="Цвет оформления"
           onSelect={(value) => saveSetting(changeAccent(value))}
         />
         <ChoiceGroup
@@ -197,8 +220,8 @@ export default function ProfileScreen() {
           резервную копию iPhone, если она включена.
         </AppText>
         <AppText variant="callout" tone="secondary">
-          Резервная копия это файл с вашими ответами, тренировками и питанием. Храните его в надёжном
-          месте: в нём есть личные данные.
+          Резервная копия — это незашифрованный файл с вашими ответами, планом, тренировками, питанием и
+          весом. Храните его в надёжном месте и не пересылайте: открыть его может любой, у кого есть файл.
         </AppText>
         <Button label="Сохранить резервную копию" variant="secondary" onPress={saveBackup} />
         <Button label="Восстановить из копии" variant="secondary" onPress={restoreBackup} />

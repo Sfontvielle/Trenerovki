@@ -4,6 +4,10 @@ import { replaceProgram } from '../program/program-repository';
 import type { Profile } from './profile';
 import { saveProfile } from './profile-repository';
 
+export async function saveAnswers(database: Database, profile: Profile, now: Date) {
+  await database.transaction((tx) => saveProfile(tx, profile, now.toISOString()));
+}
+
 export async function completeOnboarding(
   database: Database,
   profile: Profile,

@@ -63,6 +63,7 @@ function SessionOverview({ session, onChanged }: SessionOverviewProps) {
     } catch (cause) {
       console.error(cause);
       setError(`Действие не выполнено. Записанные подходы сохранены. ${describeFailure(cause)}`);
+      onChanged();
     } finally {
       setBusy(false);
     }

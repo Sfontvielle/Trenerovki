@@ -22,7 +22,7 @@ export default function TabsLayout() {
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="coach">
         <NativeTabs.Trigger.Label>Coach</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf={{ default: 'message', selected: 'message.fill' }} />
+        <NativeTabs.Trigger.Icon sf={{ default: 'lightbulb', selected: 'lightbulb.fill' }} />
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="nutrition">
         <NativeTabs.Trigger.Label>Питание</NativeTabs.Trigger.Label>

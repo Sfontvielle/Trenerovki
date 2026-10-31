@@ -16,7 +16,7 @@ type RulerPickerProps = {
   min: number;
   max: number;
   step: number;
-  onChange: (value: number) => void;
+  onChange: (value: number | null) => void;
 };
 
 export function RulerPicker({ label, unit, value, start, min, max, step, onChange }: RulerPickerProps) {
@@ -26,6 +26,9 @@ export function RulerPicker({ label, unit, value, start, min, max, step, onChang
   const [text, setText] = useState<string | null>(null);
   const shown = value ?? start;
   const picked = value !== null;
+  // The ruler, the buttons and the screen also change the value, so a draft
+  // that no longer matches it must not stay on display.
+  const draft = text !== null && parseDecimal(text) === value ? text : null;
 
   const snap = (raw: number) => {
     const rounded = Math.round(raw / step) * step;
@@ -95,7 +98,7 @@ export function RulerPicker({ label, unit, value, start, min, max, step, onChang
           onChangeText={(input) => {
             setText(input);
             const parsed = parseDecimal(input);
-            if (parsed !== null && Number.isFinite(parsed)) {
+            if (parsed === null || Number.isFinite(parsed)) {
               onChange(parsed);
             }
           }}
@@ -104,7 +107,7 @@ export function RulerPicker({ label, unit, value, start, min, max, step, onChang
           placeholderTextColor={colors.textSecondary}
           selectionColor={colors.accent}
           style={[typography.display, styles.valueInput, { color: colors.textPrimary }]}
-          value={text ?? formatInputNumber(value)}
+          value={draft ?? formatInputNumber(value)}
         />
         <AppText variant="heading" tone="secondary">
           {unit}

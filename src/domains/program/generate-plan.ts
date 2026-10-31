@@ -1,4 +1,4 @@
-import { type Exercise, type MovementPattern, exercises } from '../exercises/catalog';
+import { type Exercise, type MovementPattern, exercises, findExercise } from '../exercises/catalog';
 import type { DaysPerWeek, Experience, Goal, Profile, SessionMinutes } from '../profile/profile';
 
 type PlanProfile = Pick<
@@ -113,13 +113,17 @@ const exercisesPerSession: Record<SessionMinutes, number> = {
   75: 6,
 };
 
-function repRange(exercise: Exercise, goal: Goal, experience: Experience) {
-  if (exercise.isolation) {
+function repRange(exercise: Exercise | null, goal: Goal, experience: Experience) {
+  if (exercise?.isolation) {
     return isolationRange;
   }
   return goal === 'strength' && experience === 'beginner'
     ? beginnerStrengthRange
     : compoundRepRanges[goal];
+}
+
+export function repRangeFor(exerciseId: string, goal: Goal, experience: Experience) {
+  return repRange(findExercise(exerciseId), goal, experience);
 }
 
 function pickExercises(patterns: MovementPattern[], pool: Exercise[], dayIndex: number) {

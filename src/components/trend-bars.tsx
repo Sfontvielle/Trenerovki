@@ -42,7 +42,7 @@ export function TrendBars({ bars }: TrendBarsProps) {
                   backgroundColor: active ? colors.accent : colors.border,
                   borderTopLeftRadius: spacing.xs,
                   borderTopRightRadius: spacing.xs,
-                  height: `${(bar.value / highest) * 100}%`,
+                  height: `${highest > 0 ? (bar.value / highest) * 100 : 0}%`,
                 }}
               />
             </Pressable>

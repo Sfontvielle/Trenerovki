@@ -52,6 +52,15 @@ export async function getSummary(database: Database, now: Date): Promise<Progres
   };
 }
 
+export async function finishedWorkoutToday(database: Database, now: Date) {
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const session = await database.first(
+    `SELECT id FROM workout_session WHERE state = 'completed' AND finished_at >= ? LIMIT 1`,
+    [startOfDay.toISOString()],
+  );
+  return Boolean(session);
+}
+
 export async function listCompletedSessions(database: Database): Promise<SessionSummary[]> {
   const rows = await database.all<{
     id: string;

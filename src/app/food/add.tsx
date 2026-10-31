@@ -64,7 +64,7 @@ export default function AddFoodScreen() {
       return;
     }
     if (!areValidNutrients(per100g)) {
-      setError('Проверьте значения на 100 г: до 900 ккал, а белки, жиры и углеводы вместе до 100 г.');
+      setError('Заполните все поля на 100 г. Если значения нет, укажите 0. Калорий не больше 900, белков, жиров и углеводов вместе не больше 100 г.');
       return;
     }
     if (!isValidGrams(grams)) {
