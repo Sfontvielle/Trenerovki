@@ -213,6 +213,61 @@ export const migrations: Migration[] = [
       "ALTER TABLE custom_exercise ADD COLUMN equipment TEXT NOT NULL DEFAULT '[]'",
     ],
   },
+  {
+    version: 5,
+    name: 'recovery check-ins and steps',
+    statements: [
+      `CREATE TABLE daily_checkin (
+        day TEXT PRIMARY KEY,
+        sleep_hours REAL,
+        sleep_quality INTEGER,
+        energy INTEGER,
+        soreness INTEGER,
+        stress INTEGER,
+        note TEXT,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE TABLE daily_steps (
+        day TEXT PRIMARY KEY,
+        steps INTEGER NOT NULL CHECK (steps >= 0),
+        updated_at TEXT NOT NULL
+      )`,
+    ],
+  },
+  {
+    version: 6,
+    name: 'coach proposals, plan versions and memory',
+    statements: [
+      `CREATE TABLE coach_proposal (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        fingerprint TEXT NOT NULL,
+        title TEXT NOT NULL,
+        why TEXT NOT NULL,
+        change TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('open', 'accepted', 'rejected', 'deferred', 'undone')),
+        created_at TEXT NOT NULL,
+        decided_at TEXT,
+        deferred_until TEXT,
+        plan_version_id TEXT
+      )`,
+      'CREATE INDEX coach_proposal_by_fingerprint ON coach_proposal (fingerprint, status)',
+      `CREATE TABLE plan_version (
+        id TEXT PRIMARY KEY,
+        created_at TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        snapshot TEXT NOT NULL
+      )`,
+      `CREATE TABLE coach_memory (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL CHECK (kind IN ('fact', 'avoid_exercise')),
+        text TEXT NOT NULL,
+        exercise_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+    ],
+  },
 ];
 
 type MigrationHooks = {

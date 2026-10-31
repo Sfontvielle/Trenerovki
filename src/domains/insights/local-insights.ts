@@ -1,5 +1,7 @@
 import type { Database } from '../data-platform/database';
 import { exerciseName } from '../exercises/catalog';
+import { formatNumber } from '../../lib/format';
+import { dayKey } from '../nutrition/nutrition';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * DAY_MS;
@@ -8,6 +10,9 @@ const PLATEAU_SESSIONS = 3;
 const PLATEAU_WINDOW_MS = 28 * DAY_MS;
 
 export type InsightData = {
+  averageSleepHours?: number | null;
+  averageSteps?: number | null;
+  foodDaysLogged?: number;
   plannedPerWeek: number;
   workoutsThisWeek: number;
   workoutsLastWeek: number;
@@ -64,6 +69,30 @@ export function buildInsights(data: InsightData): Insight[] {
     });
   }
 
+  if (data.averageSleepHours !== null && data.averageSleepHours !== undefined) {
+    insights.push({
+      id: 'sleep',
+      title: 'Сон',
+      body: `В среднем ${formatNumber(data.averageSleepHours)} ч по вашим отметкам за последние дни. Это ваши записи, а не измерение датчиком.`,
+    });
+  }
+
+  if (data.averageSteps !== null && data.averageSteps !== undefined) {
+    insights.push({
+      id: 'steps',
+      title: 'Шаги',
+      body: `В среднем ${formatNumber(Math.round(data.averageSteps))} шагов в день по данным iPhone.`,
+    });
+  }
+
+  if (data.foodDaysLogged) {
+    insights.push({
+      id: 'food',
+      title: 'Питание',
+      body: `Дневник питания заполнен ${data.foodDaysLogged} из последних 7 дней.`,
+    });
+  }
+
   return insights;
 }
 
@@ -85,7 +114,7 @@ async function weekStats(database: Database, from: Date, to: Date) {
   return { workouts: workouts?.count ?? 0, volume: volume?.volume ?? 0 };
 }
 
-async function findPlateaus(database: Database, since: Date) {
+export async function findPlateaus(database: Database, since: Date) {
   const rows = await database.all<{ exercise_id: string; session_id: string; top: number }>(
     `SELECT session_exercise.exercise_id, workout_session.id AS session_id,
             MAX(workout_set.weight_kg) AS top
@@ -121,10 +150,19 @@ export async function getInsightData(
 ): Promise<InsightData> {
   const weekAgo = new Date(now.getTime() - WEEK_MS);
   const twoWeeksAgo = new Date(now.getTime() - 2 * WEEK_MS);
-  const [thisWeek, lastWeek, plateauExercises] = await Promise.all([
+  const [thisWeek, lastWeek, plateauExercises, sleep, steps, food] = await Promise.all([
     weekStats(database, weekAgo, now),
     weekStats(database, twoWeeksAgo, weekAgo),
     findPlateaus(database, new Date(now.getTime() - PLATEAU_WINDOW_MS)),
+    database.first<{ average: number | null }>(
+      'SELECT AVG(sleep_hours) AS average FROM (SELECT sleep_hours FROM daily_checkin ORDER BY day DESC LIMIT 7)',
+    ),
+    database.first<{ average: number | null }>(
+      'SELECT AVG(steps) AS average FROM (SELECT steps FROM daily_steps ORDER BY day DESC LIMIT 7)',
+    ),
+    database.first<{ count: number }>('SELECT COUNT(DISTINCT day) AS count FROM food_entry WHERE day >= ?', [
+      dayKey(weekAgo),
+    ]),
   ]);
 
   return {
@@ -134,5 +172,8 @@ export async function getInsightData(
     volumeThisWeek: thisWeek.volume,
     volumeLastWeek: lastWeek.volume,
     plateauExercises,
+    averageSleepHours: sleep?.average ?? null,
+    averageSteps: steps?.average ?? null,
+    foodDaysLogged: food?.count ?? 0,
   };
 }

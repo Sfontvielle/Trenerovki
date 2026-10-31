@@ -1,3 +1,4 @@
+import { savePlanVersion } from '../coach/coach-repository';
 import type { Database } from '../data-platform/database';
 import type { PlannedDay } from '../program/generate-plan';
 import { replaceProgram } from '../program/program-repository';
@@ -16,6 +17,10 @@ export async function completeOnboarding(
   now: Date,
 ) {
   await database.transaction(async (tx) => {
+    const existing = await tx.first('SELECT id FROM program_day LIMIT 1');
+    if (existing) {
+      await savePlanVersion(tx, 'Перед новым планом по изменённым ответам', createId, now);
+    }
     await saveProfile(tx, profile, now.toISOString());
     await replaceProgram(tx, plan, createId);
   });

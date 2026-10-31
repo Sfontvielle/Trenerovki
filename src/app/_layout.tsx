@@ -74,6 +74,12 @@ function RootStack() {
             name="plan/pick"
             options={{ ...withHeader, presentation: 'modal', title: 'Выбрать упражнение' }}
           />
+          <Stack.Screen
+            name="check-in"
+            options={{ ...withHeader, presentation: 'modal', title: 'Сон и самочувствие' }}
+          />
+          <Stack.Screen name="coach/history" options={{ ...withHeader, title: 'История решений' }} />
+          <Stack.Screen name="coach/memory" options={{ ...withHeader, title: 'Память и предпочтения' }} />
           <Stack.Screen name="design-system" options={{ ...withHeader, title: 'Дизайн-система' }} />
         </Stack.Protected>
       </Stack>

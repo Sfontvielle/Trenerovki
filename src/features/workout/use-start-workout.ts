@@ -2,13 +2,15 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 
 import { useAppData } from '@/app-data/app-data';
+import { getDeloadUntil, isDeloadActive } from '@/domains/coach/coach-repository';
 import { createId } from '@/domains/data-platform/ids';
+import { dayKey } from '@/domains/nutrition/nutrition';
 import type { ProgramDay } from '@/domains/program/program-repository';
 import type { WorkoutSession } from '@/domains/workout/types';
 import { describeFailure } from '@/lib/describe-failure';
 
 export function useStartWorkout() {
-  const { engine } = useAppData();
+  const { database, engine } = useAppData();
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -16,13 +18,14 @@ export function useStartWorkout() {
     setStarting(true);
     setError(null);
     try {
+      const deload = isDeloadActive(await getDeloadUntil(database), dayKey(new Date()));
       await engine.startSession({
         operationId: createId(),
         title,
         programDayId: day?.id ?? null,
         exercises: (day?.exercises ?? []).map((exercise) => ({
           exerciseId: exercise.exerciseId,
-          plannedSets: exercise.targetSets,
+          plannedSets: deload ? Math.max(1, exercise.targetSets - 1) : exercise.targetSets,
           repsMin: exercise.repsMin,
           repsMax: exercise.repsMax,
           targetDurationSec: exercise.targetDurationSec,

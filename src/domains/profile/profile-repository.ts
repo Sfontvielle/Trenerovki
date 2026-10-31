@@ -1,5 +1,5 @@
-import type { Database, DatabaseExecutor } from '../data-platform/database';
-import type { DaysPerWeek, Equipment, Experience, Goal, Limitation, Profile, SessionMinutes, Sex } from './profile';
+import type { DatabaseExecutor } from '../data-platform/database';
+import { type DaysPerWeek, type Equipment, type Experience, type Goal, type Profile, type SessionMinutes, type Sex, limitations } from './profile';
 
 type ProfileRow = {
   name: string;
@@ -15,13 +15,11 @@ type ProfileRow = {
   training_days: string;
 };
 
-const knownLimitations: Limitation[] = ['shoulders', 'knees', 'lower_back'];
-
 function parseLimitations(stored: string) {
   try {
     const parsed: unknown = JSON.parse(stored);
     return Array.isArray(parsed)
-      ? knownLimitations.filter((limitation) => parsed.includes(limitation))
+      ? limitations.filter((limitation) => parsed.includes(limitation))
       : [];
   } catch (error) {
     console.error(error);
@@ -41,7 +39,7 @@ function parseTrainingDays(stored: string) {
   }
 }
 
-export async function getProfile(database: Database): Promise<Profile | null> {
+export async function getProfile(database: DatabaseExecutor): Promise<Profile | null> {
   const row = await database.first<ProfileRow>('SELECT * FROM profile WHERE id = 1');
   if (!row) {
     return null;

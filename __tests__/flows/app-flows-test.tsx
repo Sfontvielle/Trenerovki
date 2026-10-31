@@ -1445,6 +1445,99 @@ describe('workout depth', () => {
   });
 });
 
+describe('coach and recovery', () => {
+  async function reportPain() {
+    await seedProfile();
+    const [day] = await getProgram(database);
+    const exerciseId = day.exercises[0].exerciseId;
+    const engine = new WorkoutEngine({ database, createId, now: () => new Date() });
+    const sessionId = await engine.startSession({
+      operationId: createId(),
+      title: 'Тест',
+      programDayId: null,
+      exercises: [{ exerciseId, plannedSets: 1, repsMin: 8, repsMax: 12 }],
+    });
+    const session = await engine.getSession(sessionId);
+    await engine.logSet(session!.exercises[0].id, { weightKg: 40, reps: 8, rir: 2 }, createId());
+    await engine.reportDiscomfort(session!.exercises[0].id, createId());
+    await engine.completeSession(sessionId, createId());
+    return exerciseId;
+  }
+
+  async function openCoach() {
+    await renderRouter('./src/app');
+    await screen.findByText('Следующая тренировка');
+    await testRouter.navigate('/coach');
+    await screen.findByText('Отчёт за неделю');
+  }
+
+  it('asks before changing the plan and applies an accepted proposal', async () => {
+    const exerciseId = await reportPain();
+    await openCoach();
+
+    expect(screen.getAllByText(/Было: /).length).toBeGreaterThan(0);
+    expect((await getProgram(database))[0].exercises[0].exerciseId).toBe(exerciseId);
+
+    await press(/^Принять: /);
+
+    await screen.findByText('Отчёт за неделю');
+    expect((await getProgram(database))[0].exercises[0].exerciseId).not.toBe(exerciseId);
+  });
+
+  it('undoes an accepted proposal from the history of decisions', async () => {
+    const exerciseId = await reportPain();
+    await openCoach();
+    await press(/^Принять: /);
+    await screen.findByText('Отчёт за неделю');
+
+    await press('История решений');
+    await screen.findByText('Решения');
+    await press(/^Отменить решение/);
+
+    await screen.findByText(/^Отменено/);
+    expect((await getProgram(database))[0].exercises[0].exerciseId).toBe(exerciseId);
+  });
+
+  it('keeps the plan when a proposal is rejected', async () => {
+    const exerciseId = await reportPain();
+    await openCoach();
+
+    const before = screen.getAllByText(/Было: /).length;
+
+    await press(/^Отклонить: /);
+
+    await screen.findByText('Отчёт за неделю');
+    expect(screen.queryAllByText(/Было: /).length).toBeLessThan(before);
+    expect((await getProgram(database))[0].exercises[0].exerciseId).toBe(exerciseId);
+  });
+
+  it('saves a check-in and shows readiness on the home screen', async () => {
+    await seedProfile();
+    await renderRouter('./src/app');
+    await screen.findByRole('button', { name: 'Отметить сон и самочувствие' });
+    await press('Отметить сон и самочувствие');
+    await screen.findByLabelText('Сон, часов');
+
+    await type('Сон, часов', '8');
+    await press('Сохранить отметку');
+
+    expect(await screen.findByText('Изменить отметку')).toBeTruthy();
+    expect(await database.first('SELECT sleep_hours FROM daily_checkin')).toEqual({ sleep_hours: 8 });
+  });
+
+  it('remembers an edit in coach memory', async () => {
+    await seedProfile();
+    await renderRouter('./src/app', { initialUrl: '/coach/memory' });
+    await screen.findByLabelText('Новая запись');
+
+    await type('Новая запись', 'Тренируюсь по утрам');
+    await press('Добавить запись');
+
+    expect(await screen.findByLabelText('Запись')).toBeTruthy();
+    expect(await database.first('SELECT text FROM coach_memory')).toEqual({ text: 'Тренируюсь по утрам' });
+  });
+});
+
 describe('failures', () => {
   it('keeps the entered values and retries a failed save exactly once', async () => {
     await seedOpenWorkout();

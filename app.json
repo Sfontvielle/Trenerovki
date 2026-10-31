@@ -26,7 +26,23 @@
           "imageWidth": 76
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-audio",
+      "expo-localization",
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "IRONVANT показывает ваши шаги. Данные остаются на iPhone."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "IRONVANT сканирует штрихкоды продуктов. Фото не сохраняются.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
