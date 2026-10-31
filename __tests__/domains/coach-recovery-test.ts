@@ -306,11 +306,18 @@ describe('buildProposals', () => {
     const program = await getProgram(context.database);
 
     const drafts = buildProposals(facts(context, program, { weeklySetsByGroup: { back: 1 } }));
-    const extra = drafts.filter(({ kind }) => kind === 'low_volume');
+    const [extra] = drafts.filter(({ kind }) => kind === 'low_volume');
 
-    for (const { change } of extra) {
-      expect(change.type === 'sets' ? findExercise(change.exerciseId)?.category : null).toBe('strength');
-    }
+    expect(extra.change.type === 'sets' ? findExercise(extra.change.exerciseId)?.category : null).toBe('strength');
+
+    const stretch = program[0].exercises[0];
+    expect(findExercise(stretch.exerciseId)?.category).toBe('mobility');
+    expect(
+      passesGuardrails(
+        { change: { type: 'sets', programExerciseId: stretch.id, exerciseId: stretch.exerciseId, from: 1, to: 2 } },
+        facts(context, program),
+      ),
+    ).toBe(false);
   });
 
   it('ignores old check-ins when judging readiness', async () => {
@@ -329,7 +336,7 @@ describe('buildProposals', () => {
   it('keeps avoided and painful exercises out of a rebuilt plan', async () => {
     const context = await setup({ daysPerWeek: 4 });
     const program = await getProgram(context.database);
-    const unwanted = program[1].exercises[0].exerciseId;
+    const unwanted = generatePlan({ ...context.profile, daysPerWeek: 3 })[0].exercises[0].exerciseId;
     const current = facts(context, program, { workoutsByWeek: [1, 2, 1, 0, 0, 0], avoided: [unwanted] });
     await syncProposals(context.database, buildProposals(current), NOW, createId);
     const open = await listOpenProposals(context.database);
