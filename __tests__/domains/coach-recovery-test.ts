@@ -256,6 +256,23 @@ describe('buildProposals', () => {
     ).not.toContain('low_volume');
   });
 
+  it('refuses a replacement that loads a zone limited after the proposal appeared', async () => {
+    const context = await setup();
+    const program = await getProgram(context.database);
+    const entry = program[0].exercises[0];
+    const change = {
+      type: 'replace' as const,
+      programExerciseId: entry.id,
+      fromExerciseId: entry.exerciseId,
+      toExerciseId: 'leg-press',
+      target: { repsMin: 8, repsMax: 12, targetDurationSec: null },
+    };
+    const limited = { ...context, profile: { ...context.profile, limitations: ['knees' as const] } };
+
+    expect(passesGuardrails({ change }, facts(context, program))).toBe(true);
+    expect(passesGuardrails({ change }, facts(limited, program))).toBe(false);
+  });
+
   it('rejects stale changes in the guardrails', async () => {
     const context = await setup();
     const program = await getProgram(context.database);
