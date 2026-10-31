@@ -14,7 +14,7 @@ const UNTRANSLATED = ['src/lib/i18n-en.ts', 'src/app/design-system.tsx'];
 
 function sourceFiles(directory: string): string[] {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const full = path.join(directory, entry.name).replaceAll('\\', '/');
+    const full = `${directory}/${entry.name}`;
     if (entry.isDirectory()) {
       return sourceFiles(full);
     }
