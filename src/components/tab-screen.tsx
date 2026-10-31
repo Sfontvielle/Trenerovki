@@ -4,6 +4,7 @@ import type { PropsWithChildren } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Screen, useTheme } from '@/design-system';
+import { t } from '@/lib/i18n';
 
 type TabScreenProps = PropsWithChildren<{
   title: string;
@@ -15,7 +16,7 @@ function ProfileButton() {
 
   return (
     <Pressable
-      accessibilityLabel="Открыть профиль"
+      accessibilityLabel={t('Открыть профиль')}
       accessibilityRole="button"
       onPress={() => router.push('/profile')}
       style={[styles.profileButton, { height: size, width: size }]}

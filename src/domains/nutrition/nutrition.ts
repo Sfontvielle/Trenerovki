@@ -1,11 +1,13 @@
+import { t } from '@/lib/i18n';
+
 export const meals = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
 export type Meal = (typeof meals)[number];
 
 export const mealLabels: Record<Meal, string> = {
-  breakfast: 'Завтрак',
-  lunch: 'Обед',
-  dinner: 'Ужин',
-  snack: 'Перекус',
+  breakfast: t('Завтрак'),
+  lunch: t('Обед'),
+  dinner: t('Ужин'),
+  snack: t('Перекус'),
 };
 
 const MAX_KCAL_PER_100G = 900;

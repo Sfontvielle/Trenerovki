@@ -17,6 +17,7 @@ import { listCheckins, listSteps } from '@/domains/recovery/recovery-repository'
 import { formatEnergy } from '@/features/nutrition/format-nutrition';
 import { formatSeconds } from '@/features/workout/set-labels';
 import { formatDate, formatNumber, pluralize } from '@/lib/format';
+import { t } from '@/lib/i18n';
 
 const WEEKS_SHOWN = 8;
 const GROUP_WINDOW_MS = 28 * 24 * 60 * 60 * 1000;
@@ -78,44 +79,44 @@ export default function AnalyticsScreen() {
           return (
             <>
               <Panel>
-                <AppText variant="heading">Тренировки по неделям</AppText>
+                <AppText variant="heading">{t('Тренировки по неделям')}</AppText>
                 {hasWorkouts ? (
                   <>
                     <TrendBars
                       bars={weeks.map(({ weeksAgo, workouts }) => ({
                         key: String(weeksAgo),
                         value: workouts,
-                        label: `${weeksAgo === 0 ? 'Последние 7 дней' : `${weeksAgo} нед. назад`}: ${workouts}`,
+                        label: `${weeksAgo === 0 ? t('Последние 7 дней') : t('{0} нед. назад', { 0: weeksAgo })}: ${workouts}`,
                       }))}
                     />
                     <AppText variant="callout" tone="secondary">
-                      {`Недель подряд с тренировками: ${streak}`}
+                      {t('Недель подряд с тренировками: {0}', { 0: streak })}
                     </AppText>
                   </>
                 ) : (
-                  <NoData text="Появится после первой завершённой тренировки." />
+                  <NoData text={t('Появится после первой завершённой тренировки.')} />
                 )}
               </Panel>
 
               {hasVolume ? (
                 <Panel>
-                  <AppText variant="heading">Объём по неделям</AppText>
+                  <AppText variant="heading">{t('Объём по неделям')}</AppText>
                   <TrendBars
                     bars={weeks.map(({ weeksAgo, volumeKg }) => ({
                       key: String(weeksAgo),
                       value: volumeKg,
-                      label: `${weeksAgo === 0 ? 'Последние 7 дней' : `${weeksAgo} нед. назад`}: ${formatNumber(volumeKg)} кг`,
+                      label: t('{0}: {1} кг', { 0: weeksAgo === 0 ? t('Последние 7 дней') : t('{0} нед. назад', { 0: weeksAgo }), 1: formatNumber(volumeKg) }),
                     }))}
                   />
                   <AppText variant="caption" tone="secondary">
-                    Сумма «вес × повторы» без разминочных подходов.
+                    {t('Сумма «вес × повторы» без разминочных подходов.')}
                   </AppText>
                 </Panel>
               ) : null}
 
               {groups.length > 0 ? (
                 <Panel>
-                  <AppText variant="heading">Подходы по группам мышц за 4 недели</AppText>
+                  <AppText variant="heading">{t('Подходы по группам мышц за 4 недели')}</AppText>
                   {groups.map(({ group, sets }) => (
                     <View key={group} style={{ gap: theme.spacing.xs }}>
                       <AppText variant="callout" tone="secondary">
@@ -129,37 +130,37 @@ export default function AnalyticsScreen() {
 
               {cardio.meters > 0 ? (
                 <Panel>
-                  <AppText variant="heading">Кардио за 4 недели</AppText>
+                  <AppText variant="heading">{t('Кардио за 4 недели')}</AppText>
                   <AppText tone="secondary">
-                    {`${formatNumber(cardio.meters / METERS_IN_KM)} км, ${formatSeconds(cardio.seconds)}`}
+                    {t('{0} км, {1}', { 0: formatNumber(cardio.meters / METERS_IN_KM), 1: formatSeconds(cardio.seconds) })}
                   </AppText>
                 </Panel>
               ) : null}
 
               <Panel>
-                <AppText variant="heading">Вес тела</AppText>
+                <AppText variant="heading">{t('Вес тела')}</AppText>
                 {weight.length > 0 ? (
                   <>
                     <TrendBars
                       bars={weight.map((entry) => ({
                         key: entry.day,
                         value: entry.weightKg,
-                        label: dayLabel(entry.day, `${formatNumber(entry.weightKg)} кг`),
+                        label: dayLabel(entry.day, t('{0} кг', { 0: formatNumber(entry.weightKg) })),
                       }))}
                     />
                     {weightChange !== null ? (
                       <AppText variant="callout" tone="secondary">
-                        {`Изменение за период: ${weightChange > 0 ? '+' : ''}${formatNumber(weightChange)} кг`}
+                        {t('Изменение за период: {0}{1} кг', { 0: weightChange > 0 ? '+' : '', 1: formatNumber(weightChange) })}
                       </AppText>
                     ) : null}
                   </>
                 ) : (
-                  <NoData text="Записывайте вес, и здесь появится динамика." />
+                  <NoData text={t('Записывайте вес, и здесь появится динамика.')} />
                 )}
               </Panel>
 
               <Panel>
-                <AppText variant="heading">{`Питание за ${DAYS_SHOWN} дней`}</AppText>
+                <AppText variant="heading">{t('Питание за {0} дней', { 0: DAYS_SHOWN })}</AppText>
                 {food.length > 0 ? (
                   <>
                     <TrendBars
@@ -170,56 +171,56 @@ export default function AnalyticsScreen() {
                       }))}
                     />
                     <AppText variant="callout" tone="secondary">
-                      {`В среднем ${formatEnergy(averageKcal ?? 0)} и ${Math.round(averageProtein ?? 0)} г белка в заполненные дни. Дней с записями: ${food.length}.`}
+                      {t('В среднем {0} и {1} г белка в заполненные дни. Дней с записями: {2}.', { 0: formatEnergy(averageKcal ?? 0), 1: Math.round(averageProtein ?? 0), 2: food.length })}
                     </AppText>
                     {target ? (
                       <AppText variant="callout" tone="secondary">
-                        {`Цель: ${formatEnergy(target.kcal)} и ${Math.round(target.protein)} г белка.`}
+                        {t('Цель: {0} и {1} г белка.', { 0: formatEnergy(target.kcal), 1: Math.round(target.protein) })}
                       </AppText>
                     ) : null}
                   </>
                 ) : (
-                  <NoData text="Заполняйте дневник, и здесь появятся средние значения." />
+                  <NoData text={t('Заполняйте дневник, и здесь появятся средние значения.')} />
                 )}
               </Panel>
 
               <Panel>
-                <AppText variant="heading">Шаги</AppText>
+                <AppText variant="heading">{t('Шаги')}</AppText>
                 {steps.length > 0 ? (
                   <>
                     <TrendBars
                       bars={steps.map((day) => ({
                         key: day.day,
                         value: day.steps,
-                        label: dayLabel(day.day, `${formatNumber(day.steps)} ${pluralize(day.steps, ['шаг', 'шага', 'шагов'])}`),
+                        label: dayLabel(day.day, `${formatNumber(day.steps)} ${pluralize(day.steps, [t('шаг'), t('шага'), t('шагов')])}`),
                       }))}
                     />
                     <AppText variant="callout" tone="secondary">
-                      {`В среднем ${formatNumber(Math.round(averageSteps ?? 0))} в день по данным iPhone.`}
+                      {t('В среднем {0} в день по данным iPhone.', { 0: formatNumber(Math.round(averageSteps ?? 0)) })}
                     </AppText>
                   </>
                 ) : (
-                  <NoData text="Появятся после разрешения доступа к шагам на Главной." />
+                  <NoData text={t('Появятся после разрешения доступа к шагам на Главной.')} />
                 )}
               </Panel>
 
               <Panel>
-                <AppText variant="heading">Сон</AppText>
+                <AppText variant="heading">{t('Сон')}</AppText>
                 {sleep.length > 0 ? (
                   <>
                     <TrendBars
                       bars={sleep.map((checkin) => ({
                         key: checkin.day,
                         value: checkin.sleepHours as number,
-                        label: dayLabel(checkin.day, `${formatNumber(checkin.sleepHours as number)} ч`),
+                        label: dayLabel(checkin.day, t('{0} ч', { 0: formatNumber(checkin.sleepHours as number) })),
                       }))}
                     />
                     <AppText variant="callout" tone="secondary">
-                      {`В среднем ${formatNumber(Math.round((averageSleep ?? 0) * 10) / 10)} ч по вашим отметкам.`}
+                      {t('В среднем {0} ч по вашим отметкам.', { 0: formatNumber(Math.round((averageSleep ?? 0) * 10) / 10) })}
                     </AppText>
                   </>
                 ) : (
-                  <NoData text="Отмечайте сон на Главной, и здесь появится динамика." />
+                  <NoData text={t('Отмечайте сон на Главной, и здесь появится динамика.')} />
                 )}
               </Panel>
             </>

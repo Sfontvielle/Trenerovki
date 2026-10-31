@@ -1,0 +1,5 @@
+{
+  "CFBundleDisplayName": "IRONVANT",
+  "NSCameraUsageDescription": "IRONVANT scans product barcodes. No pictures are saved.",
+  "NSMotionUsageDescription": "IRONVANT shows your steps. The data stays on your iPhone."
+}

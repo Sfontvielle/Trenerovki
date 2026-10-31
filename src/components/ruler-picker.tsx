@@ -3,6 +3,7 @@ import { type LayoutChangeEvent, PanResponder, Pressable, StyleSheet, TextInput,
 
 import { AppText, useTheme } from '@/design-system';
 import { formatInputNumber, parseDecimal } from '@/lib/format';
+import { t } from '@/lib/i18n';
 
 const PIXELS_PER_UNIT = 9;
 const HIGHLIGHT_RANGE = 6;
@@ -118,7 +119,7 @@ export function RulerPicker({ label, unit, value, start, min, max, step, onChang
         accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
         accessibilityLabel={label}
         accessibilityRole="adjustable"
-        accessibilityValue={{ text: picked ? `${formatInputNumber(value)} ${unit}` : 'не выбрано' }}
+        accessibilityValue={{ text: picked ? `${formatInputNumber(value)} ${unit}` : t('не выбрано') }}
         accessible
         onAccessibilityAction={(event) => bump(event.nativeEvent.actionName === 'increment' ? 1 : -1)}
         onLayout={(event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width)}
@@ -161,8 +162,8 @@ export function RulerPicker({ label, unit, value, start, min, max, step, onChang
 
       <View style={styles.adjustRow}>
         {[
-          { delta: -step, symbol: '−', name: 'меньше' },
-          { delta: step, symbol: '+', name: 'больше' },
+          { delta: -step, symbol: '−', name: t('меньше') },
+          { delta: step, symbol: '+', name: t('больше') },
         ].map(({ delta, symbol, name }) => (
           <Pressable
             key={symbol}

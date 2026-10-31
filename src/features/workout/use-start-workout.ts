@@ -8,6 +8,7 @@ import { dayKey } from '@/domains/nutrition/nutrition';
 import type { ProgramDay } from '@/domains/program/program-repository';
 import type { WorkoutSession } from '@/domains/workout/types';
 import { describeFailure } from '@/lib/describe-failure';
+import { t } from '@/lib/i18n';
 
 export function useStartWorkout() {
   const { database, engine } = useAppData();
@@ -35,7 +36,7 @@ export function useStartWorkout() {
       router.push('/workout');
     } catch (cause) {
       console.error(cause);
-      setError(`Тренировка не началась. ${describeFailure(cause)}`);
+      setError(t('Тренировка не началась. {0}', { 0: describeFailure(cause) }));
     } finally {
       setStarting(false);
     }
@@ -61,7 +62,7 @@ export function useStartWorkout() {
       router.replace('/workout');
     } catch (cause) {
       console.error(cause);
-      setError(`Тренировка не началась. ${describeFailure(cause)}`);
+      setError(t('Тренировка не началась. {0}', { 0: describeFailure(cause) }));
     } finally {
       setStarting(false);
     }

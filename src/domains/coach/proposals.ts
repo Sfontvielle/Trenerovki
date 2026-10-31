@@ -2,6 +2,7 @@ import { type MuscleGroup, exerciseName, findAlternatives, findExercise } from '
 import { type ExerciseTarget, type ProgramDay, type ProgramExercise } from '../program/program-repository';
 import { targetFor } from '../program/generate-plan';
 import { type DaysPerWeek, type Profile, allowedDaysPerWeek } from '../profile/profile';
+import { t } from '@/lib/i18n';
 
 export type ProposalChange =
   | {
@@ -102,8 +103,8 @@ export function buildProposals(facts: CoachFacts): ProposalDraft[] {
   for (const entry of entries.filter(({ exerciseId }) => facts.discomfort.includes(exerciseId))) {
     drafts.push(
       replaceDraft('discomfort', entry, facts, (from, to) => ({
-        title: `Заменить «${from}»`,
-        why: `Вы отмечали дискомфорт в этом упражнении за последние 14 дней. Вместо него можно делать «${to}». Если боль не проходит, обратитесь к врачу.`,
+        title: t('Заменить «{0}»', { 0: from }),
+        why: t('Вы отмечали дискомфорт в этом упражнении за последние 14 дней. Вместо него можно делать «{0}». Если боль не проходит, обратитесь к врачу.', { 0: to }),
       })),
     );
   }
@@ -113,8 +114,8 @@ export function buildProposals(facts: CoachFacts): ProposalDraft[] {
     if (limited && !facts.discomfort.includes(entry.exerciseId)) {
       drafts.push(
         replaceDraft('limited_zone', entry, facts, (from, to) => ({
-          title: `Заменить «${from}»`,
-          why: `Упражнение заметно нагружает зону из ваших ограничений. «${to}» нагружает её меньше.`,
+          title: t('Заменить «{0}»', { 0: from }),
+          why: t('Упражнение заметно нагружает зону из ваших ограничений. «{0}» нагружает её меньше.', { 0: to }),
         })),
       );
     }
@@ -128,10 +129,10 @@ export function buildProposals(facts: CoachFacts): ProposalDraft[] {
     drafts.push({
       kind: 'deload',
       fingerprint: `deload:${facts.today.slice(0, 7)}`,
-      title: 'Лёгкая неделя',
+      title: t('Лёгкая неделя'),
       why: steadyTraining
-        ? `Вы тренируетесь по плану ${WEEKS_BEFORE_DELOAD} недель подряд. Неделя с меньшим числом подходов поможет восстановиться.`
-        : 'Несколько дней подряд вы отмечали низкую готовность. Неделя с меньшей нагрузкой может помочь восстановиться.',
+        ? t('Вы тренируетесь по плану {0} недель подряд. Неделя с меньшим числом подходов поможет восстановиться.', { 0: WEEKS_BEFORE_DELOAD })
+        : t('Несколько дней подряд вы отмечали низкую готовность. Неделя с меньшей нагрузкой может помочь восстановиться.'),
       change: { type: 'deload', untilDay: shiftDay(facts.today, DELOAD_DAYS) },
     });
   }
@@ -141,8 +142,8 @@ export function buildProposals(facts: CoachFacts): ProposalDraft[] {
     if (entry && !facts.discomfort.includes(exerciseId)) {
       drafts.push(
         replaceDraft('plateau', entry, facts, (from, to) => ({
-          title: `Сменить «${from}»`,
-          why: `Вес не растёт три тренировки подряд. Смена упражнения на «${to}» даст новый стимул. Это необязательно: можно продолжать прибавлять по одному повтору.`,
+          title: t('Сменить «{0}»', { 0: from }),
+          why: t('Вес не растёт три тренировки подряд. Смена упражнения на «{0}» даст новый стимул. Это необязательно: можно продолжать прибавлять по одному повтору.', { 0: to }),
         })),
       );
     }
@@ -157,8 +158,8 @@ export function buildProposals(facts: CoachFacts): ProposalDraft[] {
         drafts.push({
           kind: 'low_volume',
           fingerprint: `low_volume:${group}`,
-          title: `Добавить подход: ${exerciseName(entry.exerciseId)}`,
-          why: `На эту группу мышц за неделю пришлось подходов: ${sets}. Один дополнительный подход немного увеличит объём.`,
+          title: t('Добавить подход: {0}', { 0: exerciseName(entry.exerciseId) }),
+          why: t('На эту группу мышц за неделю пришлось подходов: {0}. Один дополнительный подход немного увеличит объём.', { 0: sets }),
           change: {
             type: 'sets',
             programExerciseId: entry.id,
@@ -181,8 +182,8 @@ export function buildProposals(facts: CoachFacts): ProposalDraft[] {
     drafts.push({
       kind: 'fewer_days',
       fingerprint: `fewer_days:${facts.profile.daysPerWeek}`,
-      title: `План на ${lower} тренировки в неделю`,
-      why: `Три недели подряд тренировок заметно меньше плана. Более короткий план будет легче выполнять. История сохранится.`,
+      title: t('План на {0} тренировки в неделю', { 0: lower }),
+      why: t('Три недели подряд тренировок заметно меньше плана. Более короткий план будет легче выполнять. История сохранится.'),
       change: { type: 'days', from: facts.profile.daysPerWeek, to: lower },
     });
   }

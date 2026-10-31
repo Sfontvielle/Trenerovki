@@ -3,6 +3,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 
 import { AppText, useTheme } from '@/design-system';
 import type { Muscle } from '@/domains/exercises/catalog';
+import { t } from '@/lib/i18n';
 
 type Region = {
   muscle: Muscle;
@@ -75,8 +76,8 @@ export function MuscleMap({ primary, secondary, summary }: MuscleMapProps) {
 
   return (
     <View accessibilityLabel={summary} accessibilityRole="image" accessible style={{ flexDirection: 'row', gap: spacing.m }}>
-      {figure('Спереди', frontRegions)}
-      {figure('Сзади', backRegions)}
+      {figure(t('Спереди'), frontRegions)}
+      {figure(t('Сзади'), backRegions)}
     </View>
   );
 }

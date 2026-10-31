@@ -11,6 +11,7 @@ import { getProgram } from '@/domains/program/program-repository';
 import { OpenSessionBanner } from '@/features/workout/open-session-banner';
 import { describeTarget } from '@/features/workout/set-labels';
 import { useStartWorkout } from '@/features/workout/use-start-workout';
+import { t } from '@/lib/i18n';
 
 export default function WorkoutsScreen() {
   const { database, engine } = useAppData();
@@ -23,7 +24,7 @@ export default function WorkoutsScreen() {
   const state = useScreenData(load);
 
   return (
-    <TabScreen title="Тренировки">
+    <TabScreen title={t('Тренировки')}>
       <DataView state={state}>
         {({ openSession, program }) => (
           <>
@@ -45,15 +46,15 @@ export default function WorkoutsScreen() {
                 ))}
                 {openSession ? null : (
                   <Button
-                    label={`Начать: ${day.name}`}
+                    label={t('Начать: {0}', { 0: day.name })}
                     variant="secondary"
                     disabled={starting}
                     onPress={() => start(day.name, day)}
                   />
                 )}
                 <Button
-                  accessibilityLabel={`Изменить упражнения: ${day.name}`}
-                  label="Изменить упражнения"
+                  accessibilityLabel={t('Изменить упражнения: {0}', { 0: day.name })}
+                  label={t('Изменить упражнения')}
                   variant="secondary"
                   onPress={() => router.push(`/plan/${day.id}`)}
                 />
@@ -61,17 +62,17 @@ export default function WorkoutsScreen() {
             ))}
 
             <Button
-              label="Библиотека упражнений"
+              label={t('Библиотека упражнений')}
               variant="secondary"
               onPress={() => router.push('/exercises')}
             />
 
             {openSession ? null : (
               <Button
-                label="Свободная тренировка"
+                label={t('Свободная тренировка')}
                 variant="secondary"
                 disabled={starting}
-                onPress={() => start('Свободная тренировка', null)}
+                onPress={() => start(t('Свободная тренировка'), null)}
               />
             )}
           </>

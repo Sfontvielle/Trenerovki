@@ -1,3 +1,5 @@
+import { t } from '@/lib/i18n';
+
 export const MIN_SLEEP_HOURS = 0;
 export const MAX_SLEEP_HOURS = 16;
 
@@ -42,49 +44,49 @@ export function assessReadiness(checkin: Checkin | null, workoutsInTwoDays: numb
 
   let penalty = 0;
   const reasons: string[] = [];
-  const sources = ['сон'];
+  const sources = [t('сон')];
 
   if (checkin.sleepHours < SHORT_SLEEP_HOURS) {
     penalty += 2;
-    reasons.push('мало сна');
+    reasons.push(t('мало сна'));
   } else if (checkin.sleepHours < FAIR_SLEEP_HOURS) {
     penalty += 1;
-    reasons.push('сна чуть меньше обычного ориентира');
+    reasons.push(t('сна чуть меньше обычного ориентира'));
   }
 
   if (checkin.energy !== null) {
-    sources.push('энергия');
+    sources.push(t('энергия'));
     if (checkin.energy <= 2) {
       penalty += 2;
-      reasons.push('мало энергии');
+      reasons.push(t('мало энергии'));
     } else if (checkin.energy === 3) {
       penalty += 1;
     }
   }
 
   if (checkin.soreness !== null) {
-    sources.push('мышечная боль');
+    sources.push(t('мышечная боль'));
     if (checkin.soreness >= 4) {
       penalty += 2;
-      reasons.push('сильная мышечная боль');
+      reasons.push(t('сильная мышечная боль'));
     } else if (checkin.soreness === 3) {
       penalty += 1;
     }
   }
 
   if (checkin.stress !== null) {
-    sources.push('стресс');
+    sources.push(t('стресс'));
     if (checkin.stress >= 4) {
       penalty += 1;
-      reasons.push('высокий стресс');
+      reasons.push(t('высокий стресс'));
     }
   }
 
   if (workoutsInTwoDays >= CLOSE_WORKOUTS) {
     penalty += 1;
-    reasons.push('две тренировки за последние два дня');
+    reasons.push(t('две тренировки за последние два дня'));
   }
-  sources.push('история тренировок');
+  sources.push(t('история тренировок'));
 
   const level: ReadinessLevel = penalty <= HIGH_LIMIT ? 'high' : penalty <= MEDIUM_LIMIT ? 'medium' : 'low';
   return { level, reasons, sources };

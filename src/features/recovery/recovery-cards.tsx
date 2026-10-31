@@ -4,17 +4,18 @@ import { AppText, Button, Panel } from '@/design-system';
 import type { Checkin, Readiness, ReadinessLevel } from '@/domains/recovery/recovery';
 import type { StepsState } from '@/features/recovery/use-steps';
 import { formatNumber } from '@/lib/format';
+import { t } from '@/lib/i18n';
 
 export const readinessLabels: Record<ReadinessLevel, string> = {
-  high: 'Высокая',
-  medium: 'Средняя',
-  low: 'Низкая',
+  high: t('Высокая'),
+  medium: t('Средняя'),
+  low: t('Низкая'),
 };
 
 const readinessAdvice: Record<ReadinessLevel, string> = {
-  high: 'Можно тренироваться по плану.',
-  medium: 'Ориентируйтесь на самочувствие и не спешите с прибавкой веса.',
-  low: 'Подумайте о более лёгкой тренировке или дне отдыха.',
+  high: t('Можно тренироваться по плану.'),
+  medium: t('Ориентируйтесь на самочувствие и не спешите с прибавкой веса.'),
+  low: t('Подумайте о более лёгкой тренировке или дне отдыха.'),
 };
 
 type StepsCardProps = {
@@ -25,21 +26,21 @@ type StepsCardProps = {
 export function StepsCard({ state, onRequestAccess }: StepsCardProps) {
   return (
     <Panel>
-      <AppText variant="heading">Шаги</AppText>
+      <AppText variant="heading">{t('Шаги')}</AppText>
       {state.status === 'ready' ? (
-        <AppText tone="secondary">{`Сегодня: ${formatNumber(state.today)}`}</AppText>
+        <AppText tone="secondary">{t('Сегодня: {0}', { 0: formatNumber(state.today) })}</AppText>
       ) : null}
-      {state.status === 'loading' ? <AppText tone="secondary">Читаем данные iPhone…</AppText> : null}
+      {state.status === 'loading' ? <AppText tone="secondary">{t('Читаем данные iPhone…')}</AppText> : null}
       {state.status === 'unavailable' ? (
-        <AppText tone="secondary">Шаги недоступны на этом устройстве.</AppText>
+        <AppText tone="secondary">{t('Шаги недоступны на этом устройстве.')}</AppText>
       ) : null}
       {state.status === 'denied' ? (
-        <AppText tone="secondary">Доступ к движению выключен. Его можно включить в настройках iPhone.</AppText>
+        <AppText tone="secondary">{t('Доступ к движению выключен. Его можно включить в настройках iPhone.')}</AppText>
       ) : null}
       {state.status === 'needs_permission' ? (
         <>
-          <AppText tone="secondary">Шаги считает сам iPhone. Данные остаются на устройстве.</AppText>
-          <Button label="Разрешить доступ к шагам" variant="secondary" onPress={onRequestAccess} />
+          <AppText tone="secondary">{t('Шаги считает сам iPhone. Данные остаются на устройстве.')}</AppText>
+          <Button label={t('Разрешить доступ к шагам')} variant="secondary" onPress={onRequestAccess} />
         </>
       ) : null}
     </Panel>
@@ -54,34 +55,34 @@ type RecoveryCardProps = {
 export function RecoveryCard({ checkin, readiness }: RecoveryCardProps) {
   return (
     <Panel>
-      <AppText variant="heading">Сон и восстановление</AppText>
+      <AppText variant="heading">{t('Сон и восстановление')}</AppText>
       {checkin?.sleepHours !== null && checkin?.sleepHours !== undefined ? (
-        <AppText tone="secondary">{`Сон: ${formatNumber(checkin.sleepHours)} ч`}</AppText>
+        <AppText tone="secondary">{t('Сон: {0} ч', { 0: formatNumber(checkin.sleepHours) })}</AppText>
       ) : null}
       {readiness ? (
         <>
-          <AppText tone="secondary">{`Готовность: ${readinessLabels[readiness.level].toLowerCase()}`}</AppText>
+          <AppText tone="secondary">{t('Готовность: {0}', { 0: readinessLabels[readiness.level].toLowerCase() })}</AppText>
           <AppText variant="callout" tone="secondary">
             {readinessAdvice[readiness.level]}
           </AppText>
           {readiness.reasons.length > 0 ? (
             <AppText variant="callout" tone="secondary">
-              {`Причины: ${readiness.reasons.join(', ')}.`}
+              {t('Причины: {0}.', { 0: readiness.reasons.join(', ') })}
             </AppText>
           ) : null}
           <AppText variant="caption" tone="secondary">
-            {`Ориентир по вашим отметкам (${readiness.sources.join(', ')}). Это не оценка здоровья.`}
+            {t('Ориентир по вашим отметкам ({0}). Это не оценка здоровья.', { 0: readiness.sources.join(', ') })}
           </AppText>
         </>
       ) : (
         <AppText tone="secondary">
           {checkin
-            ? 'Для оценки готовности укажите сон и энергию или мышечную боль.'
-            : 'Сегодня отметок нет. Оценка появится после отметки сна и самочувствия.'}
+            ? t('Для оценки готовности укажите сон и энергию или мышечную боль.')
+            : t('Сегодня отметок нет. Оценка появится после отметки сна и самочувствия.')}
         </AppText>
       )}
       <Button
-        label={checkin ? 'Изменить отметку' : 'Отметить сон и самочувствие'}
+        label={checkin ? t('Изменить отметку') : t('Отметить сон и самочувствие')}
         variant="secondary"
         onPress={() => router.push('/check-in')}
       />

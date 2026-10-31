@@ -19,6 +19,7 @@ import {
 import { techniqueCues } from '@/domains/exercises/technique';
 import { equipmentLabels, limitationLabels } from '@/features/profile/labels';
 import { describeFailure } from '@/lib/describe-failure';
+import { t } from '@/lib/i18n';
 
 export default function ExerciseDetailsScreen() {
   const { exerciseId } = useLocalSearchParams<{ exerciseId: string }>();
@@ -47,7 +48,7 @@ export default function ExerciseDetailsScreen() {
           {
             id: createId(),
             kind: 'avoid_exercise',
-            text: `Не предлагать: ${exerciseName(exerciseId)}`,
+            text: t('Не предлагать: {0}', { 0: exerciseName(exerciseId) }),
             exerciseId,
           },
           new Date(),
@@ -71,47 +72,47 @@ export default function ExerciseDetailsScreen() {
             <MuscleMap
               primary={exercise.primary}
               secondary={exercise.secondary}
-              summary={`Схема мышц. Основные: ${exercise.primary.map((muscle) => muscleLabels[muscle]).join(', ')}`}
+              summary={t('Схема мышц. Основные: {0}', { 0: exercise.primary.map((muscle) => muscleLabels[muscle]).join(', ') })}
             />
             <AppText variant="callout" tone="secondary">
-              {`Основные мышцы: ${exercise.primary.map((muscle) => muscleLabels[muscle]).join(', ')}`}
+              {t('Основные мышцы: {0}', { 0: exercise.primary.map((muscle) => muscleLabels[muscle]).join(', ') })}
             </AppText>
             {exercise.secondary.length > 0 ? (
               <AppText variant="callout" tone="secondary">
-                {`Помогают: ${exercise.secondary.map((muscle) => muscleLabels[muscle]).join(', ')}`}
+                {t('Помогают: {0}', { 0: exercise.secondary.map((muscle) => muscleLabels[muscle]).join(', ') })}
               </AppText>
             ) : null}
           </Panel>
           <Panel>
             <AppText variant="callout" tone="secondary">
-              {`Раздел: ${categoryLabels[exercise.category]}, ${muscleGroupLabels[exercise.muscleGroup].toLowerCase()}`}
+              {t('Раздел: {0}, {1}', { 0: categoryLabels[exercise.category], 1: muscleGroupLabels[exercise.muscleGroup].toLowerCase() })}
             </AppText>
             <AppText variant="callout" tone="secondary">
-              {`Условия: ${exercise.equipment.map((item) => equipmentLabels[item]).join(', ')}`}
+              {t('Условия: {0}', { 0: exercise.equipment.map((item) => equipmentLabels[item]).join(', ') })}
             </AppText>
             {exercise.loads.length > 0 ? (
               <AppText variant="callout" tone="secondary">
-                {`Заметная нагрузка: ${exercise.loads.map((area) => limitationLabels[area]).join(', ')}`}
+                {t('Заметная нагрузка: {0}', { 0: exercise.loads.map((area) => limitationLabels[area]).join(', ') })}
               </AppText>
             ) : null}
             {exercise.demanding ? (
               <AppText variant="callout" tone="secondary">
-                Технически сложное упражнение: начинайте с лёгкого веса.
+                {t('Технически сложное упражнение: начинайте с лёгкого веса.')}
               </AppText>
             ) : null}
           </Panel>
         </>
       ) : (
-        <AppText tone="secondary">Это ваше упражнение, описания техники для него нет.</AppText>
+        <AppText tone="secondary">{t('Это ваше упражнение, описания техники для него нет.')}</AppText>
       )}
 
       {restricted.length > 0 ? (
-        <AppText tone="warning">{`Это упражнение заметно нагружает зону из ваших ограничений: ${restricted.map((area) => limitationLabels[area]).join(', ')}.`}</AppText>
+        <AppText tone="warning">{t('Это упражнение заметно нагружает зону из ваших ограничений: {0}.', { 0: restricted.map((area) => limitationLabels[area]).join(', ') })}</AppText>
       ) : null}
 
       {cues.length > 0 ? (
         <Panel>
-          <AppText variant="heading">Как выполнять</AppText>
+          <AppText variant="heading">{t('Как выполнять')}</AppText>
           {cues.map((cue) => (
             <AppText key={cue} tone="secondary">
               {cue}
@@ -121,13 +122,13 @@ export default function ExerciseDetailsScreen() {
       ) : null}
 
       <AppText variant="caption" tone="secondary">
-        {`${cues.length > 0 ? 'Краткая памятка. Специалист её пока не проверял. ' : ''}При боли прекратите упражнение. Если появились боль в груди, сильная одышка, головокружение или слабость, остановите тренировку и обратитесь за неотложной помощью.`}
+        {t('{0}При боли прекратите упражнение. Если появились боль в груди, сильная одышка, головокружение или слабость, остановите тренировку и обратитесь за неотложной помощью.', { 0: cues.length > 0 ? t('Краткая памятка. Специалист её пока не проверял. ') : '' })}
       </AppText>
 
       {alternatives.length > 0 ? (
         <View style={{ gap: theme.spacing.s }}>
           <AppText accessibilityRole="header" variant="heading">
-            Чем заменить
+            {t('Чем заменить')}
           </AppText>
           {alternatives.map((option) => (
             <Pressable
@@ -144,13 +145,13 @@ export default function ExerciseDetailsScreen() {
       ) : null}
 
       <Button
-        label="Моя динамика"
+        label={t('Моя динамика')}
         variant="secondary"
         onPress={() => router.push(`/exercise-progress/${exerciseId}`)}
       />
       {exercise ? (
         <Button
-          label={avoided.status === 'ready' && avoided.data ? 'Снова предлагать это упражнение' : 'Не предлагать это упражнение'}
+          label={avoided.status === 'ready' && avoided.data ? t('Снова предлагать это упражнение') : t('Не предлагать это упражнение')}
           variant="secondary"
           onPress={toggleAvoided}
         />

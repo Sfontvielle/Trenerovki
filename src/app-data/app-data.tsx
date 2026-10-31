@@ -16,6 +16,7 @@ import { getProfile } from '@/domains/profile/profile-repository';
 import { WorkoutEngine } from '@/domains/workout/workout-engine';
 import { setHapticsEnabled } from '@/lib/haptics';
 import { setSoundEnabled } from '@/lib/sounds';
+import { t } from '@/lib/i18n';
 
 const THEME_KEY = 'theme_preference';
 const ACCENT_KEY = 'accent';
@@ -119,10 +120,10 @@ export function AppDataProvider({ children }: PropsWithChildren) {
             status: 'error',
             message:
               error instanceof DatabaseTooNewError
-                ? 'Данные созданы более новой версией приложения. Обновите IRONVANT.'
+                ? t('Данные созданы более новой версией приложения. Обновите IRONVANT.')
                 : error instanceof DatabaseDamagedError
-                  ? 'Файл данных повреждён. Не удаляйте приложение: возможно, данные ещё удастся спасти.'
-                  : 'Проверьте свободное место на iPhone и повторите. Не удаляйте приложение: вместе с ним удалятся и данные.',
+                  ? t('Файл данных повреждён. Не удаляйте приложение: возможно, данные ещё удастся спасти.')
+                  : t('Проверьте свободное место на iPhone и повторите. Не удаляйте приложение: вместе с ним удалятся и данные.'),
           });
         }
       }

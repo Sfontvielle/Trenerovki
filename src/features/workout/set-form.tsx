@@ -5,6 +5,7 @@ import { type SetInput, type SetKind, type WorkoutSet, setKinds } from '@/domain
 import { validateSet } from '@/domains/workout/workout-engine';
 import { setKindLabels } from '@/features/workout/set-labels';
 import { formatInputNumber, parseDecimal } from '@/lib/format';
+import { t } from '@/lib/i18n';
 
 const SECONDS_IN_MINUTE = 60;
 const METERS_IN_KM = 1000;
@@ -69,8 +70,8 @@ export function parseSetForm(form: SetFormValues, tracking: Tracking): SetInput 
 
 export function setFormProblem(tracking: Tracking) {
   return tracking === 'reps'
-    ? 'Проверьте значения: вес до 1000 кг, повторы целым числом от 1, запас от 0 до 10.'
-    : 'Укажите время больше нуля. Вес и дистанция необязательны.';
+    ? t('Проверьте значения: вес до 1000 кг, повторы целым числом от 1, запас от 0 до 10.')
+    : t('Укажите время больше нуля. Вес и дистанция необязательны.');
 }
 
 type SetFieldsProps = {
@@ -84,9 +85,9 @@ export function SetFields({ form, tracking, onChange }: SetFieldsProps) {
     <>
       {tracking === 'cardio' ? null : (
         <TextField
-          hint="Оставьте пустым для упражнений со своим весом"
+          hint={t('Оставьте пустым для упражнений со своим весом')}
           keyboardType="decimal-pad"
-          label="Вес, кг"
+          label={t('Вес, кг')}
           onChangeText={(weightText) => onChange({ weightText })}
           value={form.weightText}
         />
@@ -95,14 +96,14 @@ export function SetFields({ form, tracking, onChange }: SetFieldsProps) {
         <>
           <TextField
             keyboardType="number-pad"
-            label="Повторы"
+            label={t('Повторы')}
             onChangeText={(repsText) => onChange({ repsText })}
             value={form.repsText}
           />
           <TextField
-            hint="Сколько повторов вы могли бы ещё сделать. Необязательно"
+            hint={t('Сколько повторов вы могли бы ещё сделать. Необязательно')}
             keyboardType="number-pad"
-            label="Запас повторов"
+            label={t('Запас повторов')}
             onChangeText={(rirText) => onChange({ rirText })}
             value={form.rirText}
           />
@@ -110,16 +111,16 @@ export function SetFields({ form, tracking, onChange }: SetFieldsProps) {
       ) : (
         <TextField
           keyboardType="decimal-pad"
-          label={tracking === 'cardio' ? 'Время, мин' : 'Время, сек'}
+          label={tracking === 'cardio' ? t('Время, мин') : t('Время, сек')}
           onChangeText={(durationText) => onChange({ durationText })}
           value={form.durationText}
         />
       )}
       {tracking === 'cardio' ? (
         <TextField
-          hint="Необязательно"
+          hint={t('Необязательно')}
           keyboardType="decimal-pad"
-          label="Дистанция, км"
+          label={t('Дистанция, км')}
           onChangeText={(distanceText) => onChange({ distanceText })}
           value={form.distanceText}
         />
@@ -127,11 +128,11 @@ export function SetFields({ form, tracking, onChange }: SetFieldsProps) {
       <ChoiceGroup
         choices={setKinds.map((value) => ({ value, label: setKindLabels[value] }))}
         isSelected={(value) => form.kind === value}
-        label="Тип подхода"
+        label={t('Тип подхода')}
         onSelect={(kind) => onChange({ kind })}
       />
       <TextField
-        label="Заметка"
+        label={t('Заметка')}
         maxLength={200}
         onChangeText={(noteText) => onChange({ noteText })}
         value={form.noteText}

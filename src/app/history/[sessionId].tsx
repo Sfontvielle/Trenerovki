@@ -12,6 +12,7 @@ import { describeSet } from '@/features/workout/set-labels';
 import { useStartWorkout } from '@/features/workout/use-start-workout';
 import { formatDate, formatNumber } from '@/lib/format';
 import { returnToTabs } from '@/lib/navigation';
+import { t } from '@/lib/i18n';
 
 export default function SessionHistoryScreen() {
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
@@ -31,8 +32,8 @@ export default function SessionHistoryScreen() {
           if (!session || session.state !== 'completed' || !session.finishedAt) {
             return (
               <Panel>
-                <AppText variant="heading">Тренировка не найдена</AppText>
-                <Button label="Открыть главную" variant="secondary" onPress={returnToTabs} />
+                <AppText variant="heading">{t('Тренировка не найдена')}</AppText>
+                <Button label={t('Открыть главную')} variant="secondary" onPress={returnToTabs} />
               </Panel>
             );
           }
@@ -52,7 +53,7 @@ export default function SessionHistoryScreen() {
                 <AppText tone="secondary">
                   {`${formatDate(session.startedAt)}, ${formatDuration(sessionDurationMs(session, new Date()))}`}
                 </AppText>
-                {volume > 0 ? <AppText tone="secondary">{`Объём: ${formatNumber(volume)} кг`}</AppText> : null}
+                {volume > 0 ? <AppText tone="secondary">{t('Объём: {0} кг', { 0: formatNumber(volume) })}</AppText> : null}
               </View>
 
               {performed.map((exercise) => (
@@ -61,7 +62,7 @@ export default function SessionHistoryScreen() {
                   {exercise.sets.map((set) => (
                     <Pressable
                       key={set.id}
-                      accessibilityHint="Открывает исправление подхода"
+                      accessibilityHint={t('Открывает исправление подхода')}
                       accessibilityRole="button"
                       onPress={() => router.push(`/history/set/${set.id}`)}
                       style={{ minHeight: theme.sizes.minTouch, justifyContent: 'center' }}
@@ -75,7 +76,7 @@ export default function SessionHistoryScreen() {
               ))}
 
               <AppText variant="caption" tone="secondary">
-                Нажмите на подход, чтобы исправить ошибку в записи.
+                {t('Нажмите на подход, чтобы исправить ошибку в записи.')}
               </AppText>
 
               {error ? (
@@ -85,13 +86,13 @@ export default function SessionHistoryScreen() {
               ) : null}
               {canRepeat ? (
                 <Button
-                  label="Повторить тренировку"
+                  label={t('Повторить тренировку')}
                   variant="secondary"
                   loading={starting}
                   onPress={() => repeat(session)}
                 />
               ) : null}
-              <Button label="Готово" variant="secondary" onPress={returnToTabs} />
+              <Button label={t('Готово')} variant="secondary" onPress={returnToTabs} />
             </>
           );
         }}

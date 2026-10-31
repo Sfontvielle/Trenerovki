@@ -11,6 +11,7 @@ import { listFoods } from '@/domains/nutrition/nutrition-repository';
 import type { Diet } from '@/domains/profile/profile';
 import { formatEnergy } from '@/features/nutrition/format-nutrition';
 import { normalizeSearch } from '@/lib/format';
+import { t } from '@/lib/i18n';
 
 const CATALOG_RESULTS = 20;
 
@@ -61,7 +62,7 @@ export function FoodSearch({ onPick }: FoodSearchProps) {
 
   return (
     <>
-      <TextField label="Найти продукт" onChangeText={setQuery} value={query} />
+      <TextField label={t('Найти продукт')} onChangeText={setQuery} value={query} />
       <DataView state={state}>
         {(own) => {
           const normalized = normalizeSearch(query);
@@ -82,20 +83,20 @@ export function FoodSearch({ onPick }: FoodSearchProps) {
             <View style={{ gap: theme.spacing.s }}>
               {!normalized && own.length === 0 ? (
                 <AppText tone="secondary">
-                  Введите название, чтобы найти продукт в базе. Здесь появятся продукты, которые вы уже записывали.
+                  {t('Введите название, чтобы найти продукт в базе. Здесь появятся продукты, которые вы уже записывали.')}
                 </AppText>
               ) : null}
               {normalized && ownMatches.length === 0 && catalogMatches.length === 0 ? (
-                <AppText tone="secondary">Ничего не найдено. Добавьте новый продукт.</AppText>
+                <AppText tone="secondary">{t('Ничего не найдено. Добавьте новый продукт.')}</AppText>
               ) : null}
               {ownMatches.map((food) => (
-                <FoodRow key={food.id} food={food} caption={`${formatEnergy(food.kcal)} на 100 г`} onPick={onPick} />
+                <FoodRow key={food.id} food={food} caption={t('{0} на 100 г', { 0: formatEnergy(food.kcal) })} onPick={onPick} />
               ))}
               {catalogMatches.map((food) => (
                 <FoodRow
                   key={food.id}
                   food={toPicked(food)}
-                  caption={`${formatEnergy(food.kcal)} на 100 г, типовые значения`}
+                  caption={t('{0} на 100 г, типовые значения', { 0: formatEnergy(food.kcal) })}
                   onPick={onPick}
                 />
               ))}

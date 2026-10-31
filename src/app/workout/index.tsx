@@ -15,6 +15,7 @@ import { confirm } from '@/lib/confirm';
 import { describeFailure } from '@/lib/describe-failure';
 import { pluralize } from '@/lib/format';
 import { returnToTabs } from '@/lib/navigation';
+import { t } from '@/lib/i18n';
 
 function useNow(running: boolean) {
   const [now, setNow] = useState(() => new Date());
@@ -43,8 +44,8 @@ function describeProgress(exercise: SessionExercise) {
     repsMax: exercise.repsMax,
     durationSec: exercise.targetDurationSec,
   });
-  const planned = exercise.plannedSets === null ? `${done}` : `${done} из ${exercise.plannedSets}`;
-  return target ? `Подходы: ${planned}, цель ${target}` : `Подходы: ${planned}`;
+  const planned = exercise.plannedSets === null ? `${done}` : t('{0} из {1}', { 0: done, 1: exercise.plannedSets });
+  return target ? t('Подходы: {0}, цель {1}', { 0: planned, 1: target }) : t('Подходы: {0}', { 0: planned });
 }
 
 type SessionOverviewProps = {
@@ -68,7 +69,7 @@ function SessionOverview({ session, onChanged }: SessionOverviewProps) {
       await action();
     } catch (cause) {
       console.error(cause);
-      setError(`Действие не выполнено. Записанные подходы сохранены. ${describeFailure(cause)}`);
+      setError(t('Действие не выполнено. Записанные подходы сохранены. {0}', { 0: describeFailure(cause) }));
       onChanged();
     } finally {
       setBusy(false);
@@ -85,9 +86,9 @@ function SessionOverview({ session, onChanged }: SessionOverviewProps) {
 
   const finish = async () => {
     const approved = await confirm({
-      title: 'Завершить тренировку?',
-      message: `Записано ${setCount} ${pluralize(setCount, ['подход', 'подхода', 'подходов'])}. После завершения изменить их будет нельзя.`,
-      confirmLabel: 'Завершить',
+      title: t('Завершить тренировку?'),
+      message: t('Записано {0} {1}. После завершения их можно будет исправить только в истории.', { 0: setCount, 1: pluralize(setCount, [t('подход'), t('подхода'), t('подходов')]) }),
+      confirmLabel: t('Завершить'),
     });
     if (approved) {
       await run(async () => {
@@ -100,12 +101,12 @@ function SessionOverview({ session, onChanged }: SessionOverviewProps) {
   const cancel = async () => {
     const lost =
       setCount > 0
-        ? `Записанные подходы (${setCount}) не попадут в историю и прогресс. Вернуть их нельзя.`
-        : 'Она не попадёт в историю и прогресс.';
+        ? t('Записанные подходы ({0}) не попадут в историю и прогресс. Вернуть их нельзя.', { 0: setCount })
+        : t('Она не попадёт в историю и прогресс.');
     const approved = await confirm({
-      title: 'Отменить тренировку?',
+      title: t('Отменить тренировку?'),
       message: lost,
-      confirmLabel: 'Отменить тренировку',
+      confirmLabel: t('Отменить тренировку'),
       destructive: true,
     });
     if (approved) {
@@ -123,22 +124,21 @@ function SessionOverview({ session, onChanged }: SessionOverviewProps) {
           {session.title}
         </AppText>
         <AppText variant="heading" tone={paused ? 'warning' : 'accent'}>
-          {`${formatDuration(sessionDurationMs(session, now))}${paused ? ', пауза' : ''}`}
+          {`${formatDuration(sessionDurationMs(session, now))}${paused ? t(', пауза') : ''}`}
         </AppText>
       </View>
 
       {session.recoveryRequired ? (
         <Panel>
-          <AppText variant="heading">Тренировка была прервана</AppText>
+          <AppText variant="heading">{t('Тренировка была прервана')}</AppText>
           <AppText tone="secondary">
-            Все записанные подходы сохранены. Время после последнего действия не считается. Проверьте их и
-            выберите: продолжить, завершить или отменить тренировку.
+            {t('Все записанные подходы сохранены. Время после последнего действия не считается. Проверьте их и выберите: продолжить, завершить или отменить тренировку.')}
           </AppText>
         </Panel>
       ) : null}
 
       {session.exercises.length === 0 ? (
-        <AppText tone="secondary">Добавьте первое упражнение, чтобы начать записывать подходы.</AppText>
+        <AppText tone="secondary">{t('Добавьте первое упражнение, чтобы начать записывать подходы.')}</AppText>
       ) : null}
 
       {session.exercises.map((exercise, index) => {
@@ -163,8 +163,8 @@ function SessionOverview({ session, onChanged }: SessionOverviewProps) {
             </Pressable>
             {paused ? null : linkedToNext ? (
               <Button
-                accessibilityLabel={`Разъединить: ${name}`}
-                label="Разъединить"
+                accessibilityLabel={t('Разъединить: {0}', { 0: name })}
+                label={t('Разъединить')}
                 variant="secondary"
                 disabled={busy}
                 onPress={() =>
@@ -176,8 +176,8 @@ function SessionOverview({ session, onChanged }: SessionOverviewProps) {
               />
             ) : next ? (
               <Button
-                accessibilityLabel={`Объединить со следующим: ${name}`}
-                label="Объединить со следующим"
+                accessibilityLabel={t('Объединить со следующим: {0}', { 0: name })}
+                label={t('Объединить со следующим')}
                 variant="secondary"
                 disabled={busy}
                 onPress={() =>
@@ -193,7 +193,7 @@ function SessionOverview({ session, onChanged }: SessionOverviewProps) {
       })}
 
       <Button
-        label="Добавить упражнение"
+        label={t('Добавить упражнение')}
         variant="secondary"
         disabled={paused || busy}
         onPress={() => router.push('/workout/add')}
@@ -206,18 +206,18 @@ function SessionOverview({ session, onChanged }: SessionOverviewProps) {
       ) : null}
 
       <Button
-        label={paused ? 'Продолжить' : 'Пауза'}
+        label={paused ? t('Продолжить') : t('Пауза')}
         variant="secondary"
         disabled={busy}
         onPress={togglePause}
       />
-      <Button label="Завершить тренировку" disabled={setCount === 0} loading={busy} onPress={finish} />
+      <Button label={t('Завершить тренировку')} disabled={setCount === 0} loading={busy} onPress={finish} />
       {setCount === 0 ? (
         <AppText variant="caption" tone="secondary">
-          Завершить можно после первого записанного подхода.
+          {t('Завершить можно после первого записанного подхода.')}
         </AppText>
       ) : null}
-      <Button label="Отменить тренировку" variant="secondary" disabled={busy} onPress={cancel} />
+      <Button label={t('Отменить тренировку')} variant="secondary" disabled={busy} onPress={cancel} />
     </>
   );
 }
@@ -235,9 +235,9 @@ export default function WorkoutScreen() {
             <SessionOverview session={session} onChanged={state.reload} />
           ) : (
             <Panel>
-              <AppText variant="heading">Нет открытой тренировки</AppText>
-              <AppText tone="secondary">Начните тренировку на вкладке «Тренировки».</AppText>
-              <Button label="Открыть главную" variant="secondary" onPress={returnToTabs} />
+              <AppText variant="heading">{t('Нет открытой тренировки')}</AppText>
+              <AppText tone="secondary">{t('Начните тренировку на вкладке «Тренировки».')}</AppText>
+              <Button label={t('Открыть главную')} variant="secondary" onPress={returnToTabs} />
             </Panel>
           )
         }

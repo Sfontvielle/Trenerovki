@@ -22,6 +22,7 @@ import { FoodRow, FoodSearch, type PickedFood } from '@/features/nutrition/food-
 import { formatEnergy, formatMacros } from '@/features/nutrition/format-nutrition';
 import { describeFailure } from '@/lib/describe-failure';
 import { formatInputNumber, parseDecimal } from '@/lib/format';
+import { t } from '@/lib/i18n';
 
 type Mode = { type: 'search' } | { type: 'existing'; food: PickedFood } | { type: 'new' };
 
@@ -84,15 +85,15 @@ export default function AddFoodScreen() {
   const save = async () => {
     const foodName = mode.type === 'existing' ? mode.food.name : name;
     if (!foodName.trim()) {
-      setError('Укажите название продукта.');
+      setError(t('Укажите название продукта.'));
       return;
     }
     if (!areValidNutrients(per100g)) {
-      setError('Заполните все поля на 100 г. Если значения нет, укажите 0. Калорий не больше 900, белков, жиров и углеводов вместе не больше 100 г.');
+      setError(t('Заполните все поля на 100 г. Если значения нет, укажите 0. Калорий не больше 900, белков, жиров и углеводов вместе не больше 100 г.'));
       return;
     }
     if (!isValidGrams(grams)) {
-      setError('Укажите вес порции от 1 до 5000 г.');
+      setError(t('Укажите вес порции от 1 до 5000 г.'));
       return;
     }
 
@@ -114,7 +115,7 @@ export default function AddFoodScreen() {
       router.back();
     } catch (cause) {
       console.error(cause);
-      setError(`Запись не сохранена. ${describeFailure(cause)}`);
+      setError(t('Запись не сохранена. {0}', { 0: describeFailure(cause) }));
       setSaving(false);
     }
   };
@@ -129,25 +130,25 @@ export default function AddFoodScreen() {
         <>
           {usual.status === 'ready' && usual.data.length > 0 ? (
             <View style={{ gap: spacing.s }}>
-              <AppText variant="heading">{`Обычно на ${mealLabels[meal].toLowerCase()}`}</AppText>
+              <AppText variant="heading">{t('Обычно на {0}', { 0: mealLabels[meal].toLowerCase() })}</AppText>
               {usual.data.map((food) => (
                 <FoodRow
                   key={food.id}
                   food={food}
-                  caption={`${formatInputNumber(food.grams)} г, ${formatEnergy(portionOf(food, food.grams).kcal)}`}
+                  caption={t('{0} г, {1}', { 0: formatInputNumber(food.grams), 1: formatEnergy(portionOf(food, food.grams).kcal) })}
                   onPick={(picked) => pick(picked, food.grams)}
                 />
               ))}
             </View>
           ) : null}
           <FoodSearch onPick={(food) => pick(food)} />
-          <Button label="Новый продукт" variant="secondary" onPress={() => setMode({ type: 'new' })} />
+          <Button label={t('Новый продукт')} variant="secondary" onPress={() => setMode({ type: 'new' })} />
           <Button
-            label="Сканировать штрихкод"
+            label={t('Сканировать штрихкод')}
             variant="secondary"
             onPress={() => router.push({ pathname: '/food/scan', params: { day, meal } })}
           />
-          <Button label="Блюдо из продуктов" variant="secondary" onPress={() => router.push('/food/recipe')} />
+          <Button label={t('Блюдо из продуктов')} variant="secondary" onPress={() => router.push('/food/recipe')} />
         </>
       ) : (
         <>
@@ -155,11 +156,11 @@ export default function AddFoodScreen() {
             <Panel>
               <AppText variant="heading">{mode.food.name}</AppText>
               <AppText variant="callout" tone="secondary">
-                {`На 100 г: ${formatEnergy(mode.food.kcal)}, ${formatMacros(mode.food)}`}
+                {t('На 100 г: {0}, {1}', { 0: formatEnergy(mode.food.kcal), 1: formatMacros(mode.food) })}
               </AppText>
               {mode.food.source === 'catalog' ? (
                 <AppText variant="caption" tone="secondary">
-                  Типовые значения. У конкретного продукта они могут отличаться: сверяйте с упаковкой.
+                  {t('Типовые значения. У конкретного продукта они могут отличаться: сверяйте с упаковкой.')}
                 </AppText>
               ) : null}
             </Panel>
@@ -169,27 +170,27 @@ export default function AddFoodScreen() {
             <Panel>
               {barcode ? (
                 <AppText variant="caption" tone="secondary">
-                  Значения из открытой базы Open Food Facts. Сверьте их с упаковкой перед записью.
+                  {t('Значения из открытой базы Open Food Facts. Сверьте их с упаковкой перед записью.')}
                 </AppText>
               ) : null}
-              <TextField label="Название" onChangeText={setName} value={name} />
-              <TextField keyboardType="decimal-pad" label="Калории на 100 г" onChangeText={setKcalText} value={kcalText} />
-              <TextField keyboardType="decimal-pad" label="Белки на 100 г" onChangeText={setProteinText} value={proteinText} />
-              <TextField keyboardType="decimal-pad" label="Жиры на 100 г" onChangeText={setFatText} value={fatText} />
-              <TextField keyboardType="decimal-pad" label="Углеводы на 100 г" onChangeText={setCarbsText} value={carbsText} />
+              <TextField label={t('Название')} onChangeText={setName} value={name} />
+              <TextField keyboardType="decimal-pad" label={t('Калории на 100 г')} onChangeText={setKcalText} value={kcalText} />
+              <TextField keyboardType="decimal-pad" label={t('Белки на 100 г')} onChangeText={setProteinText} value={proteinText} />
+              <TextField keyboardType="decimal-pad" label={t('Жиры на 100 г')} onChangeText={setFatText} value={fatText} />
+              <TextField keyboardType="decimal-pad" label={t('Углеводы на 100 г')} onChangeText={setCarbsText} value={carbsText} />
               {areValidNutrients(typed) && energyLooksWrong(typed) ? (
                 <AppText variant="callout" tone="warning">
-                  Калории не сходятся с белками, жирами и углеводами. Проверьте значения.
+                  {t('Калории не сходятся с белками, жирами и углеводами. Проверьте значения.')}
                 </AppText>
               ) : null}
             </Panel>
           ) : null}
 
-          <TextField keyboardType="decimal-pad" label="Вес порции, г" onChangeText={setGramsText} value={gramsText} />
+          <TextField keyboardType="decimal-pad" label={t('Вес порции, г')} onChangeText={setGramsText} value={gramsText} />
           {mode.type === 'existing' && mode.food.portion ? (
             <View style={{ flexDirection: 'row' }}>
               <Chip
-                label={`${mode.food.portion.label}, ${mode.food.portion.grams} г`}
+                label={t('{0}, {1} г', { 0: mode.food.portion.label, 1: mode.food.portion.grams })}
                 selected={grams === mode.food.portion.grams}
                 onPress={() => setGramsText(String(mode.type === 'existing' ? mode.food.portion?.grams : ''))}
               />
@@ -210,9 +211,9 @@ export default function AddFoodScreen() {
               {error}
             </AppText>
           ) : null}
-          <Button label="Записать" loading={saving} onPress={save} />
+          <Button label={t('Записать')} loading={saving} onPress={save} />
           <Button
-            label="Другой продукт"
+            label={t('Другой продукт')}
             variant="secondary"
             disabled={saving}
             onPress={() => {

@@ -8,16 +8,17 @@ import { AppText, Button, Panel, Screen, useTheme } from '@/design-system';
 import type { Meal } from '@/domains/nutrition/nutrition';
 import { findFoodByBarcode } from '@/domains/nutrition/nutrition-repository';
 import { lookupProduct } from '@/domains/nutrition/product-lookup';
+import { t } from '@/lib/i18n';
 
 const barcodeTypes = ['ean13', 'ean8', 'upc_a', 'upc_e'] as const;
 
 type Outcome = 'searching' | 'not_found' | 'incomplete' | 'offline' | 'failed';
 
 const outcomeTexts: Record<Exclude<Outcome, 'searching'>, string> = {
-  not_found: 'Этого штрихкода нет в открытой базе. Введите значения с упаковки.',
-  incomplete: 'В открытой базе нет полных данных о продукте. Введите значения с упаковки.',
-  offline: 'Не удалось связаться с базой. Проверьте интернет или введите значения вручную.',
-  failed: 'Не удалось прочитать штрихкод. Попробуйте ещё раз.',
+  not_found: t('Этого штрихкода нет в открытой базе. Введите значения с упаковки.'),
+  incomplete: t('В открытой базе нет полных данных о продукте. Введите значения с упаковки.'),
+  offline: t('Не удалось связаться с базой. Проверьте интернет или введите значения вручную.'),
+  failed: t('Не удалось прочитать штрихкод. Попробуйте ещё раз.'),
 };
 
 export default function ScanBarcodeScreen() {
@@ -71,7 +72,7 @@ export default function ScanBarcodeScreen() {
     return (
       <Screen scroll belowHeader>
         <Panel>
-          <AppText tone="secondary">Сканер штрихкодов работает на iPhone.</AppText>
+          <AppText tone="secondary">{t('Сканер штрихкодов работает на iPhone.')}</AppText>
         </Panel>
       </Screen>
     );
@@ -79,7 +80,7 @@ export default function ScanBarcodeScreen() {
 
   const manual = (
     <Button
-      label="Ввести вручную"
+      label={t('Ввести вручную')}
       variant="secondary"
       onPress={() => openForm(barcode ? { barcode, name: '' } : { name: '', barcode: '' })}
     />
@@ -90,13 +91,12 @@ export default function ScanBarcodeScreen() {
       {!permission?.granted ? (
         <Panel>
           <AppText tone="secondary">
-            Камера нужна только для чтения штрихкода. Фото не сохраняются. Номер штрихкода отправляется в
-            открытую базу Open Food Facts, больше никаких данных.
+            {t('Камера нужна только для чтения штрихкода. Фото не сохраняются. Номер штрихкода отправляется в открытую базу Open Food Facts, больше никаких данных.')}
           </AppText>
           {permission && !permission.canAskAgain ? (
-            <AppText tone="secondary">Доступ к камере выключен. Его можно включить в настройках iPhone.</AppText>
+            <AppText tone="secondary">{t('Доступ к камере выключен. Его можно включить в настройках iPhone.')}</AppText>
           ) : (
-            <Button label="Разрешить камеру" onPress={requestPermission} />
+            <Button label={t('Разрешить камеру')} onPress={requestPermission} />
           )}
           {manual}
         </Panel>
@@ -110,7 +110,7 @@ export default function ScanBarcodeScreen() {
             />
           </View>
           <AppText accessibilityLiveRegion="polite" tone="secondary">
-            {outcome === 'searching' ? 'Ищем продукт…' : 'Наведите камеру на штрихкод на упаковке.'}
+            {outcome === 'searching' ? t('Ищем продукт…') : t('Наведите камеру на штрихкод на упаковке.')}
           </AppText>
           {manual}
         </>
@@ -119,7 +119,7 @@ export default function ScanBarcodeScreen() {
           <AppText accessibilityLiveRegion="polite" tone="secondary">
             {outcomeTexts[outcome]}
           </AppText>
-          <Button label="Сканировать ещё раз" variant="secondary" onPress={retry} />
+          <Button label={t('Сканировать ещё раз')} variant="secondary" onPress={retry} />
           {manual}
         </Panel>
       )}

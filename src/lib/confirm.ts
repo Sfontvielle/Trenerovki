@@ -1,4 +1,5 @@
 import { Alert, Platform } from 'react-native';
+import { t } from '@/lib/i18n';
 
 type ConfirmOptions = {
   title: string;
@@ -14,7 +15,7 @@ export function confirm({ title, message, confirmLabel, destructive = false }: C
 
   return new Promise<boolean>((resolve) => {
     Alert.alert(title, message, [
-      { text: 'Не сейчас', style: 'cancel', onPress: () => resolve(false) },
+      { text: t('Не сейчас'), style: 'cancel', onPress: () => resolve(false) },
       {
         text: confirmLabel,
         style: destructive ? 'destructive' : 'default',

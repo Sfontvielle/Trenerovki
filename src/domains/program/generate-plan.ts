@@ -1,5 +1,6 @@
 import { type Exercise, type MovementPattern, exerciseTracking, exercises, findExercise } from '../exercises/catalog';
 import type { DaysPerWeek, Experience, Goal, Profile, SessionMinutes } from '../profile/profile';
+import { t } from '@/lib/i18n';
 
 type PlanProfile = Pick<
   Profile,
@@ -29,45 +30,45 @@ type DayTemplate = {
 const MIN_EXERCISES_PER_DAY = 3;
 
 const fullBodyA: DayTemplate = {
-  name: 'Всё тело А',
+  name: t('Всё тело А'),
   patterns: ['squat', 'horizontal_push', 'horizontal_pull', 'hinge', 'vertical_push', 'core'],
 };
 const fullBodyB: DayTemplate = {
-  name: 'Всё тело Б',
+  name: t('Всё тело Б'),
   patterns: ['hinge', 'vertical_push', 'vertical_pull', 'lunge', 'horizontal_push', 'core'],
 };
 const fullBodyC: DayTemplate = {
-  name: 'Всё тело В',
+  name: t('Всё тело В'),
   patterns: ['squat', 'horizontal_pull', 'horizontal_push', 'lunge', 'biceps', 'triceps'],
 };
 const upperA: DayTemplate = {
-  name: 'Верх тела А',
+  name: t('Верх тела А'),
   patterns: ['horizontal_push', 'horizontal_pull', 'vertical_push', 'vertical_pull', 'biceps', 'triceps'],
 };
 const lowerA: DayTemplate = {
-  name: 'Низ тела А',
+  name: t('Низ тела А'),
   patterns: ['squat', 'hinge', 'lunge', 'calves', 'core'],
 };
 const upperB: DayTemplate = {
-  name: 'Верх тела Б',
+  name: t('Верх тела Б'),
   patterns: ['vertical_push', 'vertical_pull', 'horizontal_push', 'horizontal_pull', 'triceps', 'biceps'],
 };
 const lowerB: DayTemplate = {
-  name: 'Низ тела Б',
+  name: t('Низ тела Б'),
   patterns: ['hinge', 'squat', 'lunge', 'calves', 'core'],
 };
-const upper: DayTemplate = { ...upperA, name: 'Верх тела' };
-const lower: DayTemplate = { ...lowerA, name: 'Низ тела' };
+const upper: DayTemplate = { ...upperA, name: t('Верх тела') };
+const lower: DayTemplate = { ...lowerA, name: t('Низ тела') };
 const push: DayTemplate = {
-  name: 'Жимовой день',
+  name: t('Жимовой день'),
   patterns: ['horizontal_push', 'vertical_push', 'horizontal_push', 'vertical_push', 'triceps'],
 };
 const pull: DayTemplate = {
-  name: 'Тяговый день',
+  name: t('Тяговый день'),
   patterns: ['vertical_pull', 'horizontal_pull', 'hinge', 'biceps', 'core'],
 };
 const legs: DayTemplate = {
-  name: 'День ног',
+  name: t('День ног'),
   patterns: ['squat', 'hinge', 'lunge', 'calves', 'core'],
 };
 
@@ -199,7 +200,7 @@ export function generatePlan(profile: PlanProfile): PlannedDay[] {
   const minimum = Math.min(MIN_EXERCISES_PER_DAY, limit);
   const days = fromTemplates.some(({ chosen }) => chosen.length < minimum)
     ? templates.map((_, index) => ({
-        name: `Тренировка ${index + 1}`,
+        name: t('Тренировка {0}', { 0: index + 1 }),
         chosen: pickExercises(rotated(allPatterns, index * 3), pool, index),
       }))
     : fromTemplates;

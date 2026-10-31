@@ -1,0 +1,5 @@
+{
+  "CFBundleDisplayName": "IRONVANT",
+  "NSCameraUsageDescription": "IRONVANT сканирует штрихкоды продуктов. Фото не сохраняются.",
+  "NSMotionUsageDescription": "IRONVANT показывает ваши шаги. Данные остаются на iPhone."
+}

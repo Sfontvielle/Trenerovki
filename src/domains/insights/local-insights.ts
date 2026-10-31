@@ -2,6 +2,7 @@ import type { Database } from '../data-platform/database';
 import { exerciseName } from '../exercises/catalog';
 import { formatNumber } from '../../lib/format';
 import { dayKey } from '../nutrition/nutrition';
+import { t } from '@/lib/i18n';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * DAY_MS;
@@ -35,19 +36,19 @@ export function buildInsights(data: InsightData): Insight[] {
     return [
       {
         id: 'no-data',
-        title: 'Новых подсказок нет',
-        body: 'За последние 14 дней нет завершённых тренировок. Подсказки появятся после следующей.',
+        title: t('Новых подсказок нет'),
+        body: t('За последние 14 дней нет завершённых тренировок. Подсказки появятся после следующей.'),
       },
     ];
   }
 
   insights.push({
     id: 'consistency',
-    title: 'Регулярность',
+    title: t('Регулярность'),
     body:
       workoutsThisWeek >= plannedPerWeek
-        ? `За 7 дней завершено тренировок: ${workoutsThisWeek}, по плану ${plannedPerWeek} в неделю.`
-        : `За 7 дней завершено тренировок: ${workoutsThisWeek}, по плану ${plannedPerWeek} в неделю. Если план не подходит, упражнения можно изменить на вкладке «Тренировки».`,
+        ? t('За 7 дней завершено тренировок: {0}, по плану {1} в неделю.', { 0: workoutsThisWeek, 1: plannedPerWeek })
+        : t('За 7 дней завершено тренировок: {0}, по плану {1} в неделю. Если план не подходит, упражнения можно изменить на вкладке «Тренировки».', { 0: workoutsThisWeek, 1: plannedPerWeek }),
   });
 
   if (volumeLastWeek > 0) {
@@ -55,8 +56,8 @@ export function buildInsights(data: InsightData): Insight[] {
     if (Math.abs(change) >= VOLUME_CHANGE_RATIO) {
       insights.push({
         id: 'volume',
-        title: 'Суммарная нагрузка',
-        body: `Сумма «вес × повторы» за 7 дней ${change > 0 ? 'выросла' : 'снизилась'} на ${Math.round(Math.abs(change) * 100)}% по сравнению с предыдущими 7 днями.`,
+        title: t('Суммарная нагрузка'),
+        body: t('Сумма «вес × повторы» за 7 дней {0} на {1}% по сравнению с предыдущими 7 днями.', { 0: change > 0 ? t('выросла') : t('снизилась'), 1: Math.round(Math.abs(change) * 100) }),
       });
     }
   }
@@ -65,31 +66,31 @@ export function buildInsights(data: InsightData): Insight[] {
     insights.push({
       id: `plateau-${exerciseId}`,
       title: exerciseName(exerciseId),
-      body: `Максимальный вес не менялся ${PLATEAU_SESSIONS} тренировки подряд. Если подходы даются легко и боли нет, можно добавить один повтор. Решение за вами.`,
+      body: t('Максимальный вес не менялся {0} тренировки подряд. Если подходы даются легко и боли нет, можно добавить один повтор. Решение за вами.', { 0: PLATEAU_SESSIONS }),
     });
   }
 
   if (data.averageSleepHours !== null && data.averageSleepHours !== undefined) {
     insights.push({
       id: 'sleep',
-      title: 'Сон',
-      body: `В среднем ${formatNumber(data.averageSleepHours)} ч по вашим отметкам за последние дни. Это ваши записи, а не измерение датчиком.`,
+      title: t('Сон'),
+      body: t('В среднем {0} ч по вашим отметкам за последние дни. Это ваши записи, а не измерение датчиком.', { 0: formatNumber(data.averageSleepHours) }),
     });
   }
 
   if (data.averageSteps !== null && data.averageSteps !== undefined) {
     insights.push({
       id: 'steps',
-      title: 'Шаги',
-      body: `В среднем ${formatNumber(Math.round(data.averageSteps))} шагов в день по данным iPhone.`,
+      title: t('Шаги'),
+      body: t('В среднем {0} шагов в день по данным iPhone.', { 0: formatNumber(Math.round(data.averageSteps)) }),
     });
   }
 
   if (data.foodDaysLogged) {
     insights.push({
       id: 'food',
-      title: 'Питание',
-      body: `Дневник питания заполнен ${data.foodDaysLogged} из последних 7 дней.`,
+      title: t('Питание'),
+      body: t('Дневник питания заполнен {0} из последних 7 дней.', { 0: data.foodDaysLogged }),
     });
   }
 

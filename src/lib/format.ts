@@ -1,3 +1,5 @@
+import { language, locale, t } from './i18n';
+
 export function parseDecimal(text: string) {
   const normalized = text.trim().replace(',', '.');
   if (normalized === '') {
@@ -7,19 +9,19 @@ export function parseDecimal(text: string) {
 }
 
 export function formatInputNumber(value: number | null | undefined) {
-  return value === null || value === undefined ? '' : String(value).replace('.', ',');
+  return value === null || value === undefined ? '' : language === 'ru' ? String(value).replace('.', ',') : String(value);
 }
 
 export function formatNumber(value: number) {
-  return value.toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+  return value.toLocaleString(locale, { maximumFractionDigits: 2 });
 }
 
 export function formatWeight(weightKg: number | null) {
-  return weightKg === null ? 'Свой вес' : `${formatNumber(weightKg)} кг`;
+  return weightKg === null ? t('Свой вес') : t('{0} кг', { 0: formatNumber(weightKg) });
 }
 
 export function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('ru-RU', {
+  return new Date(iso).toLocaleDateString(locale, {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -27,10 +29,13 @@ export function formatDate(iso: string) {
 }
 
 export function normalizeSearch(text: string) {
-  return text.trim().toLocaleLowerCase('ru-RU').replaceAll('ё', 'е');
+  return text.trim().toLocaleLowerCase(locale).replaceAll('ё', 'е');
 }
 
 export function pluralize(count: number, [one, few, many]: [string, string, string]) {
+  if (language !== 'ru') {
+    return Math.abs(count) === 1 ? one : many;
+  }
   const lastTwo = Math.abs(count) % 100;
   const last = lastTwo % 10;
   if (lastTwo > 10 && lastTwo < 20) {

@@ -8,6 +8,7 @@ import { weekdays } from '@/domains/program/schedule';
 import { sexLabels } from '@/features/profile/labels';
 import { pluralize } from '@/lib/format';
 import { selectionFeedback } from '@/lib/haptics';
+import { t } from '@/lib/i18n';
 
 export type SymbolName = ComponentProps<typeof SymbolView>['name'];
 
@@ -36,7 +37,7 @@ export function QuestionHeader({ current, total, onBack }: QuestionHeaderProps) 
   return (
     <View style={[styles.header, { gap: spacing.s }]}>
       <Pressable
-        accessibilityLabel="Назад"
+        accessibilityLabel={t('Назад')}
         accessibilityRole="button"
         hitSlop={spacing.s}
         onPress={onBack}
@@ -54,8 +55,8 @@ export function QuestionHeader({ current, total, onBack }: QuestionHeaderProps) 
         <AppText variant="heading">‹</AppText>
       </Pressable>
       <View style={[styles.headerCenter, { gap: spacing.s }]}>
-        <AppText accessibilityLabel={`Вопрос ${current} из ${total}`} variant="callout">
-          {`${current} из ${total}`}
+        <AppText accessibilityLabel={t('Вопрос {0} из {1}', { 0: current, 1: total })} variant="callout">
+          {t('{0} из {1}', { 0: current, 1: total })}
         </AppText>
         <View
           style={[
@@ -215,7 +216,7 @@ type FrequencyPickerProps = {
 };
 
 function timesWord(count: number) {
-  return pluralize(count, ['раз', 'раза', 'раз']);
+  return pluralize(count, [t('раз'), t('раза'), t('раз')]);
 }
 
 export function FrequencyPicker({ value, onChange }: FrequencyPickerProps) {
@@ -228,7 +229,7 @@ export function FrequencyPicker({ value, onChange }: FrequencyPickerProps) {
         {value ?? '—'}
       </AppText>
       <AppText tone="secondary">
-        {value ? `${timesWord(value)} в неделю` : 'Выберите число'}
+        {value ? t('{0} в неделю', { 0: timesWord(value) }) : t('Выберите число')}
       </AppText>
       <View accessibilityRole="radiogroup" style={[styles.row, { gap: spacing.m }]}>
         {allowedDaysPerWeek.map((days) => {
@@ -236,7 +237,7 @@ export function FrequencyPicker({ value, onChange }: FrequencyPickerProps) {
           return (
             <Pressable
               key={days}
-              accessibilityLabel={`${days} ${timesWord(days)} в неделю`}
+              accessibilityLabel={t('{0} {1} в неделю', { 0: days, 1: timesWord(days) })}
               accessibilityRole="radio"
               accessibilityState={{ checked: selected }}
               onPress={() => {

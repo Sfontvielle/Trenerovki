@@ -17,6 +17,7 @@ import {
 import { describeTarget, groupLabel } from '@/features/workout/set-labels';
 import { confirm } from '@/lib/confirm';
 import { describeFailure } from '@/lib/describe-failure';
+import { t } from '@/lib/i18n';
 
 export default function EditPlanDayScreen() {
   const { dayId } = useLocalSearchParams<{ dayId: string }>();
@@ -31,9 +32,9 @@ export default function EditPlanDayScreen() {
 
   const remove = async (id: string, name: string) => {
     const approved = await confirm({
-      title: 'Убрать упражнение из плана?',
+      title: t('Убрать упражнение из плана?'),
       message: name,
-      confirmLabel: 'Убрать',
+      confirmLabel: t('Убрать'),
       destructive: true,
     });
     if (!approved) {
@@ -45,7 +46,7 @@ export default function EditPlanDayScreen() {
       state.reload();
     } catch (cause) {
       console.error(cause);
-      setError(`Упражнение не убрано. ${describeFailure(cause)}`);
+      setError(t('Упражнение не убрано. {0}', { 0: describeFailure(cause) }));
     }
   };
 
@@ -56,7 +57,7 @@ export default function EditPlanDayScreen() {
       state.reload();
     } catch (cause) {
       console.error(cause);
-      setError(`Связь не изменена. ${describeFailure(cause)}`);
+      setError(t('Связь не изменена. {0}', { 0: describeFailure(cause) }));
     }
   };
 
@@ -95,8 +96,8 @@ export default function EditPlanDayScreen() {
                     <View style={{ flexDirection: 'row', gap: theme.spacing.s }}>
                       <View style={{ flex: 1 }}>
                         <Button
-                          accessibilityLabel={`Заменить: ${name}`}
-                          label="Заменить"
+                          accessibilityLabel={t('Заменить: {0}', { 0: name })}
+                          label={t('Заменить')}
                           variant="secondary"
                           onPress={() =>
                             router.push({
@@ -108,9 +109,9 @@ export default function EditPlanDayScreen() {
                       </View>
                       <View style={{ flex: 1 }}>
                         <Button
-                          accessibilityLabel={`Убрать: ${name}`}
+                          accessibilityLabel={t('Убрать: {0}', { 0: name })}
                           disabled={day.exercises.length === 1}
-                          label="Убрать"
+                          label={t('Убрать')}
                           variant="secondary"
                           onPress={() => remove(exercise.id, name)}
                         />
@@ -118,8 +119,8 @@ export default function EditPlanDayScreen() {
                     </View>
                     {next ? (
                       <Button
-                        accessibilityLabel={`${linked ? 'Разъединить' : 'Объединить со следующим'}: ${name}`}
-                        label={linked ? 'Разъединить' : 'Объединить со следующим'}
+                        accessibilityLabel={`${linked ? t('Разъединить') : t('Объединить со следующим')}: ${name}`}
+                        label={linked ? t('Разъединить') : t('Объединить со следующим')}
                         variant="secondary"
                         onPress={() =>
                           changeLink(() =>
@@ -139,13 +140,13 @@ export default function EditPlanDayScreen() {
                 </AppText>
               ) : null}
               <Button
-                label="Добавить упражнение"
+                label={t('Добавить упражнение')}
                 variant="secondary"
                 onPress={() => router.push({ pathname: '/plan/pick', params: { dayId } })}
               />
             </>
           ) : (
-            <AppText tone="secondary">Этого дня больше нет в плане.</AppText>
+            <AppText tone="secondary">{t('Этого дня больше нет в плане.')}</AppText>
           )
         }
       </DataView>

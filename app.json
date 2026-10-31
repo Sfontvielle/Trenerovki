@@ -9,7 +9,10 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "app.ironvant.ios",
-      "supportsTablet": false
+      "supportsTablet": false,
+      "infoPlist": {
+        "CFBundleAllowMixedLocalizations": true
+      }
     },
     "web": {
       "output": "single",
@@ -27,17 +30,27 @@
       ],
       "expo-sqlite",
       "expo-audio",
-      "expo-localization",
+      [
+        "expo-localization",
+        {
+          "supportedLocales": {
+            "ios": [
+              "en",
+              "ru"
+            ]
+          }
+        }
+      ],
       [
         "expo-sensors",
         {
-          "motionPermission": "IRONVANT показывает ваши шаги. Данные остаются на iPhone."
+          "motionPermission": "IRONVANT shows your steps. The data stays on your iPhone."
         }
       ],
       [
         "expo-camera",
         {
-          "cameraPermission": "IRONVANT сканирует штрихкоды продуктов. Фото не сохраняются.",
+          "cameraPermission": "IRONVANT scans product barcodes. No pictures are saved.",
           "microphonePermission": false,
           "recordAudioAndroid": false
         }
@@ -49,6 +62,10 @@
     },
     "runtimeVersion": {
       "policy": "appVersion"
+    },
+    "locales": {
+      "en": "./locales/en.json",
+      "ru": "./locales/ru.json"
     }
   }
 }

@@ -67,6 +67,7 @@ import {
 import { describeTarget } from '@/features/workout/set-labels';
 import { describeFailure } from '@/lib/describe-failure';
 import { parseDecimal, pluralize } from '@/lib/format';
+import { t } from '@/lib/i18n';
 
 const pages = [
   'name',
@@ -188,7 +189,7 @@ function isPageComplete(page: Page, draft: Draft) {
 
 function continueLabel(page: Page, draft: Draft) {
   if (page === 'nutrition') {
-    return 'Показать план';
+    return t('Показать план');
   }
   const skippable =
     (page === 'sex' && draft.sex === null) ||
@@ -197,7 +198,7 @@ function continueLabel(page: Page, draft: Draft) {
     (page === 'baseline' && draft.baseline === null) ||
     (page === 'lifestyle' && draft.activityLevel === null && draft.usualSleepHours === null) ||
     (page === 'weekdays' && draft.trainingDays.length === 0);
-  return skippable ? 'Пропустить' : 'Продолжить';
+  return skippable ? t('Пропустить') : t('Продолжить');
 }
 
 function toProfile(draft: Draft): Profile {
@@ -274,7 +275,7 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
         }
       } catch (error) {
         console.error(error);
-        setSaveError(`План не сохранён. ${describeFailure(error)}`);
+        setSaveError(t('План не сохранён. {0}', { 0: describeFailure(error) }));
         setSaving(false);
         return;
       }
@@ -283,7 +284,7 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
         onDone?.();
       } catch (error) {
         console.error(error);
-        setSaveError('План сохранён, но экран не обновился. Перезапустите приложение.');
+        setSaveError(t('План сохранён, но экран не обновился. Перезапустите приложение.'));
         setSaving(false);
       }
     };
@@ -292,13 +293,12 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
       <Screen scroll ambient>
         <FadeIn style={{ gap: spacing.xl }}>
           <QuestionTitle
-            hint={`${plan.length} ${pluralize(plan.length, ['тренировка', 'тренировки', 'тренировок'])} в цикле. Упражнения подобраны автоматически по цели, опыту, числу тренировок, времени и условиям${profile.limitations.length > 0 ? ', а также по выбранным ограничениям' : ''}. Специалист план не проверял.`}
-            title={initial ? 'Ваш новый план' : 'Ваш стартовый план'}
+            hint={t('{0} {1} в цикле. Упражнения подобраны автоматически по цели, опыту, числу тренировок, времени и условиям{2}. Специалист план не проверял.', { 0: plan.length, 1: pluralize(plan.length, [t('тренировка'), t('тренировки'), t('тренировок')]), 2: profile.limitations.length > 0 ? t(', а также по выбранным ограничениям') : '' })}
+            title={initial ? t('Ваш новый план') : t('Ваш стартовый план')}
           />
           {initial ? (
             <AppText tone="secondary" style={{ textAlign: 'center' }}>
-              Новый план заменит текущий вместе с вашими заменами и добавленными упражнениями. Вернуть
-              прежний план будет нельзя. История тренировок сохранится.
+              {t('Новый план заменит текущий вместе с вашими заменами и добавленными упражнениями. Прежний план останется в истории решений Coach. История тренировок сохранится.')}
             </AppText>
           ) : null}
 
@@ -314,29 +314,25 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
           ))}
 
           <AppText variant="callout" tone="secondary">
-            Начинайте с лёгкого веса: подходы должны даваться с запасом.
+            {t('Начинайте с лёгкого веса: подходы должны даваться с запасом.')}
           </AppText>
           {targets ? (
             <AppText variant="callout" tone="secondary">
-              {`Ориентир по питанию на день: ${formatEnergy(targets.kcal)}, ${formatMacros(targets)}. Его можно изменить на вкладке «Питание».`}
+              {t('Ориентир по питанию на день: {0}, {1}. Его можно изменить на вкладке «Питание».', { 0: formatEnergy(targets.kcal), 1: formatMacros(targets) })}
             </AppText>
           ) : null}
           {profile.usualSleepHours !== null && profile.usualSleepHours < SHORT_SLEEP_HOURS ? (
             <AppText variant="callout" tone="secondary">
-              Вы спите меньше 6 часов. При недосыпе восстановление идёт хуже: следите за самочувствием.
+              {t('Вы спите меньше 6 часов. При недосыпе восстановление идёт хуже: следите за самочувствием.')}
             </AppText>
           ) : null}
           {profile.limitations.length > 0 ? (
             <AppText variant="callout" tone="secondary">
-              Мы убрали из плана упражнения, которые заметно нагружают выбранные зоны. Это не медицинская
-              рекомендация.
+              {t('Мы убрали из плана упражнения, которые заметно нагружают выбранные зоны. Это не медицинская рекомендация.')}
             </AppText>
           ) : null}
           <AppText variant="caption" tone="secondary">
-            IRONVANT не диагностирует и не лечит. Если у вас есть боль, травма, заболевание или
-            беременность, посоветуйтесь с врачом до начала тренировок. При боли прекратите упражнение. При
-            боли в груди, сильной одышке, головокружении или слабости остановите тренировку и обратитесь за
-            неотложной помощью.
+            {t('IRONVANT не диагностирует и не лечит. Если у вас есть боль, травма, заболевание или беременность, посоветуйтесь с врачом до начала тренировок. При боли прекратите упражнение. При боли в груди, сильной одышке, головокружении или слабости остановите тренировку и обратитесь за неотложной помощью.')}
           </AppText>
 
           {saveError ? (
@@ -345,20 +341,20 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
             </AppText>
           ) : null}
           <Button
-            label={initial ? 'Заменить план' : 'Принять план'}
+            label={initial ? t('Заменить план') : t('Принять план')}
             loading={saving}
             onPress={() => accept(true)}
           />
           {initial ? (
             <Button
               disabled={saving}
-              label="Сохранить ответы, план не менять"
+              label={t('Сохранить ответы, план не менять')}
               variant="secondary"
               onPress={() => accept(false)}
             />
           ) : null}
           <Button
-            label="Изменить ответы"
+            label={t('Изменить ответы')}
             variant="secondary"
             disabled={saving}
             onPress={() => {
@@ -375,10 +371,10 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
   const age = parseDecimal(draft.ageText);
   const ageError =
     draft.ageText !== '' && !isValidAge(age)
-      ? `Укажите полный возраст от ${MIN_AGE} до ${MAX_AGE} лет: приложение рассчитано на взрослых`
+      ? t('Укажите полный возраст от {0} до {1} лет: приложение рассчитано на взрослых', { 0: MIN_AGE, 1: MAX_AGE })
       : null;
   const weightError = !isValidWeight(draft.weightKg)
-    ? `Укажите вес от ${MIN_WEIGHT_KG} до ${MAX_WEIGHT_KG} кг`
+    ? t('Укажите вес от {0} до {1} кг', { 0: MIN_WEIGHT_KG, 1: MAX_WEIGHT_KG })
     : null;
   const inputSurface = {
     backgroundColor: colors.surface,
@@ -394,9 +390,9 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
       <FadeIn key={page} style={{ flex: 1, gap: spacing.xl }}>
         {page === 'name' ? (
           <>
-            <QuestionTitle title="Как вас зовут?" hint="Имя видно только в вашем профиле" />
+            <QuestionTitle title={t('Как вас зовут?')} hint={t('Имя видно только в вашем профиле')} />
             <TextInput
-              accessibilityLabel="Как вас зовут"
+              accessibilityLabel={t('Как вас зовут')}
               autoCapitalize="words"
               autoComplete="given-name"
               autoFocus={!draft.name}
@@ -404,7 +400,7 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
               maxFontSizeMultiplier={theme.maxFontScale}
               maxLength={40}
               onChangeText={(name) => update({ name })}
-              placeholder="Ваше имя"
+              placeholder={t('Ваше имя')}
               placeholderTextColor={colors.textSecondary}
               selectionColor={colors.accent}
               style={[
@@ -419,9 +415,9 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
 
         {page === 'age' ? (
           <>
-            <QuestionTitle title="Сколько вам лет?" hint={`Прокрутите колесо или коснитесь своего возраста. Приложение рассчитано на взрослых от ${MIN_AGE} лет`} />
+            <QuestionTitle title={t('Сколько вам лет?')} hint={t('Прокрутите колесо или коснитесь своего возраста. Приложение рассчитано на взрослых от {0} лет', { 0: MIN_AGE })} />
             <WheelPicker
-              label="Возраст, лет"
+              label={t('Возраст, лет')}
               onChange={(value) => update({ ageText: String(value) })}
               start={AGE_START}
               value={isValidAge(age) ? age : null}
@@ -429,10 +425,10 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
             />
             <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.s, justifyContent: 'center' }}>
               <AppText variant="callout" tone="secondary">
-                или введите:
+                {t('или введите:')}
               </AppText>
               <TextInput
-                accessibilityLabel="Возраст"
+                accessibilityLabel={t('Возраст')}
                 keyboardAppearance={theme.mode}
                 keyboardType="number-pad"
                 maxFontSizeMultiplier={theme.maxFontScale}
@@ -464,22 +460,22 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
 
         {page === 'sex' ? (
           <>
-            <QuestionTitle title="Ваш пол" hint="Необязательно. Нужен только для оценки калорий" />
+            <QuestionTitle title={t('Ваш пол')} hint={t('Необязательно. Нужен только для оценки калорий')} />
             <SexCards value={draft.sex} onChange={(sex) => update({ sex })} />
           </>
         ) : null}
 
         {page === 'weight' ? (
           <>
-            <QuestionTitle title="Сколько вы весите?" hint="Необязательно. Нужен для оценки калорий и белка" />
+            <QuestionTitle title={t('Сколько вы весите?')} hint={t('Необязательно. Нужен для оценки калорий и белка')} />
             <RulerPicker
-              label="Вес"
+              label={t('Вес')}
               max={MAX_WEIGHT_KG}
               min={MIN_WEIGHT_KG}
               onChange={(weightKg) => update({ weightKg })}
               start={WEIGHT_START_KG}
               step={WEIGHT_STEP_KG}
-              unit="кг"
+              unit={t('кг')}
               value={draft.weightKg}
             />
             {weightError ? (
@@ -489,7 +485,7 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
             ) : null}
             {draft.weightKg !== null ? (
               <Button
-                label="Не указывать вес"
+                label={t('Не указывать вес')}
                 variant="secondary"
                 onPress={() => update({ weightKg: null })}
               />
@@ -499,24 +495,24 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
 
         {page === 'height' ? (
           <>
-            <QuestionTitle title="Какой у вас рост?" hint="Необязательно. Нужен только для оценки калорий" />
+            <QuestionTitle title={t('Какой у вас рост?')} hint={t('Необязательно. Нужен только для оценки калорий')} />
             <RulerPicker
-              label="Рост"
+              label={t('Рост')}
               max={MAX_HEIGHT_CM}
               min={MIN_HEIGHT_CM}
               onChange={(heightCm) => update({ heightCm })}
               start={HEIGHT_START_CM}
               step={HEIGHT_STEP_CM}
-              unit="см"
+              unit={t('см')}
               value={draft.heightCm}
             />
             {!isValidHeight(draft.heightCm) ? (
               <AppText accessibilityLiveRegion="polite" variant="callout" tone="danger" style={{ textAlign: 'center' }}>
-                {`Укажите рост от ${MIN_HEIGHT_CM} до ${MAX_HEIGHT_CM} см`}
+                {t('Укажите рост от {0} до {1} см', { 0: MIN_HEIGHT_CM, 1: MAX_HEIGHT_CM })}
               </AppText>
             ) : null}
             {draft.heightCm !== null ? (
-              <Button label="Не указывать рост" variant="secondary" onPress={() => update({ heightCm: null })} />
+              <Button label={t('Не указывать рост')} variant="secondary" onPress={() => update({ heightCm: null })} />
             ) : null}
           </>
         ) : null}
@@ -524,8 +520,8 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
         {page === 'baseline' ? (
           <>
             <QuestionTitle
-              hint="Необязательно. Делать ничего не нужно, ответьте по памяти. Отжимания с колен тоже считаются. Ответ помогает не ставить слишком сложные упражнения"
-              title="Сколько отжиманий подряд вы сделаете?"
+              hint={t('Необязательно. Делать ничего не нужно, ответьте по памяти. Отжимания с колен тоже считаются. Ответ помогает не ставить слишком сложные упражнения')}
+              title={t('Сколько отжиманий подряд вы сделаете?')}
             />
             <View accessibilityRole="radiogroup" style={{ gap: spacing.m }}>
               {keysOf(baselineLabels).map((baseline) => (
@@ -542,7 +538,7 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
 
         {page === 'goal' ? (
           <>
-            <QuestionTitle title="Ваша главная цель" />
+            <QuestionTitle title={t('Ваша главная цель')} />
             <View accessibilityRole="radiogroup" style={{ gap: spacing.m }}>
               {keysOf(goalLabels).map((goal) => (
                 <ChoiceCard
@@ -560,7 +556,7 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
 
         {page === 'experience' ? (
           <>
-            <QuestionTitle title="Ваш опыт силовых тренировок" />
+            <QuestionTitle title={t('Ваш опыт силовых тренировок')} />
             <View accessibilityRole="radiogroup" style={{ gap: spacing.m }}>
               {keysOf(experienceLabels).map((experience) => (
                 <ChoiceCard
@@ -577,7 +573,7 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
 
         {page === 'days' ? (
           <>
-            <QuestionTitle title="Сколько раз в неделю вы планируете тренироваться?" />
+            <QuestionTitle title={t('Сколько раз в неделю вы планируете тренироваться?')} />
             <FrequencyPicker value={draft.daysPerWeek} onChange={(daysPerWeek) => update({ daysPerWeek })} />
           </>
         ) : null}
@@ -585,8 +581,8 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
         {page === 'weekdays' ? (
           <>
             <QuestionTitle
-              hint={`Необязательно. Выберите ${draft.daysPerWeek} ${pluralize(draft.daysPerWeek ?? 0, ['день', 'дня', 'дней'])}, и приложение подскажет, когда тренировка по плану`}
-              title="В какие дни удобно тренироваться?"
+              hint={t('Необязательно. Выберите {0} {1}, и приложение подскажет, когда тренировка по плану', { 0: draft.daysPerWeek, 1: pluralize(draft.daysPerWeek ?? 0, [t('день'), t('дня'), t('дней')]) })}
+              title={t('В какие дни удобно тренироваться?')}
             />
             <WeekdayPicker
               onToggle={(day) =>
@@ -603,14 +599,14 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
 
         {page === 'duration' ? (
           <>
-            <QuestionTitle title="Сколько времени вы готовы тратить на тренировку?" />
+            <QuestionTitle title={t('Сколько времени вы готовы тратить на тренировку?')} />
             <View accessibilityRole="radiogroup" style={{ gap: spacing.m }}>
               {allowedSessionMinutes.map((minutes) => (
                 <ChoiceCard
                   key={minutes}
                   onPress={() => update({ sessionMinutes: minutes })}
                   selected={draft.sessionMinutes === minutes}
-                  title={`${minutes} минут`}
+                  title={t('{0} минут', { 0: minutes })}
                 />
               ))}
             </View>
@@ -619,7 +615,7 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
 
         {page === 'equipment' ? (
           <>
-            <QuestionTitle title="В каких условиях вы тренируетесь?" />
+            <QuestionTitle title={t('В каких условиях вы тренируетесь?')} />
             <View accessibilityRole="radiogroup" style={{ gap: spacing.m }}>
               {keysOf(equipmentLabels).map((equipment) => (
                 <ChoiceCard
@@ -638,8 +634,8 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
         {page === 'limitations' ? (
           <>
             <QuestionTitle
-              hint="Необязательно. Уберём из плана упражнения, которые заметно нагружают эти зоны. Другие ограничения план не учитывает: посоветуйтесь с врачом. Это не медицинская рекомендация."
-              title="Что нельзя сильно нагружать?"
+              hint={t('Необязательно. Уберём из плана упражнения, которые заметно нагружают эти зоны. Другие ограничения план не учитывает: посоветуйтесь с врачом. Это не медицинская рекомендация.')}
+              title={t('Что нельзя сильно нагружать?')}
             />
             <View style={{ gap: spacing.m }}>
               {keysOf(limitationLabels).map((limitation) => (
@@ -663,7 +659,7 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
 
         {page === 'lifestyle' ? (
           <>
-            <QuestionTitle hint="Необязательно. Нужно для оценки калорий и восстановления" title="Ваш обычный день" />
+            <QuestionTitle hint={t('Необязательно. Нужно для оценки калорий и восстановления')} title={t('Ваш обычный день')} />
             <View accessibilityRole="radiogroup" style={{ gap: spacing.m }}>
               {keysOf(activityLabels).map((activityLevel) => (
                 <ChoiceCard
@@ -678,7 +674,7 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
             <ChoiceGroup
               choices={sleepChoices.map(({ hours, label }) => ({ value: hours, label }))}
               isSelected={(hours) => draft.usualSleepHours === hours}
-              label="Сколько вы обычно спите"
+              label={t('Сколько вы обычно спите')}
               onSelect={(usualSleepHours) => update({ usualSleepHours })}
             />
           </>
@@ -686,7 +682,7 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
 
         {page === 'nutrition' ? (
           <>
-            <QuestionTitle hint="Можно изменить в любой момент" title="Как вести питание?" />
+            <QuestionTitle hint={t('Можно изменить в любой момент')} title={t('Как вести питание?')} />
             <View accessibilityRole="radiogroup" style={{ gap: spacing.m }}>
               {keysOf(nutritionModeLabels).map((nutritionMode) => (
                 <ChoiceCard
@@ -700,7 +696,7 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
             <ChoiceGroup
               choices={keysOf(dietLabels).map((value) => ({ value, label: dietLabels[value] }))}
               isSelected={(diet) => draft.diet === diet}
-              label="Питание в базе продуктов"
+              label={t('Питание в базе продуктов')}
               onSelect={(diet) => update({ diet })}
             />
           </>

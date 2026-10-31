@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { EnergyCore } from '@/components/energy-core';
 import { AppText, useTheme } from '@/design-system';
+import { t } from '@/lib/i18n';
 
 const PAUSE_MS = 900;
 
@@ -27,7 +28,7 @@ export function PlanAnalysis({ onDone }: PlanAnalysisProps) {
     <View accessibilityLiveRegion="polite" style={[styles.center, { gap: theme.spacing.xl }]}>
       <EnergyCore />
       <AppText accessibilityRole="header" variant="title" style={styles.title}>
-        Составляем план по вашим ответам
+        {t('Составляем план по вашим ответам')}
       </AppText>
     </View>
   );

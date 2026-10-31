@@ -10,6 +10,7 @@ import { FoodSearch, type PickedFood } from '@/features/nutrition/food-search';
 import { formatEnergy, formatMacros } from '@/features/nutrition/format-nutrition';
 import { describeFailure } from '@/lib/describe-failure';
 import { formatNumber, parseDecimal } from '@/lib/format';
+import { t } from '@/lib/i18n';
 
 export default function NewRecipeScreen() {
   const { database } = useAppData();
@@ -29,7 +30,7 @@ export default function NewRecipeScreen() {
   const addItem = () => {
     const grams = parseDecimal(gramsText);
     if (!picked || !isValidGrams(grams)) {
-      setError('Укажите вес продукта от 1 до 5000 г.');
+      setError(t('Укажите вес продукта от 1 до 5000 г.'));
       return;
     }
     setItems((current) => [
@@ -43,11 +44,11 @@ export default function NewRecipeScreen() {
 
   const save = async () => {
     if (!name.trim() || items.length === 0) {
-      setError('Укажите название и добавьте хотя бы один продукт.');
+      setError(t('Укажите название и добавьте хотя бы один продукт.'));
       return;
     }
     if (!isValidGrams(totalGrams)) {
-      setError('Укажите вес готового блюда от 1 до 5000 г.');
+      setError(t('Укажите вес готового блюда от 1 до 5000 г.'));
       return;
     }
     setSaving(true);
@@ -57,36 +58,36 @@ export default function NewRecipeScreen() {
       router.back();
     } catch (cause) {
       console.error(cause);
-      setError(`Блюдо не сохранено. ${describeFailure(cause)}`);
+      setError(t('Блюдо не сохранено. {0}', { 0: describeFailure(cause) }));
       setSaving(false);
     }
   };
 
   return (
     <Screen scroll belowHeader>
-      <TextField label="Название блюда" maxLength={60} onChangeText={setName} value={name} />
+      <TextField label={t('Название блюда')} maxLength={60} onChangeText={setName} value={name} />
 
       {items.length > 0 ? (
         <Panel>
-          <AppText variant="heading">Состав</AppText>
+          <AppText variant="heading">{t('Состав')}</AppText>
           {items.map((item) => (
             <AppText key={item.id} variant="callout" tone="secondary">
-              {`${item.name}: ${formatNumber(item.grams)} г`}
+              {t('{0}: {1} г', { 0: item.name, 1: formatNumber(item.grams) })}
             </AppText>
           ))}
           <AppText variant="callout" tone="secondary">
-            {`Всего: ${formatEnergy(totals.kcal)}, ${formatMacros(totals)}`}
+            {t('Всего: {0}, {1}', { 0: formatEnergy(totals.kcal), 1: formatMacros(totals) })}
           </AppText>
-          <Button label="Убрать последний продукт" variant="secondary" onPress={() => setItems(items.slice(0, -1))} />
+          <Button label={t('Убрать последний продукт')} variant="secondary" onPress={() => setItems(items.slice(0, -1))} />
         </Panel>
       ) : null}
 
       {picked ? (
         <Panel>
           <AppText variant="heading">{picked.name}</AppText>
-          <TextField keyboardType="decimal-pad" label="Вес продукта, г" onChangeText={setGramsText} value={gramsText} />
-          <Button label="Добавить в блюдо" variant="secondary" onPress={addItem} />
-          <Button label="Другой продукт" variant="secondary" onPress={() => setPicked(null)} />
+          <TextField keyboardType="decimal-pad" label={t('Вес продукта, г')} onChangeText={setGramsText} value={gramsText} />
+          <Button label={t('Добавить в блюдо')} variant="secondary" onPress={addItem} />
+          <Button label={t('Другой продукт')} variant="secondary" onPress={() => setPicked(null)} />
         </Panel>
       ) : (
         <FoodSearch onPick={setPicked} />
@@ -94,9 +95,9 @@ export default function NewRecipeScreen() {
 
       {items.length > 0 ? (
         <TextField
-          hint="Необязательно. Если не указать, считаем по сумме продуктов"
+          hint={t('Необязательно. Если не указать, считаем по сумме продуктов')}
           keyboardType="decimal-pad"
-          label="Вес готового блюда, г"
+          label={t('Вес готового блюда, г')}
           onChangeText={setTotalText}
           value={totalText}
         />
@@ -107,7 +108,7 @@ export default function NewRecipeScreen() {
           {error}
         </AppText>
       ) : null}
-      <Button label="Сохранить блюдо" loading={saving} onPress={save} />
+      <Button label={t('Сохранить блюдо')} loading={saving} onPress={save} />
     </Screen>
   );
 }

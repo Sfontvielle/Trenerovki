@@ -3,6 +3,7 @@ import { generatePlan } from '../program/generate-plan';
 import { replaceProgram } from '../program/program-repository';
 import { getProfile } from '../profile/profile-repository';
 import { type CoachFacts, type ProposalChange, type ProposalDraft, type ProposalKind, passesGuardrails } from './proposals';
+import { t } from '@/lib/i18n';
 
 const DEFER_MS = 7 * 24 * 60 * 60 * 1000;
 const REJECTED_MEMORY_MS = 28 * 24 * 60 * 60 * 1000;
@@ -171,7 +172,7 @@ export async function restorePlanVersion(
   now: Date,
 ) {
   await database.transaction(async (tx) => {
-    await savePlanVersion(tx, 'Перед возвратом к прежнему плану', createId, now);
+    await savePlanVersion(tx, t('Перед возвратом к прежнему плану'), createId, now);
     await restoreVersion(tx, versionId);
   });
 }
@@ -231,7 +232,7 @@ async function applyChange(tx: DatabaseExecutor, change: ProposalChange, createI
 }
 
 function describeReason(proposal: Pick<Proposal, 'title'>) {
-  return `Перед предложением Coach: ${proposal.title}`;
+  return t('Перед предложением Coach: {0}', { 0: proposal.title });
 }
 
 type Decision = {

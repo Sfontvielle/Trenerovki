@@ -12,6 +12,7 @@ import { SetFields, type SetFormValues, parseSetForm, setFormProblem, toSetForm 
 import { describeSet } from '@/features/workout/set-labels';
 import { confirm } from '@/lib/confirm';
 import { describeFailure } from '@/lib/describe-failure';
+import { t } from '@/lib/i18n';
 
 type SetEditorProps = {
   set: WorkoutSet;
@@ -43,16 +44,16 @@ function SetEditor({ set, exerciseId }: SetEditorProps) {
       router.back();
     } catch (cause) {
       console.error(cause);
-      setError(`Исправление не сохранено. ${describeFailure(cause)}`);
+      setError(t('Исправление не сохранено. {0}', { 0: describeFailure(cause) }));
       setSaving(false);
     }
   };
 
   const remove = async () => {
     const approved = await confirm({
-      title: 'Удалить подход?',
+      title: t('Удалить подход?'),
       message: describeSet(set),
-      confirmLabel: 'Удалить',
+      confirmLabel: t('Удалить'),
       destructive: true,
     });
     if (!approved) {
@@ -63,7 +64,7 @@ function SetEditor({ set, exerciseId }: SetEditorProps) {
       router.back();
     } catch (cause) {
       console.error(cause);
-      setError(`Подход не удалён. ${describeFailure(cause)}`);
+      setError(t('Подход не удалён. {0}', { 0: describeFailure(cause) }));
     }
   };
 
@@ -79,9 +80,9 @@ function SetEditor({ set, exerciseId }: SetEditorProps) {
             {error}
           </AppText>
         ) : null}
-        <Button label="Сохранить исправление" loading={saving} onPress={save} />
+        <Button label={t('Сохранить исправление')} loading={saving} onPress={save} />
       </Panel>
-      <Button label="Удалить подход" variant="secondary" disabled={saving} onPress={remove} />
+      <Button label={t('Удалить подход')} variant="secondary" disabled={saving} onPress={remove} />
     </>
   );
 }
@@ -99,7 +100,7 @@ export default function EditCompletedSetScreen() {
           found ? (
             <SetEditor set={found.set} exerciseId={found.exerciseId} />
           ) : (
-            <AppText tone="secondary">Этого подхода больше нет.</AppText>
+            <AppText tone="secondary">{t('Этого подхода больше нет.')}</AppText>
           )
         }
       </DataView>

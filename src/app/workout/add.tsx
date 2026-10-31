@@ -6,6 +6,7 @@ import { AppText, Screen } from '@/design-system';
 import { createId } from '@/domains/data-platform/ids';
 import { ExerciseList } from '@/features/exercises/exercise-list';
 import { describeFailure } from '@/lib/describe-failure';
+import { t } from '@/lib/i18n';
 
 export default function AddExerciseScreen() {
   const { engine } = useAppData();
@@ -21,14 +22,14 @@ export default function AddExerciseScreen() {
     try {
       const session = await engine.getOpenSession();
       if (!session) {
-        setError('Нет открытой тренировки.');
+        setError(t('Нет открытой тренировки.'));
         return;
       }
       await engine.addExercise(session.id, exerciseId, createId());
       router.back();
     } catch (cause) {
       console.error(cause);
-      setError(`Упражнение не добавлено. ${describeFailure(cause)}`);
+      setError(t('Упражнение не добавлено. {0}', { 0: describeFailure(cause) }));
     } finally {
       adding.current = false;
     }

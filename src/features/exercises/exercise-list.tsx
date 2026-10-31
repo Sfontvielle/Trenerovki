@@ -15,6 +15,7 @@ import {
 } from '@/domains/exercises/catalog';
 import { listCustomExercises } from '@/domains/exercises/custom-exercise-repository';
 import { normalizeSearch } from '@/lib/format';
+import { t } from '@/lib/i18n';
 
 type ExerciseListProps = {
   onPick: (exerciseId: string) => void;
@@ -35,32 +36,32 @@ export function ExerciseList({ onPick }: ExerciseListProps) {
 
   return (
     <>
-      <TextField label="Найти упражнение" onChangeText={setQuery} value={query} />
+      <TextField label={t('Найти упражнение')} onChangeText={setQuery} value={query} />
       <ChoiceGroup
         choices={[
-          { value: null, label: 'Все' },
+          { value: null, label: t('Все') },
           ...categories.map((value) => ({ value, label: categoryLabels[value] })),
         ]}
         isSelected={(value) => category === value}
-        label="Раздел"
+        label={t('Раздел')}
         onSelect={setCategory}
       />
       <ChoiceGroup
         choices={[
-          { value: null, label: 'Все' },
+          { value: null, label: t('Все') },
           ...muscleGroups.map((value) => ({ value, label: muscleGroupLabels[value] })),
         ]}
         isSelected={(value) => muscle === value}
-        label="Группа мышц"
+        label={t('Группа мышц')}
         onSelect={setMuscle}
       />
       <ChoiceGroup
         choices={[
-          { value: 'all', label: 'Все условия' },
-          { value: 'mine', label: 'Только мои условия' },
+          { value: 'all', label: t('Все условия') },
+          { value: 'mine', label: t('Только мои условия') },
         ]}
         isSelected={(value) => (value === 'mine') === onlyAvailable}
-        label="Условия"
+        label={t('Условия')}
         onSelect={(value) => setOnlyAvailable(value === 'mine')}
       />
       <DataView state={state}>
@@ -83,7 +84,7 @@ export function ExerciseList({ onPick }: ExerciseListProps) {
           );
 
           if (rows.length === 0) {
-            return <AppText tone="secondary">Ничего не найдено. Попробуйте другое название.</AppText>;
+            return <AppText tone="secondary">{t('Ничего не найдено. Попробуйте другое название.')}</AppText>;
           }
 
           return (
@@ -102,12 +103,12 @@ export function ExerciseList({ onPick }: ExerciseListProps) {
                       <AppText>{exercise.name}</AppText>
                       <AppText variant="caption" tone="secondary">
                         {exercise.own
-                          ? `${muscleGroupLabels[exercise.muscleGroup]}, своё упражнение`
+                          ? t('{0}, своё упражнение', { 0: muscleGroupLabels[exercise.muscleGroup] })
                           : muscleGroupLabels[exercise.muscleGroup]}
                       </AppText>
                       {restricted ? (
                         <AppText variant="caption" tone="warning">
-                          Нагружает зону из ваших ограничений
+                          {t('Нагружает зону из ваших ограничений')}
                         </AppText>
                       ) : null}
                     </Panel>

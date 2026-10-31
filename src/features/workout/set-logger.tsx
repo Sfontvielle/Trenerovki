@@ -13,6 +13,7 @@ import { confirm } from '@/lib/confirm';
 import { describeFailure } from '@/lib/describe-failure';
 import { formatInputNumber, formatWeight } from '@/lib/format';
 import { successFeedback } from '@/lib/haptics';
+import { t } from '@/lib/i18n';
 
 type SetLoggerProps = {
   exercise: SessionExercise;
@@ -26,28 +27,28 @@ function describeSuggestion({ kind, weightKg, reps, durationSec }: Suggestion) {
   switch (kind) {
     case 'add_weight':
       return {
-        title: `Попробовать ${formatWeight(weightKg)}?`,
-        body: `В прошлый раз все подходы дошли до верха диапазона с запасом. Начните с ${reps} повторов. Решение за вами.`,
+        title: t('Попробовать {0}?', { 0: formatWeight(weightKg) }),
+        body: t('В прошлый раз все подходы дошли до верха диапазона с запасом. Начните с {0} повторов. Решение за вами.', { 0: reps }),
       };
     case 'add_rep':
       return {
-        title: `Попробовать ${reps} повторов?`,
-        body: 'Вес тот же, цель на один повтор выше. Решение за вами.',
+        title: t('Попробовать {0} повторов?', { 0: reps }),
+        body: t('Вес тот же, цель на один повтор выше. Решение за вами.'),
       };
     case 'add_time':
       return {
-        title: `Попробовать ${formatSeconds(durationSec as number)}?`,
-        body: 'Прошлые подходы выполнены полностью, можно добавить немного времени. Решение за вами.',
+        title: t('Попробовать {0}?', { 0: formatSeconds(durationSec as number) }),
+        body: t('Прошлые подходы выполнены полностью, можно добавить немного времени. Решение за вами.'),
       };
     case 'reduce_weight':
       return {
-        title: `Снизить вес до ${formatWeight(weightKg)}?`,
-        body: 'Две тренировки подряд повторов было меньше плана. Небольшое снижение поможет вернуться в диапазон. Решение за вами.',
+        title: t('Снизить вес до {0}?', { 0: formatWeight(weightKg) }),
+        body: t('Две тренировки подряд повторов было меньше плана. Небольшое снижение поможет вернуться в диапазон. Решение за вами.'),
       };
     default:
       return {
-        title: weightKg === null ? 'Повторите прошлый результат' : `Оставить ${formatWeight(weightKg)}`,
-        body: 'Прибавлять пока рано: сначала уверенно выполните все подходы с запасом. Решение за вами.',
+        title: weightKg === null ? t('Повторите прошлый результат') : t('Оставить {0}', { 0: formatWeight(weightKg) }),
+        body: t('Прибавлять пока рано: сначала уверенно выполните все подходы с запасом. Решение за вами.'),
       };
   }
 }
@@ -103,7 +104,7 @@ export function SetLogger({ exercise, recentSets, paused, suggestionsAllowed, on
       onChanged();
     } catch (cause) {
       console.error(cause);
-      setError(`Подход не сохранён. ${describeFailure(cause)}`);
+      setError(t('Подход не сохранён. {0}', { 0: describeFailure(cause) }));
     } finally {
       setSaving(false);
     }
@@ -111,9 +112,9 @@ export function SetLogger({ exercise, recentSets, paused, suggestionsAllowed, on
 
   const remove = async (set: WorkoutSet) => {
     const approved = await confirm({
-      title: 'Удалить подход?',
+      title: t('Удалить подход?'),
       message: describeSet(set),
-      confirmLabel: 'Удалить',
+      confirmLabel: t('Удалить'),
       destructive: true,
     });
     if (!approved) {
@@ -124,7 +125,7 @@ export function SetLogger({ exercise, recentSets, paused, suggestionsAllowed, on
       onChanged();
     } catch (cause) {
       console.error(cause);
-      setError(`Подход не удалён. ${describeFailure(cause)}`);
+      setError(t('Подход не удалён. {0}', { 0: describeFailure(cause) }));
     }
   };
 
@@ -132,7 +133,7 @@ export function SetLogger({ exercise, recentSets, paused, suggestionsAllowed, on
     <>
       {lastSets.length > 0 ? (
         <Panel>
-          <AppText variant="heading">В прошлый раз</AppText>
+          <AppText variant="heading">{t('В прошлый раз')}</AppText>
           {lastSets.map((set) => (
             <AppText key={set.id} variant="callout" tone="secondary">
               {describeSet(set)}
@@ -148,7 +149,7 @@ export function SetLogger({ exercise, recentSets, paused, suggestionsAllowed, on
             {advice.body}
           </AppText>
           <Button
-            label="Подставить значения"
+            label={t('Подставить значения')}
             variant="secondary"
             onPress={() =>
               update({
@@ -165,7 +166,7 @@ export function SetLogger({ exercise, recentSets, paused, suggestionsAllowed, on
 
       {exercise.sets.length > 0 ? (
         <Panel>
-          <AppText variant="heading">Записанные подходы</AppText>
+          <AppText variant="heading">{t('Записанные подходы')}</AppText>
           {exercise.sets.map((set) => (
             <View key={set.id} style={{ gap: theme.spacing.s }}>
               <AppText>{`${set.position}. ${describeSet(set)}`}</AppText>
@@ -173,7 +174,7 @@ export function SetLogger({ exercise, recentSets, paused, suggestionsAllowed, on
                 <View style={{ flexDirection: 'row', gap: theme.spacing.s }}>
                   <View style={{ flex: 1 }}>
                     <Button
-                      label="Изменить"
+                      label={t('Изменить')}
                       variant="secondary"
                       disabled={saving}
                       onPress={() => startEditing(set)}
@@ -181,7 +182,7 @@ export function SetLogger({ exercise, recentSets, paused, suggestionsAllowed, on
                   </View>
                   <View style={{ flex: 1 }}>
                     <Button
-                      label="Удалить"
+                      label={t('Удалить')}
                       variant="secondary"
                       disabled={saving || editing !== null}
                       onPress={() => remove(set)}
@@ -195,11 +196,11 @@ export function SetLogger({ exercise, recentSets, paused, suggestionsAllowed, on
       ) : null}
 
       {paused ? (
-        <AppText tone="secondary">Тренировка на паузе. Продолжите её, чтобы записывать подходы.</AppText>
+        <AppText tone="secondary">{t('Тренировка на паузе. Продолжите её, чтобы записывать подходы.')}</AppText>
       ) : (
         <Panel>
           <AppText variant="heading">
-            {editing ? `Подход ${editing.position}` : `Подход ${exercise.sets.length + 1}`}
+            {editing ? t('Подход {0}', { 0: editing.position }) : t('Подход {0}', { 0: exercise.sets.length + 1 })}
           </AppText>
           <SetFields form={form} tracking={tracking} onChange={update} />
           {error ? (
@@ -208,12 +209,12 @@ export function SetLogger({ exercise, recentSets, paused, suggestionsAllowed, on
             </AppText>
           ) : null}
           <Button
-            label={editing ? 'Сохранить изменения' : 'Записать подход'}
+            label={editing ? t('Сохранить изменения') : t('Записать подход')}
             loading={saving}
             onPress={submit}
           />
           {editing ? (
-            <Button label="Отмена" variant="secondary" disabled={saving} onPress={stopEditing} />
+            <Button label={t('Отмена')} variant="secondary" disabled={saving} onPress={stopEditing} />
           ) : null}
         </Panel>
       )}

@@ -17,17 +17,18 @@ import { describeChange } from '@/features/coach/describe-change';
 import { confirm } from '@/lib/confirm';
 import { describeFailure } from '@/lib/describe-failure';
 import { formatDate } from '@/lib/format';
+import { t } from '@/lib/i18n';
 
 const statusLabels: Record<ProposalStatus, string> = {
-  open: 'Ожидает решения',
-  accepted: 'Принято',
-  rejected: 'Отклонено',
-  deferred: 'Отложено',
-  undone: 'Отменено',
+  open: t('Ожидает решения'),
+  accepted: t('Принято'),
+  rejected: t('Отклонено'),
+  deferred: t('Отложено'),
+  undone: t('Отменено'),
 };
 
 const UNDO_WARNING =
-  'План вернётся к состоянию до этого решения. Правки плана, сделанные позже, будут потеряны. История тренировок не изменится.';
+  t('План вернётся к состоянию до этого решения. Правки плана, сделанные позже, будут потеряны. История тренировок не изменится.');
 
 export default function CoachHistoryScreen() {
   const { database, reloadAll } = useAppData();
@@ -40,9 +41,9 @@ export default function CoachHistoryScreen() {
 
   const undo = async (proposal: Proposal) => {
     const approved = await confirm({
-      title: 'Отменить решение?',
+      title: t('Отменить решение?'),
       message: UNDO_WARNING,
-      confirmLabel: 'Отменить решение',
+      confirmLabel: t('Отменить решение'),
       destructive: true,
     });
     if (!approved) {
@@ -55,15 +56,15 @@ export default function CoachHistoryScreen() {
       state.reload();
     } catch (cause) {
       console.error(cause);
-      setError(`Решение не отменено. ${describeFailure(cause)}`);
+      setError(t('Решение не отменено. {0}', { 0: describeFailure(cause) }));
     }
   };
 
   const restore = async (versionId: string) => {
     const approved = await confirm({
-      title: 'Вернуть этот план?',
-      message: 'Текущий план сохранится здесь же, в истории. История тренировок не изменится.',
-      confirmLabel: 'Вернуть план',
+      title: t('Вернуть этот план?'),
+      message: t('Текущий план сохранится здесь же, в истории. История тренировок не изменится.'),
+      confirmLabel: t('Вернуть план'),
     });
     if (!approved) {
       return;
@@ -75,7 +76,7 @@ export default function CoachHistoryScreen() {
       state.reload();
     } catch (cause) {
       console.error(cause);
-      setError(`План не возвращён. ${describeFailure(cause)}`);
+      setError(t('План не возвращён. {0}', { 0: describeFailure(cause) }));
     }
   };
 
@@ -91,9 +92,9 @@ export default function CoachHistoryScreen() {
             ) : null}
 
             <AppText accessibilityRole="header" variant="heading">
-              Решения
+              {t('Решения')}
             </AppText>
-            {decisions.length === 0 ? <AppText tone="secondary">Решений пока не было.</AppText> : null}
+            {decisions.length === 0 ? <AppText tone="secondary">{t('Решений пока не было.')}</AppText> : null}
             {decisions.map((proposal) => (
               <Panel key={proposal.id}>
                 <AppText variant="heading">{proposal.title}</AppText>
@@ -105,8 +106,8 @@ export default function CoachHistoryScreen() {
                 </AppText>
                 {proposal.status === 'accepted' ? (
                   <Button
-                    accessibilityLabel={`Отменить решение: ${proposal.title}`}
-                    label="Отменить решение"
+                    accessibilityLabel={t('Отменить решение: {0}', { 0: proposal.title })}
+                    label={t('Отменить решение')}
                     variant="secondary"
                     onPress={() => undo(proposal)}
                   />
@@ -115,9 +116,9 @@ export default function CoachHistoryScreen() {
             ))}
 
             <AppText accessibilityRole="header" variant="heading">
-              Прежние версии плана
+              {t('Прежние версии плана')}
             </AppText>
-            {versions.length === 0 ? <AppText tone="secondary">Сохранённых версий пока нет.</AppText> : null}
+            {versions.length === 0 ? <AppText tone="secondary">{t('Сохранённых версий пока нет.')}</AppText> : null}
             {versions.map((version) => (
               <Panel key={version.id}>
                 <AppText>{version.reason}</AppText>
@@ -125,8 +126,8 @@ export default function CoachHistoryScreen() {
                   {formatDate(version.createdAt)}
                 </AppText>
                 <Button
-                  accessibilityLabel={`Вернуть план: ${version.reason}`}
-                  label="Вернуть этот план"
+                  accessibilityLabel={t('Вернуть план: {0}', { 0: version.reason })}
+                  label={t('Вернуть этот план')}
                   variant="secondary"
                   onPress={() => restore(version.id)}
                 />

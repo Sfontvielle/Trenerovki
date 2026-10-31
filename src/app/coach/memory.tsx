@@ -18,13 +18,14 @@ import { exerciseName } from '@/domains/exercises/catalog';
 import { type CoachDetail, useCoachStyle } from '@/features/coach/use-coach-style';
 import { confirm } from '@/lib/confirm';
 import { describeFailure } from '@/lib/describe-failure';
+import { t } from '@/lib/i18n';
 
 const MAX_MEMORY_LENGTH = 200;
 const REMOVED_TIMES = 2;
 
 const detailChoices: { value: CoachDetail; label: string }[] = [
-  { value: 'detailed', label: 'Подробно' },
-  { value: 'brief', label: 'Кратко' },
+  { value: 'detailed', label: t('Подробно') },
+  { value: 'brief', label: t('Кратко') },
 ];
 
 type MemoryRowProps = {
@@ -50,31 +51,31 @@ function MemoryRow({ entry, onChanged, onError }: MemoryRowProps) {
 
   const remove = async () => {
     const approved = await confirm({
-      title: 'Удалить запись?',
+      title: t('Удалить запись?'),
       message: entry.text,
-      confirmLabel: 'Удалить',
+      confirmLabel: t('Удалить'),
       destructive: true,
     });
     if (approved) {
-      await run(() => deleteMemory(database, entry.id), 'Запись не удалена.');
+      await run(() => deleteMemory(database, entry.id), t('Запись не удалена.'));
     }
   };
 
   return (
     <Panel>
       {fact ? (
-        <TextField label="Запись" maxLength={MAX_MEMORY_LENGTH} onChangeText={setText} value={text} />
+        <TextField label={t('Запись')} maxLength={MAX_MEMORY_LENGTH} onChangeText={setText} value={text} />
       ) : (
         <AppText>{entry.text}</AppText>
       )}
       {fact && text.trim() && text !== entry.text ? (
         <Button
-          label="Сохранить"
+          label={t('Сохранить')}
           variant="secondary"
-          onPress={() => run(() => updateMemory(database, entry.id, text, new Date()), 'Запись не сохранена.')}
+          onPress={() => run(() => updateMemory(database, entry.id, text, new Date()), t('Запись не сохранена.'))}
         />
       ) : null}
-      <Button accessibilityLabel={`Удалить: ${entry.text}`} label="Удалить" variant="secondary" onPress={remove} />
+      <Button accessibilityLabel={t('Удалить: {0}', { 0: entry.text })} label={t('Удалить')} variant="secondary" onPress={remove} />
     </Panel>
   );
 }
@@ -102,21 +103,20 @@ export default function CoachMemoryScreen() {
       state.reload();
     } catch (cause) {
       console.error(cause);
-      setError(`Запись не сохранена. ${describeFailure(cause)}`);
+      setError(t('Запись не сохранена. {0}', { 0: describeFailure(cause) }));
     }
   };
 
   return (
     <Screen scroll belowHeader>
       <AppText tone="secondary">
-        Здесь только то, что вы подтвердили сами. Записи хранятся на этом iPhone, попадают в резервную копию и
-        не меняют историю тренировок.
+        {t('Здесь только то, что вы подтвердили сами. Записи хранятся на этом iPhone, попадают в резервную копию и не меняют историю тренировок.')}
       </AppText>
 
       <ChoiceGroup
         choices={detailChoices}
         isSelected={(value) => detail === value}
-        label="Как подробно объяснять"
+        label={t('Как подробно объяснять')}
         onSelect={(value) => {
           changeDetail(value).catch(console.error);
         }}
@@ -134,17 +134,17 @@ export default function CoachMemoryScreen() {
             {observed.length > 0 ? (
               <>
                 <AppText accessibilityRole="header" variant="heading">
-                  Наблюдения, не подтверждены
+                  {t('Наблюдения, не подтверждены')}
                 </AppText>
                 {observed.map((exerciseId) => (
                   <Panel key={exerciseId}>
-                    <AppText>{`Вы несколько раз убирали из тренировки: ${exerciseName(exerciseId)}.`}</AppText>
+                    <AppText>{t('Вы несколько раз убирали из тренировки: {0}.', { 0: exerciseName(exerciseId) })}</AppText>
                     <Button
-                      accessibilityLabel={`Не предлагать: ${exerciseName(exerciseId)}`}
-                      label="Не предлагать это упражнение"
+                      accessibilityLabel={t('Не предлагать: {0}', { 0: exerciseName(exerciseId) })}
+                      label={t('Не предлагать это упражнение')}
                       variant="secondary"
                       onPress={() =>
-                        add({ kind: 'avoid_exercise', text: `Не предлагать: ${exerciseName(exerciseId)}`, exerciseId })
+                        add({ kind: 'avoid_exercise', text: t('Не предлагать: {0}', { 0: exerciseName(exerciseId) }), exerciseId })
                       }
                     />
                   </Panel>
@@ -153,9 +153,9 @@ export default function CoachMemoryScreen() {
             ) : null}
 
             <AppText accessibilityRole="header" variant="heading">
-              Подтверждённые записи
+              {t('Подтверждённые записи')}
             </AppText>
-            {entries.length === 0 ? <AppText tone="secondary">Записей пока нет.</AppText> : null}
+            {entries.length === 0 ? <AppText tone="secondary">{t('Записей пока нет.')}</AppText> : null}
             {entries.map((entry) => (
               <MemoryRow
                 key={`${entry.id}-${entry.updatedAt}`}
@@ -166,15 +166,15 @@ export default function CoachMemoryScreen() {
             ))}
 
             <TextField
-              hint="Например: тренируюсь по утрам, не люблю бег"
-              label="Новая запись"
+              hint={t('Например: тренируюсь по утрам, не люблю бег')}
+              label={t('Новая запись')}
               maxLength={MAX_MEMORY_LENGTH}
               onChangeText={setNewFact}
               value={newFact}
             />
             <Button
               disabled={!newFact.trim()}
-              label="Добавить запись"
+              label={t('Добавить запись')}
               variant="secondary"
               onPress={() => add({ kind: 'fact', text: newFact, exerciseId: null })}
             />

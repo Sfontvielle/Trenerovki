@@ -11,13 +11,14 @@ import { exerciseName } from '@/domains/exercises/catalog';
 import { type ExerciseTrendPoint, getExerciseTrend } from '@/domains/progress/progress-repository';
 import { formatSeconds } from '@/features/workout/set-labels';
 import { formatDate, formatWeight } from '@/lib/format';
+import { t } from '@/lib/i18n';
 
 function toChart(trend: ExerciseTrendPoint[]) {
   const weighted = trend.filter((point) => point.topWeightKg !== null);
 
   if (weighted.length > 0) {
     return {
-      title: 'Лучший вес по тренировкам',
+      title: t('Лучший вес по тренировкам'),
       points: weighted.map((point) => ({
         key: point.sessionId,
         value: point.topWeightKg as number,
@@ -27,7 +28,7 @@ function toChart(trend: ExerciseTrendPoint[]) {
   }
   if (trend.every((point) => point.bestReps === null)) {
     return {
-      title: 'Лучшее время по тренировкам',
+      title: t('Лучшее время по тренировкам'),
       points: trend.map((point) => ({
         key: point.sessionId,
         value: point.longestSec ?? 0,
@@ -36,11 +37,11 @@ function toChart(trend: ExerciseTrendPoint[]) {
     };
   }
   return {
-    title: 'Лучшие повторы по тренировкам',
+    title: t('Лучшие повторы по тренировкам'),
     points: trend.map((point) => ({
       key: point.sessionId,
       value: point.bestReps ?? 0,
-      label: `${formatDate(point.finishedAt)}: ${point.bestReps ?? 0} повт.`,
+      label: t('{0}: {1} повт.', { 0: formatDate(point.finishedAt), 1: point.bestReps ?? 0 }),
     })),
   };
 }
@@ -60,7 +61,7 @@ export default function ExerciseProgressScreen() {
       <DataView state={state}>
         {(trend) => {
           if (trend.length === 0) {
-            return <AppText tone="secondary">Для этого упражнения пока нет завершённых подходов.</AppText>;
+            return <AppText tone="secondary">{t('Для этого упражнения пока нет завершённых подходов.')}</AppText>;
           }
           const chart = toChart(trend);
           return (

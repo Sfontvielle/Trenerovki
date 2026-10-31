@@ -11,6 +11,7 @@ import { ExerciseList } from '@/features/exercises/exercise-list';
 import { limitationLabels } from '@/features/profile/labels';
 import { confirm } from '@/lib/confirm';
 import { describeFailure } from '@/lib/describe-failure';
+import { t } from '@/lib/i18n';
 
 export default function PickPlanExerciseScreen() {
   const { dayId, replaceId } = useLocalSearchParams<{ dayId: string; replaceId?: string }>();
@@ -28,9 +29,9 @@ export default function PickPlanExerciseScreen() {
       const zones = findExercise(exerciseId)?.loads.filter((area) => profile?.limitations.includes(area)) ?? [];
       if (zones.length > 0) {
         const approved = await confirm({
-          title: 'Упражнение нагружает зону из ваших ограничений',
-          message: `${exerciseName(exerciseId)}. Заметная нагрузка: ${zones.map((area) => limitationLabels[area]).join(', ')}. Добавить в план?`,
-          confirmLabel: 'Добавить',
+          title: t('Упражнение нагружает зону из ваших ограничений'),
+          message: t('{0}. Заметная нагрузка: {1}. Добавить в план?', { 0: exerciseName(exerciseId), 1: zones.map((area) => limitationLabels[area]).join(', ') }),
+          confirmLabel: t('Добавить'),
         });
         if (!approved) {
           return;
@@ -46,7 +47,7 @@ export default function PickPlanExerciseScreen() {
       router.back();
     } catch (cause) {
       console.error(cause);
-      setError(`План не изменён. ${describeFailure(cause)}`);
+      setError(t('План не изменён. {0}', { 0: describeFailure(cause) }));
     } finally {
       saving.current = false;
     }

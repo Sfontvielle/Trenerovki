@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import { useAppData } from '@/app-data/app-data';
 import { useScreenData } from '@/app-data/use-screen-data';
 import { Button } from '@/design-system';
+import { t } from '@/lib/i18n';
 
 export function SessionBar() {
   const { engine } = useAppData();
@@ -13,5 +14,5 @@ export function SessionBar() {
   if (state.status !== 'ready' || !state.data) {
     return null;
   }
-  return <Button label="Вернуться к тренировке" onPress={() => router.push('/workout')} />;
+  return <Button label={t('Вернуться к тренировке')} onPress={() => router.push('/workout')} />;
 }

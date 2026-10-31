@@ -11,6 +11,7 @@ import { formatEnergy, formatMacros } from '@/features/nutrition/format-nutritio
 import { confirm } from '@/lib/confirm';
 import { describeFailure } from '@/lib/describe-failure';
 import { formatInputNumber, parseDecimal } from '@/lib/format';
+import { t } from '@/lib/i18n';
 
 function EntryForm({ entry }: { entry: FoodEntry }) {
   const { database } = useAppData();
@@ -21,7 +22,7 @@ function EntryForm({ entry }: { entry: FoodEntry }) {
   const save = async () => {
     const grams = parseDecimal(gramsText);
     if (!isValidGrams(grams)) {
-      setError('Укажите вес порции от 1 до 5000 г.');
+      setError(t('Укажите вес порции от 1 до 5000 г.'));
       return;
     }
     setSaving(true);
@@ -31,16 +32,16 @@ function EntryForm({ entry }: { entry: FoodEntry }) {
       router.back();
     } catch (cause) {
       console.error(cause);
-      setError(`Изменения не сохранены. ${describeFailure(cause)}`);
+      setError(t('Изменения не сохранены. {0}', { 0: describeFailure(cause) }));
       setSaving(false);
     }
   };
 
   const remove = async () => {
     const approved = await confirm({
-      title: 'Удалить запись?',
+      title: t('Удалить запись?'),
       message: entry.name,
-      confirmLabel: 'Удалить',
+      confirmLabel: t('Удалить'),
       destructive: true,
     });
     if (!approved) {
@@ -52,7 +53,7 @@ function EntryForm({ entry }: { entry: FoodEntry }) {
       router.back();
     } catch (cause) {
       console.error(cause);
-      setError(`Запись не удалена. ${describeFailure(cause)}`);
+      setError(t('Запись не удалена. {0}', { 0: describeFailure(cause) }));
     }
   };
 
@@ -67,14 +68,14 @@ function EntryForm({ entry }: { entry: FoodEntry }) {
         </AppText>
         <AppText tone="secondary">{`${formatEnergy(entry.kcal)}, ${formatMacros(entry)}`}</AppText>
       </Panel>
-      <TextField keyboardType="decimal-pad" label="Вес порции, г" onChangeText={setGramsText} value={gramsText} />
+      <TextField keyboardType="decimal-pad" label={t('Вес порции, г')} onChangeText={setGramsText} value={gramsText} />
       {error ? (
         <AppText accessibilityLiveRegion="polite" tone="danger">
           {error}
         </AppText>
       ) : null}
-      <Button label="Сохранить" loading={saving} onPress={save} />
-      <Button label="Удалить запись" variant="secondary" disabled={saving} onPress={remove} />
+      <Button label={t('Сохранить')} loading={saving} onPress={save} />
+      <Button label={t('Удалить запись')} variant="secondary" disabled={saving} onPress={remove} />
     </>
   );
 }
@@ -93,8 +94,8 @@ export default function FoodEntryScreen() {
             <EntryForm key={entry.id} entry={entry} />
           ) : (
             <Panel>
-              <AppText variant="heading">Запись не найдена</AppText>
-              <Button label="Назад" variant="secondary" onPress={() => router.back()} />
+              <AppText variant="heading">{t('Запись не найдена')}</AppText>
+              <Button label={t('Назад')} variant="secondary" onPress={() => router.back()} />
             </Panel>
           )
         }

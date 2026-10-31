@@ -22,6 +22,7 @@ import { formatDayLabel, formatEnergy, formatMacros } from '@/features/nutrition
 import { SessionBar } from '@/features/workout/session-bar';
 import { describeFailure } from '@/lib/describe-failure';
 import { formatNumber } from '@/lib/format';
+import { t } from '@/lib/i18n';
 
 export default function NutritionScreen() {
   const { database, profile } = useAppData();
@@ -55,7 +56,7 @@ export default function NutritionScreen() {
       state.reload();
     } catch (cause) {
       console.error(cause);
-      setCopyError(`Записи не скопированы. ${describeFailure(cause)}`);
+      setCopyError(t('Записи не скопированы. {0}', { 0: describeFailure(cause) }));
     }
   };
 
@@ -82,14 +83,14 @@ export default function NutritionScreen() {
   );
 
   return (
-    <TabScreen title="Питание">
+    <TabScreen title={t('Питание')}>
       <SessionBar />
       <View style={[styles.dayRow, { gap: spacing.m }]}>
-        {dayButton('‹', 'Предыдущий день', shiftDay(day, -1), false)}
+        {dayButton('‹', t('Предыдущий день'), shiftDay(day, -1), false)}
         <AppText accessibilityLiveRegion="polite" variant="heading" style={styles.dayLabel}>
           {formatDayLabel(day, today)}
         </AppText>
-        {dayButton('›', 'Следующий день', shiftDay(day, 1), day >= today)}
+        {dayButton('›', t('Следующий день'), shiftDay(day, 1), day >= today)}
       </View>
 
       <DataView state={state}>
@@ -103,23 +104,23 @@ export default function NutritionScreen() {
                 <AppText tone="secondary">{formatMacros(totals)}</AppText>
                 {target && mode === 'targets' ? (
                   <>
-                    <ProgressLine label="Калории за день" ratio={totals.kcal / target.kcal} />
+                    <ProgressLine label={t('Калории за день')} ratio={totals.kcal / target.kcal} />
                     <AppText variant="callout" tone="secondary">
-                      {`Цель: ${formatEnergy(target.kcal)}, ${formatMacros(target)}`}
+                      {t('Цель: {0}, {1}', { 0: formatEnergy(target.kcal), 1: formatMacros(target) })}
                     </AppText>
                   </>
                 ) : null}
                 {target && mode === 'protein' ? (
                   <>
-                    <ProgressLine label="Белок за день" ratio={totals.protein / target.protein} />
+                    <ProgressLine label={t('Белок за день')} ratio={totals.protein / target.protein} />
                     <AppText variant="callout" tone="secondary">
-                      {`Белок: ${Math.round(totals.protein)} из ${Math.round(target.protein)} г`}
+                      {t('Белок: {0} из {1} г', { 0: Math.round(totals.protein), 1: Math.round(target.protein) })}
                     </AppText>
                   </>
                 ) : null}
                 {mode === 'diary' ? null : (
                   <Button
-                    label="Цели по питанию"
+                    label={t('Цели по питанию')}
                     variant="secondary"
                     onPress={() => router.push('/nutrition-targets')}
                   />
@@ -127,7 +128,7 @@ export default function NutritionScreen() {
               </Panel>
 
               {canCopy ? (
-                <Button label="Скопировать записи предыдущего дня" variant="secondary" onPress={copyPrevious} />
+                <Button label={t('Скопировать записи предыдущего дня')} variant="secondary" onPress={copyPrevious} />
               ) : null}
               {copyError ? (
                 <AppText accessibilityLiveRegion="polite" tone="danger">
@@ -158,13 +159,13 @@ export default function NutritionScreen() {
                       >
                         <AppText>{entry.name}</AppText>
                         <AppText variant="callout" tone="secondary">
-                          {`${formatNumber(entry.grams)} г, ${formatEnergy(entry.kcal)}`}
+                          {t('{0} г, {1}', { 0: formatNumber(entry.grams), 1: formatEnergy(entry.kcal) })}
                         </AppText>
                       </Pressable>
                     ))}
                     <Button
-                      accessibilityLabel={`Добавить: ${mealLabels[meal]}`}
-                      label="Добавить"
+                      accessibilityLabel={t('Добавить: {0}', { 0: mealLabels[meal] })}
+                      label={t('Добавить')}
                       variant="secondary"
                       onPress={() =>
                         router.push({ pathname: '/food/add', params: { day, meal } })
@@ -175,7 +176,7 @@ export default function NutritionScreen() {
               })}
 
               <AppText variant="caption" tone="secondary">
-                Значения в базе типовые, а данные штрихкодов взяты из открытой базы Open Food Facts. Сверяйте их с упаковкой.
+                {t('Значения в базе типовые, а данные штрихкодов взяты из открытой базы Open Food Facts. Сверяйте их с упаковкой.')}
               </AppText>
             </>
           );

@@ -11,6 +11,7 @@ import { type Checkin, MAX_SLEEP_HOURS, type Rating, isValidSleep } from '@/doma
 import { getCheckin, saveCheckin } from '@/domains/recovery/recovery-repository';
 import { describeFailure } from '@/lib/describe-failure';
 import { formatInputNumber, parseDecimal } from '@/lib/format';
+import { t } from '@/lib/i18n';
 
 const ratings: Rating[] = [1, 2, 3, 4, 5];
 
@@ -42,7 +43,7 @@ function CheckinForm({ day, initial }: CheckinFormProps) {
   const save = async () => {
     const sleepHours = parseDecimal(sleepText);
     if (!isValidSleep(sleepHours)) {
-      setError(`Укажите сон числом от 0 до ${MAX_SLEEP_HOURS} часов.`);
+      setError(t('Укажите сон числом от 0 до {0} часов.', { 0: MAX_SLEEP_HOURS }));
       return;
     }
     setSaving(true);
@@ -56,7 +57,7 @@ function CheckinForm({ day, initial }: CheckinFormProps) {
       router.back();
     } catch (cause) {
       console.error(cause);
-      setError(`Отметка не сохранена. ${describeFailure(cause)}`);
+      setError(t('Отметка не сохранена. {0}', { 0: describeFailure(cause) }));
       setSaving(false);
     }
   };
@@ -64,20 +65,20 @@ function CheckinForm({ day, initial }: CheckinFormProps) {
   return (
     <>
       <AppText tone="secondary">
-        Все поля необязательны. Отметки видны только вам и помогают Coach учитывать восстановление.
+        {t('Все поля необязательны. Отметки видны только вам и помогают Coach учитывать восстановление.')}
       </AppText>
-      <TextField keyboardType="decimal-pad" label="Сон, часов" onChangeText={setSleepText} value={sleepText} />
-      {scale('Качество сна, 1 плохо, 5 отлично', sleepQuality, setSleepQuality)}
-      {scale('Энергия, 1 мало, 5 много', energy, setEnergy)}
-      {scale('Мышечная боль, 1 нет, 5 сильная', soreness, setSoreness)}
-      {scale('Стресс, 1 низкий, 5 высокий', stress, setStress)}
-      <TextField label="Заметка" maxLength={200} onChangeText={setNote} value={note} />
+      <TextField keyboardType="decimal-pad" label={t('Сон, часов')} onChangeText={setSleepText} value={sleepText} />
+      {scale(t('Качество сна, 1 плохо, 5 отлично'), sleepQuality, setSleepQuality)}
+      {scale(t('Энергия, 1 мало, 5 много'), energy, setEnergy)}
+      {scale(t('Мышечная боль, 1 нет, 5 сильная'), soreness, setSoreness)}
+      {scale(t('Стресс, 1 низкий, 5 высокий'), stress, setStress)}
+      <TextField label={t('Заметка')} maxLength={200} onChangeText={setNote} value={note} />
       {error ? (
         <AppText accessibilityLiveRegion="polite" tone="danger">
           {error}
         </AppText>
       ) : null}
-      <Button label="Сохранить отметку" loading={saving} onPress={save} />
+      <Button label={t('Сохранить отметку')} loading={saving} onPress={save} />
     </>
   );
 }

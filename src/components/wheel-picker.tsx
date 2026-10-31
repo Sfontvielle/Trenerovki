@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 
 import { AppText, useTheme } from '@/design-system';
+import { t } from '@/lib/i18n';
 
 const VISIBLE_ROWS = 5;
 const SETTLE_DELAY_MS = 140;
@@ -76,7 +77,7 @@ export function WheelPicker({ label, values, value, start, onChange }: WheelPick
       accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
       accessibilityLabel={label}
       accessibilityRole="adjustable"
-      accessibilityValue={{ text: value === null ? 'не выбрано' : String(value) }}
+      accessibilityValue={{ text: value === null ? t('не выбрано') : String(value) }}
       accessible
       onAccessibilityAction={(event) => {
         const delta = event.nativeEvent.actionName === 'increment' ? 1 : -1;

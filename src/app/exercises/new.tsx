@@ -8,12 +8,13 @@ import { type MuscleGroup, type Tracking, muscleGroupLabels } from '@/domains/ex
 import { addCustomExercise } from '@/domains/exercises/custom-exercise-repository';
 import { createId } from '@/domains/data-platform/ids';
 import { describeFailure } from '@/lib/describe-failure';
+import { t } from '@/lib/i18n';
 
 const muscleGroups = Object.keys(muscleGroupLabels) as MuscleGroup[];
 const trackingChoices: { value: Tracking; label: string }[] = [
-  { value: 'reps', label: 'Повторы' },
-  { value: 'duration', label: 'Время' },
-  { value: 'cardio', label: 'Кардио' },
+  { value: 'reps', label: t('Повторы') },
+  { value: 'duration', label: t('Время') },
+  { value: 'cardio', label: t('Кардио') },
 ];
 
 export default function NewExerciseScreen() {
@@ -26,7 +27,7 @@ export default function NewExerciseScreen() {
 
   const save = async () => {
     if (!name.trim() || !muscleGroup) {
-      setError('Укажите название и группу мышц.');
+      setError(t('Укажите название и группу мышц.'));
       return;
     }
     setSaving(true);
@@ -37,24 +38,24 @@ export default function NewExerciseScreen() {
       router.back();
     } catch (cause) {
       console.error(cause);
-      setError(`Упражнение не сохранено. ${describeFailure(cause)}`);
+      setError(t('Упражнение не сохранено. {0}', { 0: describeFailure(cause) }));
       setSaving(false);
     }
   };
 
   return (
     <Screen scroll belowHeader>
-      <TextField label="Название" maxLength={60} onChangeText={setName} value={name} />
+      <TextField label={t('Название')} maxLength={60} onChangeText={setName} value={name} />
       <ChoiceGroup
         choices={muscleGroups.map((value) => ({ value, label: muscleGroupLabels[value] }))}
         isSelected={(value) => muscleGroup === value}
-        label="Группа мышц"
+        label={t('Группа мышц')}
         onSelect={setMuscleGroup}
       />
       <ChoiceGroup
         choices={trackingChoices}
         isSelected={(value) => tracking === value}
-        label="Что записывать"
+        label={t('Что записывать')}
         onSelect={setTracking}
       />
       {error ? (
@@ -62,7 +63,7 @@ export default function NewExerciseScreen() {
           {error}
         </AppText>
       ) : null}
-      <Button label="Сохранить упражнение" loading={saving} onPress={save} />
+      <Button label={t('Сохранить упражнение')} loading={saving} onPress={save} />
     </Screen>
   );
 }

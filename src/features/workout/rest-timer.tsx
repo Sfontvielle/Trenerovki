@@ -5,6 +5,7 @@ import { AppText, Button, Chip, Panel, useTheme } from '@/design-system';
 import { formatDuration } from '@/domains/workout/session-time';
 import { successFeedback } from '@/lib/haptics';
 import { playRestFinished } from '@/lib/sounds';
+import { t } from '@/lib/i18n';
 
 const TICK_MS = 500;
 const durations = [45, 60, 75, 90, 120, 180];
@@ -53,14 +54,14 @@ export function RestTimer({ recommendedSeconds }: RestTimerProps) {
 
   return (
     <Panel>
-      <AppText variant="heading">Отдых</AppText>
+      <AppText variant="heading">{t('Отдых')}</AppText>
       {endsAt !== null ? (
         <>
           <AppText accessibilityLiveRegion="polite" variant="display" tone="accent">
             {formatDuration(Math.ceil(remainingMs / 1000) * 1000)}
           </AppText>
           <Button
-            label="Остановить таймер"
+            label={t('Остановить таймер')}
             variant="secondary"
             onPress={() => {
               setEndsAt(null);
@@ -72,11 +73,11 @@ export function RestTimer({ recommendedSeconds }: RestTimerProps) {
         <>
           {finished ? (
             <AppText accessibilityLiveRegion="polite" tone="accent">
-              Отдых окончен
+              {t('Отдых окончен')}
             </AppText>
           ) : (
             <AppText variant="callout" tone="secondary">
-              {`Необязательно. Для этого упражнения обычно хватает ${formatDuration(recommendedSeconds * 1000)}. Таймер работает, пока открыт этот экран.`}
+              {t('Необязательно. Для этого упражнения обычно хватает {0}. Таймер работает, пока открыт этот экран.', { 0: formatDuration(recommendedSeconds * 1000) })}
             </AppText>
           )}
           <View style={[styles.row, { gap: theme.spacing.s }]}>

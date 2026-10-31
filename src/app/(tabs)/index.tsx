@@ -22,6 +22,7 @@ import { useSteps } from '@/features/recovery/use-steps';
 import { OpenSessionBanner } from '@/features/workout/open-session-banner';
 import { useStartWorkout } from '@/features/workout/use-start-workout';
 import { formatWeight, pluralize } from '@/lib/format';
+import { t } from '@/lib/i18n';
 
 export default function HomeScreen() {
   const { database, engine, profile } = useAppData();
@@ -44,7 +45,7 @@ export default function HomeScreen() {
       getDeloadUntil(database),
     ]);
     return {
-      heading: doneToday ? 'Следующая тренировка' : scheduleHeading(trainingDays ?? [], now),
+      heading: doneToday ? t('Следующая тренировка') : scheduleHeading(trainingDays ?? [], now),
       openSession,
       nextDay: await getNextDay(database, program),
       summary,
@@ -58,7 +59,7 @@ export default function HomeScreen() {
   const state = useScreenData(load);
 
   return (
-    <TabScreen title="Главная">
+    <TabScreen title={t('Главная')}>
       <DataView state={state}>
         {({ heading, openSession, nextDay, summary, foodEntries, latestWeight, checkin, readiness, deload }) => (
           <>
@@ -72,7 +73,7 @@ export default function HomeScreen() {
                 <AppText variant="title">{nextDay.name}</AppText>
                 {deload ? (
                   <AppText variant="callout" tone="accent">
-                    Лёгкая неделя: на один подход меньше в каждом упражнении
+                    {t('Лёгкая неделя: на один подход меньше в каждом упражнении')}
                   </AppText>
                 ) : null}
                 {nextDay.exercises.map((exercise) => (
@@ -86,7 +87,7 @@ export default function HomeScreen() {
                   </AppText>
                 ) : null}
                 <Button
-                  label="Начать тренировку"
+                  label={t('Начать тренировку')}
                   loading={starting}
                   onPress={() => start(nextDay.name, nextDay)}
                 />
@@ -96,14 +97,14 @@ export default function HomeScreen() {
             <StepsCard state={steps.state} onRequestAccess={steps.requestAccess} />
 
             <Panel>
-              <AppText variant="heading">За последние 7 дней</AppText>
+              <AppText variant="heading">{t('За последние 7 дней')}</AppText>
               <AppText tone="secondary">
-                {`${summary.workoutsLastWeek} ${pluralize(summary.workoutsLastWeek, ['тренировка', 'тренировки', 'тренировок'])}`}
+                {`${summary.workoutsLastWeek} ${pluralize(summary.workoutsLastWeek, [t('тренировка'), t('тренировки'), t('тренировок')])}`}
               </AppText>
             </Panel>
 
             <Panel>
-              <AppText variant="heading">Питание сегодня</AppText>
+              <AppText variant="heading">{t('Питание сегодня')}</AppText>
               {foodEntries.length > 0 ? (
                 <>
                   <AppText tone="secondary">{formatEnergy(sumNutrients(foodEntries).kcal)}</AppText>
@@ -112,18 +113,18 @@ export default function HomeScreen() {
                   </AppText>
                 </>
               ) : (
-                <AppText tone="secondary">Пока ничего не записано</AppText>
+                <AppText tone="secondary">{t('Пока ничего не записано')}</AppText>
               )}
             </Panel>
 
             <RecoveryCard checkin={checkin} readiness={readiness} />
 
             <Panel>
-              <AppText variant="heading">Вес тела</AppText>
+              <AppText variant="heading">{t('Вес тела')}</AppText>
               <AppText tone="secondary">
-                {latestWeight ? formatWeight(latestWeight.weightKg) : 'Пока не записан'}
+                {latestWeight ? formatWeight(latestWeight.weightKg) : t('Пока не записан')}
               </AppText>
-              <Button label="Записать вес" variant="secondary" onPress={() => router.push('/body-weight')} />
+              <Button label={t('Записать вес')} variant="secondary" onPress={() => router.push('/body-weight')} />
             </Panel>
 
           </>

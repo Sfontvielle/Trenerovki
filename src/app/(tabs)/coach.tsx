@@ -26,6 +26,7 @@ import { useCoachStyle } from '@/features/coach/use-coach-style';
 import { describeChange } from '@/features/coach/describe-change';
 import { SessionBar } from '@/features/workout/session-bar';
 import { describeFailure } from '@/lib/describe-failure';
+import { t } from '@/lib/i18n';
 
 type ProposalCardProps = {
   proposal: Proposal;
@@ -73,8 +74,8 @@ function ProposalCard({ proposal, detailed, onChanged }: ProposalCardProps) {
       console.error(cause);
       setError(
         cause instanceof CoachError
-          ? 'Предложение устарело: план или ограничения изменились. Экран обновится.'
-          : `Изменение не применено. ${describeFailure(cause)}`,
+          ? t('Предложение устарело: план или ограничения изменились. Экран обновится.')
+          : t('Изменение не применено. {0}', { 0: describeFailure(cause) }),
       );
       setBusy(false);
       if (cause instanceof CoachError) {
@@ -91,7 +92,7 @@ function ProposalCard({ proposal, detailed, onChanged }: ProposalCardProps) {
       onChanged();
     } catch (cause) {
       console.error(cause);
-      setError(`Решение не сохранено. ${describeFailure(cause)}`);
+      setError(t('Решение не сохранено. {0}', { 0: describeFailure(cause) }));
       setBusy(false);
     }
   };
@@ -117,17 +118,17 @@ function ProposalCard({ proposal, detailed, onChanged }: ProposalCardProps) {
           {error}
         </AppText>
       ) : null}
-      <Button accessibilityLabel={`Принять: ${proposal.title}`} label="Принять" loading={busy} onPress={accept} />
+      <Button accessibilityLabel={t('Принять: {0}', { 0: proposal.title })} label={t('Принять')} loading={busy} onPress={accept} />
       <Button
-        accessibilityLabel={`Отложить на неделю: ${proposal.title}`}
-        label="Отложить на неделю"
+        accessibilityLabel={t('Отложить на неделю: {0}', { 0: proposal.title })}
+        label={t('Отложить на неделю')}
         variant="secondary"
         disabled={busy}
         onPress={() => decide(() => deferProposal(database, proposal.id, new Date()))}
       />
       <Button
-        accessibilityLabel={`Отклонить: ${proposal.title}`}
-        label="Отклонить"
+        accessibilityLabel={t('Отклонить: {0}', { 0: proposal.title })}
+        label={t('Отклонить')}
         variant="secondary"
         disabled={busy}
         onPress={() => decide(() => rejectProposal(database, proposal.id, new Date()))}
@@ -168,14 +169,14 @@ export default function CoachScreen() {
     <TabScreen title="Coach">
       <SessionBar />
       <AppText tone="secondary">
-        Это не чат и не ИИ. Подсказки считаются на этом iPhone по вашим записям. План меняете только вы.
+        {t('Это не чат и не ИИ. Подсказки считаются на этом iPhone по вашим записям. План меняете только вы.')}
       </AppText>
       <DataView state={state}>
         {({ insights, proposals }) => (
           <>
             {proposals.length > 0 ? (
               <AppText accessibilityRole="header" variant="heading">
-                Предложения
+                {t('Предложения')}
               </AppText>
             ) : null}
             {proposals.map((proposal) => (
@@ -183,7 +184,7 @@ export default function CoachScreen() {
             ))}
 
             <AppText accessibilityRole="header" variant="heading">
-              Отчёт за неделю
+              {t('Отчёт за неделю')}
             </AppText>
             {insights.map((insight) => (
               <Panel key={insight.id}>
@@ -192,8 +193,8 @@ export default function CoachScreen() {
               </Panel>
             ))}
 
-            <Button label="История решений" variant="secondary" onPress={() => router.push('/coach/history')} />
-            <Button label="Память и предпочтения" variant="secondary" onPress={() => router.push('/coach/memory')} />
+            <Button label={t('История решений')} variant="secondary" onPress={() => router.push('/coach/history')} />
+            <Button label={t('Память и предпочтения')} variant="secondary" onPress={() => router.push('/coach/memory')} />
           </>
         )}
       </DataView>

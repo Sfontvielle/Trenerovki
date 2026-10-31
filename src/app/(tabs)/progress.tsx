@@ -16,6 +16,7 @@ import {
 import { formatDuration, sessionDurationMs } from '@/domains/workout/session-time';
 import { SessionBar } from '@/features/workout/session-bar';
 import { formatDate, formatNumber, formatWeight, pluralize } from '@/lib/format';
+import { t } from '@/lib/i18n';
 
 export default function ProgressScreen() {
   const { database } = useAppData();
@@ -32,18 +33,18 @@ export default function ProgressScreen() {
   const state = useScreenData(load);
 
   return (
-    <TabScreen title="Прогресс">
+    <TabScreen title={t('Прогресс')}>
       <SessionBar />
-      <Button label="Подробная аналитика" variant="secondary" onPress={() => router.push('/analytics')} />
-      <Button label="Вес тела" variant="secondary" onPress={() => router.push('/body-weight')} />
+      <Button label={t('Подробная аналитика')} variant="secondary" onPress={() => router.push('/analytics')} />
+      <Button label={t('Вес тела')} variant="secondary" onPress={() => router.push('/body-weight')} />
       <DataView state={state}>
         {({ summary, sessions, records }) =>
           sessions.length === 0 ? (
             <Panel>
-              <AppText variant="heading">Пока нет завершённых тренировок</AppText>
-              <AppText tone="secondary">После первой тренировки здесь появятся история и рекорды.</AppText>
+              <AppText variant="heading">{t('Пока нет завершённых тренировок')}</AppText>
+              <AppText tone="secondary">{t('После первой тренировки здесь появятся история и рекорды.')}</AppText>
               <Button
-                label="Перейти к тренировкам"
+                label={t('Перейти к тренировкам')}
                 variant="secondary"
                 onPress={() => router.navigate('/workouts')}
               />
@@ -53,11 +54,11 @@ export default function ProgressScreen() {
               <Panel>
                 <AppText variant="display">{formatNumber(summary.completedWorkouts)}</AppText>
                 <AppText tone="secondary">
-                  {`${pluralize(summary.completedWorkouts, ['тренировка', 'тренировки', 'тренировок'])} всего, ${summary.workoutsLastWeek} за 7 дней`}
+                  {t('{0} всего, {1} за 7 дней', { 0: pluralize(summary.completedWorkouts, [t('тренировка'), t('тренировки'), t('тренировок')]), 1: summary.workoutsLastWeek })}
                 </AppText>
                 {summary.totalVolumeKg > 0 ? (
                   <AppText variant="callout" tone="secondary">
-                    {`Общий объём: ${formatNumber(summary.totalVolumeKg)} кг`}
+                    {t('Общий объём: {0} кг', { 0: formatNumber(summary.totalVolumeKg) })}
                   </AppText>
                 ) : null}
               </Panel>
@@ -65,7 +66,7 @@ export default function ProgressScreen() {
               {records.length > 0 ? (
                 <View style={{ gap: theme.spacing.s }}>
                   <AppText accessibilityRole="header" variant="heading">
-                    Рекорды
+                    {t('Рекорды')}
                   </AppText>
                   {records.map((record) => (
                     <Pressable
@@ -86,7 +87,7 @@ export default function ProgressScreen() {
 
               <View style={{ gap: theme.spacing.s }}>
                 <AppText accessibilityRole="header" variant="heading">
-                  История
+                  {t('История')}
                 </AppText>
                 {sessions.map((session) => (
                   <Pressable
@@ -100,7 +101,7 @@ export default function ProgressScreen() {
                         {`${formatDate(session.startedAt)}, ${formatDuration(sessionDurationMs(session, new Date()))}`}
                       </AppText>
                       <AppText variant="callout" tone="secondary">
-                        {`${session.setCount} ${pluralize(session.setCount, ['подход', 'подхода', 'подходов'])}${session.volumeKg > 0 ? `, ${formatNumber(session.volumeKg)} кг` : ''}`}
+                        {`${session.setCount} ${pluralize(session.setCount, [t('подход'), t('подхода'), t('подходов')])}${session.volumeKg > 0 ? t(', {0} кг', { 0: formatNumber(session.volumeKg) }) : ''}`}
                       </AppText>
                     </Panel>
                   </Pressable>
