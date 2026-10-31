@@ -24,6 +24,20 @@ describe('migrate', () => {
     expect(applied.map(({ version }) => version)).toEqual(migrations.map(({ version }) => version));
   });
 
+  it('upgrades a version 1 database and keeps its workouts', async () => {
+    const database = createTestDatabase();
+    await migrate(database, migrations.slice(0, 1));
+    await database.run(
+      `INSERT INTO workout_session (id, title, state, started_at, last_activity_at)
+       VALUES ('kept', 'Тренировка', 'completed', 'now', 'now')`,
+    );
+
+    await migrate(database);
+
+    expect(await database.all('SELECT id FROM workout_session')).toEqual([{ id: 'kept' }]);
+    expect(await tableNames(database)).toEqual(expect.arrayContaining(['food', 'food_entry']));
+  });
+
   it('does nothing on a second run', async () => {
     const database = createTestDatabase();
     await migrate(database);
@@ -140,7 +154,7 @@ describe('data transfer', () => {
 
     const exported = JSON.parse(await exportAllData(database));
     expect(exported.format).toBe('ironvant-export');
-    expect(exported.schemaVersion).toBe(1);
+    expect(exported.schemaVersion).toBe(migrations.at(-1)?.version);
     expect(Object.keys(exported.tables)).toEqual(
       expect.arrayContaining(['profile', 'workout_session', 'workout_set', 'workout_event']),
     );
@@ -148,6 +162,6 @@ describe('data transfer', () => {
 
     await deleteAllData(database);
     expect(await new SettingsRepository(database).get('accent')).toBeNull();
-    expect(await database.all('SELECT version FROM schema_migrations')).toHaveLength(1);
+    expect(await database.all('SELECT version FROM schema_migrations')).toHaveLength(migrations.length);
   });
 });

@@ -103,6 +103,35 @@ export const migrations: Migration[] = [
       'CREATE INDEX workout_session_by_state ON workout_session (state, finished_at)',
     ],
   },
+  {
+    version: 2,
+    name: 'nutrition diary',
+    statements: [
+      `CREATE TABLE food (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        kcal REAL NOT NULL,
+        protein REAL NOT NULL,
+        fat REAL NOT NULL,
+        carbs REAL NOT NULL,
+        last_used_at TEXT NOT NULL
+      )`,
+      `CREATE TABLE food_entry (
+        id TEXT PRIMARY KEY,
+        day TEXT NOT NULL,
+        meal TEXT NOT NULL CHECK (meal IN ('breakfast', 'lunch', 'dinner', 'snack')),
+        food_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        grams REAL NOT NULL CHECK (grams > 0),
+        kcal REAL NOT NULL,
+        protein REAL NOT NULL,
+        fat REAL NOT NULL,
+        carbs REAL NOT NULL,
+        created_at TEXT NOT NULL
+      )`,
+      'CREATE INDEX food_entry_by_day ON food_entry (day)',
+    ],
+  },
 ];
 
 export async function migrate(database: Database, available: Migration[] = migrations) {

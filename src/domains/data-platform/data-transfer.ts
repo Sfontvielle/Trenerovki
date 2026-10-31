@@ -8,10 +8,14 @@ const exportedTables = [
   'session_exercise',
   'workout_set',
   'workout_event',
+  'food',
+  'food_entry',
   'settings',
 ] as const;
 
 const deletionOrder = [
+  'food_entry',
+  'food',
   'workout_event',
   'workout_set',
   'session_exercise',

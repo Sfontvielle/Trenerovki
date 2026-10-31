@@ -732,6 +732,141 @@ describe('changing the answers', () => {
   });
 });
 
+describe('nutrition diary', () => {
+  async function openDiary() {
+    await seedProfile();
+    await renderRouter('./src/app');
+    await screen.findByText('Следующая тренировка');
+    await testRouter.navigate('/nutrition');
+    await screen.findByRole('button', { name: 'Добавить: Завтрак' });
+  }
+
+  async function addOats() {
+    await press('Добавить: Завтрак');
+    await press('Новый продукт');
+    await type('Название', 'Овсянка');
+    await type('Калории на 100 г', '366');
+    await type('Белки на 100 г', '12');
+    await type('Жиры на 100 г', '6');
+    await type('Углеводы на 100 г', '62');
+    await type('Вес порции, г', '50');
+    expect(screen.getByText('183 ккал')).toBeTruthy();
+    await press('Записать');
+  }
+
+  it('records a new food and shows it in the day totals and on the home screen', async () => {
+    await openDiary();
+
+    await addOats();
+
+    expect(await screen.findByText('50 г, 183 ккал')).toBeTruthy();
+    expect(await database.all('SELECT grams FROM food_entry')).toEqual([{ grams: 50 }]);
+
+    await testRouter.navigate('/');
+    expect(await screen.findByText('Питание сегодня')).toBeTruthy();
+    expect(screen.getAllByText('183 ккал').length).toBeGreaterThan(0);
+  });
+
+  it('reuses a saved food', async () => {
+    await openDiary();
+    await addOats();
+    await screen.findByText('50 г, 183 ккал');
+
+    await press('Добавить: Обед');
+    await press(/Овсянка/);
+    await type('Вес порции, г', '60,5');
+    await press('Записать');
+
+    expect(await screen.findByText('60,5 г, 221 ккал')).toBeTruthy();
+    expect(await database.all('SELECT id FROM food')).toHaveLength(1);
+  });
+
+  it('warns about impossible values and writes nothing', async () => {
+    await openDiary();
+    await press('Добавить: Обед');
+    await press('Новый продукт');
+    await type('Название', 'Ошибка');
+    await type('Калории на 100 г', '1000');
+    await type('Белки на 100 г', '10');
+    await type('Жиры на 100 г', '10');
+    await type('Углеводы на 100 г', '10');
+    await type('Вес порции, г', '100');
+
+    await press('Записать');
+
+    expect(await screen.findByText(/Проверьте значения на 100 г/)).toBeTruthy();
+    expect(await database.all('SELECT id FROM food_entry')).toEqual([]);
+  });
+
+  it('warns when calories do not match the macros but still allows saving', async () => {
+    await openDiary();
+    await press('Добавить: Обед');
+    await press('Новый продукт');
+    await type('Калории на 100 г', '10');
+    await type('Белки на 100 г', '20');
+    await type('Жиры на 100 г', '20');
+    await type('Углеводы на 100 г', '20');
+
+    expect(screen.getByText(/Калории не сходятся/)).toBeTruthy();
+  });
+
+  it('changes a portion and deletes an entry after confirmation', async () => {
+    await openDiary();
+    await addOats();
+    await screen.findByText('50 г, 183 ккал');
+
+    await press(/Овсянка/);
+    await screen.findByLabelText('Вес порции, г');
+    await type('Вес порции, г', '100');
+    await press('Сохранить');
+    expect(await screen.findByText('100 г, 366 ккал')).toBeTruthy();
+
+    await press(/Овсянка/);
+    await screen.findByText('Удалить запись');
+    confirmButton = 0;
+    await press('Удалить запись');
+    expect(await database.all('SELECT id FROM food_entry')).toHaveLength(1);
+
+    confirmButton = 1;
+    await press('Удалить запись');
+    expect(await database.all('SELECT id FROM food_entry')).toEqual([]);
+  });
+
+  it('moves between days and does not go into the future', async () => {
+    await openDiary();
+    await addOats();
+    await screen.findByText('50 г, 183 ккал');
+
+    expect(screen.getByRole('button', { name: 'Следующий день', disabled: true })).toBeTruthy();
+
+    await press('Предыдущий день');
+
+    expect(await screen.findByText('Вчера')).toBeTruthy();
+    expect(screen.queryByText('50 г, 183 ккал')).toBeNull();
+  });
+
+  it('keeps the form when saving fails', async () => {
+    await openDiary();
+    await press('Добавить: Обед');
+    await press('Новый продукт');
+    await type('Название', 'Рис');
+    await type('Калории на 100 г', '340');
+    await type('Белки на 100 г', '7');
+    await type('Жиры на 100 г', '1');
+    await type('Углеводы на 100 г', '76');
+    await type('Вес порции, г', '80');
+    const transaction = jest
+      .spyOn(database, 'transaction')
+      .mockRejectedValueOnce(new Error('database or disk is full'));
+
+    await press('Записать');
+
+    expect(await screen.findByText(/Запись не сохранена.*закончилось место/)).toBeTruthy();
+    expect(screen.getByLabelText('Название').props.value).toBe('Рис');
+    transaction.mockRestore();
+  });
+});
+
 describe('failures', () => {
   it('keeps the entered values and retries a failed save exactly once', async () => {
     await seedOpenWorkout();

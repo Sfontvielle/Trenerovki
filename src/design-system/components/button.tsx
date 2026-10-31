@@ -6,6 +6,7 @@ import { AppText } from './app-text';
 
 type ButtonProps = {
   label: string;
+  accessibilityLabel?: string;
   onPress: () => void;
   variant?: 'primary' | 'secondary';
   disabled?: boolean;
@@ -14,6 +15,7 @@ type ButtonProps = {
 
 export function Button({
   label,
+  accessibilityLabel,
   onPress,
   variant = 'primary',
   disabled = false,
@@ -38,6 +40,7 @@ export function Button({
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
       <Pressable
+        accessibilityLabel={accessibilityLabel}
         accessibilityRole="button"
         accessibilityState={{ disabled: inactive, busy: loading }}
         disabled={inactive}

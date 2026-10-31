@@ -56,6 +56,11 @@ function RootStack() {
           />
           <Stack.Screen name="history/[sessionId]" options={{ ...withHeader, title: 'Тренировка' }} />
           <Stack.Screen name="exercise-progress/[exerciseId]" options={{ ...withHeader, title: 'Динамика' }} />
+          <Stack.Screen
+            name="food/add"
+            options={{ ...withHeader, presentation: 'modal', title: 'Добавить продукт' }}
+          />
+          <Stack.Screen name="food/[entryId]" options={{ ...withHeader, title: 'Запись' }} />
           <Stack.Screen name="design-system" options={{ ...withHeader, title: 'Дизайн-система' }} />
         </Stack.Protected>
       </Stack>
