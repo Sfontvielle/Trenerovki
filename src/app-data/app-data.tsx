@@ -6,9 +6,10 @@ import { type AccentName, Screen, type ThemePreference, accentNames, useTheme } 
 import type { Database } from '@/domains/data-platform/database';
 import { openAppDatabase } from '@/domains/data-platform/expo-database';
 import { createId } from '@/domains/data-platform/ids';
-import { DatabaseTooNewError, migrate } from '@/domains/data-platform/migrations';
+import { DatabaseDamagedError, DatabaseTooNewError, migrate, migrations } from '@/domains/data-platform/migrations';
+import { saveMigrationSnapshot } from '@/features/profile/migration-snapshot';
 import { SettingsRepository } from '@/domains/data-platform/settings-repository';
-import { registerCustomExerciseNames } from '@/domains/exercises/catalog';
+import { registerCustomExercises } from '@/domains/exercises/catalog';
 import { listCustomExercises } from '@/domains/exercises/custom-exercise-repository';
 import type { Profile } from '@/domains/profile/profile';
 import { getProfile } from '@/domains/profile/profile-repository';
@@ -54,7 +55,7 @@ function isAccent(value: string | null): value is AccentName {
 
 async function openServices() {
   const database = await openAppDatabase();
-  await migrate(database);
+  await migrate(database, migrations, { beforePending: (version) => saveMigrationSnapshot(database, version) });
   const engine = new WorkoutEngine({ database, createId, now: () => new Date() });
   // A failed recovery leaves the session on disk, so it must not lock the user
   // out of history and export. It runs again on the next launch.
@@ -85,7 +86,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
   const readAll = useCallback(
     async (services: Services) => {
       const profile = await getProfile(services.database);
-      registerCustomExerciseNames(await listCustomExercises(services.database));
+      registerCustomExercises(await listCustomExercises(services.database));
       const { preference, accent, hapticsEnabled } = await readAppearance(services.settings);
       setPreference(isThemePreference(preference) ? preference : 'system');
       setAccent(isAccent(accent) ? accent : 'cyan');
@@ -113,7 +114,9 @@ export function AppDataProvider({ children }: PropsWithChildren) {
             message:
               error instanceof DatabaseTooNewError
                 ? 'Данные созданы более новой версией приложения. Обновите IRONVANT.'
-                : 'Проверьте свободное место на iPhone и повторите. Не удаляйте приложение: вместе с ним удалятся и данные.',
+                : error instanceof DatabaseDamagedError
+                  ? 'Файл данных повреждён. Не удаляйте приложение: возможно, данные ещё удастся спасти.'
+                  : 'Проверьте свободное место на iPhone и повторите. Не удаляйте приложение: вместе с ним удалятся и данные.',
           });
         }
       }

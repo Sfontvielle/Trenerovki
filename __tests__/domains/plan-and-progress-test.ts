@@ -39,7 +39,7 @@ const profile: Profile = {
   goal: 'muscle',
   experience: 'intermediate',
   daysPerWeek: 3,
-  sessionMinutes: 60,
+  sessionMinutes: 45,
   equipment: 'gym',
   limitations: [],
   trainingDays: [],

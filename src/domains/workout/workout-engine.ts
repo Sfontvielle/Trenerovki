@@ -15,6 +15,8 @@ const MAX_WEIGHT_KG = 1000;
 const MAX_REPS = 1000;
 const MAX_RIR = 10;
 const MAX_NOTE_LENGTH = 200;
+const MAX_DURATION_SEC = 24 * 60 * 60;
+const MAX_DISTANCE_M = 1000 * 1000;
 const DISCOMFORT_EVENT = 'discomfort_reported';
 const DISCOMFORT_MEMORY_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -28,6 +30,7 @@ type SessionRow = {
   paused_ms: number;
   finished_at: string | null;
   last_activity_at: string;
+  recovery_required: number;
 };
 
 type ExerciseRow = {
@@ -38,6 +41,8 @@ type ExerciseRow = {
   planned_sets: number | null;
   reps_min: number | null;
   reps_max: number | null;
+  target_duration_sec: number | null;
+  group_id: string | null;
 };
 
 type SetRow = {
@@ -45,10 +50,12 @@ type SetRow = {
   session_exercise_id: string;
   position: number;
   weight_kg: number | null;
-  reps: number;
+  reps: number | null;
   rir: number | null;
   kind: SetKind;
   note: string | null;
+  duration_sec: number | null;
+  distance_m: number | null;
   completed_at: string;
 };
 
@@ -58,14 +65,28 @@ export type EngineDependencies = {
   now: () => Date;
 };
 
-export function validateSet({ weightKg, reps, rir, kind = 'working', note = null }: SetInput) {
+export function validateSet({
+  weightKg,
+  reps,
+  rir,
+  kind = 'working',
+  note = null,
+  durationSec = null,
+  distanceM = null,
+}: SetInput) {
   const validWeight =
     weightKg === null || (Number.isFinite(weightKg) && weightKg >= 0 && weightKg <= MAX_WEIGHT_KG);
-  const validReps = Number.isInteger(reps) && reps > 0 && reps <= MAX_REPS;
+  const validReps = reps === null || (Number.isInteger(reps) && reps > 0 && reps <= MAX_REPS);
   const validRir = rir === null || (Number.isInteger(rir) && rir >= 0 && rir <= MAX_RIR);
   const validDetails = setKinds.includes(kind) && (note === null || note.length <= MAX_NOTE_LENGTH);
+  const validDuration =
+    durationSec === null ||
+    (Number.isInteger(durationSec) && durationSec > 0 && durationSec <= MAX_DURATION_SEC);
+  const validDistance =
+    distanceM === null || (Number.isFinite(distanceM) && distanceM > 0 && distanceM <= MAX_DISTANCE_M);
+  const measured = reps !== null || durationSec !== null || distanceM !== null;
 
-  if (!validWeight || !validReps || !validRir || !validDetails) {
+  if (!validWeight || !validReps || !validRir || !validDetails || !validDuration || !validDistance || !measured) {
     throw new WorkoutError('invalid_set', 'Set values are out of range');
   }
 }
@@ -79,6 +100,8 @@ function toSet(row: SetRow): WorkoutSet {
     rir: row.rir,
     kind: row.kind,
     note: row.note,
+    durationSec: row.duration_sec,
+    distanceM: row.distance_m,
     completedAt: row.completed_at,
   };
 }
@@ -92,6 +115,8 @@ function toExercise(row: ExerciseRow, sets: WorkoutSet[]): SessionExercise {
     plannedSets: row.planned_sets,
     repsMin: row.reps_min,
     repsMax: row.reps_max,
+    targetDurationSec: row.target_duration_sec,
+    groupId: row.group_id,
     sets,
   };
 }
@@ -175,6 +200,21 @@ export class WorkoutEngine {
     return { set, exercise };
   }
 
+  private async requireCompletedSet(tx: DatabaseExecutor, setId: string) {
+    const set = await tx.first<SetRow>('SELECT * FROM workout_set WHERE id = ?', [setId]);
+    if (!set) {
+      throw new WorkoutError('set_not_found', 'Set does not exist');
+    }
+    const exercise = await tx.first<ExerciseRow>('SELECT * FROM session_exercise WHERE id = ?', [
+      set.session_exercise_id,
+    ]);
+    const session = exercise ? await this.requireSession(tx, exercise.session_id) : null;
+    if (!exercise || !session || session.state !== 'completed') {
+      throw new WorkoutError('session_not_completed', 'Session is not completed');
+    }
+    return { set, exercise, session };
+  }
+
   private async insertExercise(
     tx: DatabaseExecutor,
     sessionId: string,
@@ -184,9 +224,20 @@ export class WorkoutEngine {
     const id = this.createId();
     await tx.run(
       `INSERT INTO session_exercise
-         (id, session_id, position, exercise_id, planned_sets, reps_min, reps_max)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [id, sessionId, position, planned.exerciseId, planned.plannedSets, planned.repsMin, planned.repsMax],
+         (id, session_id, position, exercise_id, planned_sets, reps_min, reps_max,
+          target_duration_sec, group_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        sessionId,
+        position,
+        planned.exerciseId,
+        planned.plannedSets,
+        planned.repsMin,
+        planned.repsMax,
+        planned.targetDurationSec ?? null,
+        planned.groupId ?? null,
+      ],
     );
     return id;
   }
@@ -246,7 +297,8 @@ export class WorkoutEngine {
         state === 'completed' || state === 'cancelled' ? (session.paused_at ?? timestamp) : null;
 
       await tx.run(
-        `UPDATE workout_session SET state = ?, paused_at = ?, paused_ms = ?, finished_at = ?
+        `UPDATE workout_session
+         SET state = ?, paused_at = ?, paused_ms = ?, finished_at = ?, recovery_required = 0
          WHERE id = ?`,
         [state, state === 'paused' ? timestamp : null, pausedMs, finishedAt, sessionId],
       );
@@ -314,6 +366,56 @@ export class WorkoutEngine {
     });
   }
 
+  // Linked exercises alternate: two make a superset, three a triset, more a circuit.
+  linkWithNext(sessionExerciseId: string, operationId: string) {
+    return this.apply(operationId, async (tx) => {
+      const exercise = await this.requireActiveExercise(tx, sessionExerciseId);
+      const next = await tx.first<ExerciseRow>(
+        'SELECT * FROM session_exercise WHERE session_id = ? AND position = ?',
+        [exercise.session_id, exercise.position + 1],
+      );
+      if (!next) {
+        throw new WorkoutError('no_next_exercise', 'There is no exercise to link with');
+      }
+      const groupId = exercise.group_id ?? next.group_id ?? this.createId();
+      await tx.run('UPDATE session_exercise SET group_id = ? WHERE id IN (?, ?)', [
+        groupId,
+        exercise.id,
+        next.id,
+      ]);
+      if (next.group_id && next.group_id !== groupId) {
+        await tx.run('UPDATE session_exercise SET group_id = ? WHERE session_id = ? AND group_id = ?', [
+          groupId,
+          exercise.session_id,
+          next.group_id,
+        ]);
+      }
+      return {
+        sessionId: exercise.session_id,
+        entityId: exercise.id,
+        type: 'exercises_linked',
+        payload: { groupId, with: next.id },
+      };
+    });
+  }
+
+  unlinkExercise(sessionExerciseId: string, operationId: string) {
+    return this.apply(operationId, async (tx) => {
+      const exercise = await this.requireActiveExercise(tx, sessionExerciseId);
+      await tx.run('UPDATE session_exercise SET group_id = NULL WHERE id = ?', [exercise.id]);
+      if (exercise.group_id) {
+        const left = await tx.all<{ id: string }>(
+          'SELECT id FROM session_exercise WHERE session_id = ? AND group_id = ?',
+          [exercise.session_id, exercise.group_id],
+        );
+        if (left.length === 1) {
+          await tx.run('UPDATE session_exercise SET group_id = NULL WHERE id = ?', [left[0].id]);
+        }
+      }
+      return { sessionId: exercise.session_id, entityId: exercise.id, type: 'exercise_unlinked' };
+    });
+  }
+
   reportDiscomfort(sessionExerciseId: string, operationId: string) {
     return this.apply(operationId, async (tx) => {
       const exercise = await tx.first<ExerciseRow>('SELECT * FROM session_exercise WHERE id = ?', [
@@ -354,8 +456,9 @@ export class WorkoutEngine {
       const setId = this.createId();
       await tx.run(
         `INSERT INTO workout_set
-           (id, session_exercise_id, position, weight_kg, reps, rir, kind, note, completed_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (id, session_exercise_id, position, weight_kg, reps, rir, kind, note,
+            duration_sec, distance_m, completed_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           setId,
           sessionExerciseId,
@@ -365,6 +468,8 @@ export class WorkoutEngine {
           input.rir,
           input.kind ?? 'working',
           input.note ?? null,
+          input.durationSec ?? null,
+          input.distanceM ?? null,
           timestamp,
         ],
       );
@@ -376,15 +481,71 @@ export class WorkoutEngine {
     return this.apply(operationId, async (tx) => {
       validateSet(input);
       const { set, exercise } = await this.requireActiveSet(tx, setId);
-      await tx.run(
-        'UPDATE workout_set SET weight_kg = ?, reps = ?, rir = ?, kind = ?, note = ? WHERE id = ?',
-        [input.weightKg, input.reps, input.rir, input.kind ?? 'working', input.note ?? null, setId],
-      );
+      await this.writeSet(tx, setId, input);
       return {
         sessionId: exercise.session_id,
         entityId: setId,
         type: 'set_updated',
         payload: { before: toSet(set), after: input },
+      };
+    });
+  }
+
+  private async writeSet(tx: DatabaseExecutor, setId: string, input: SetInput) {
+    await tx.run(
+      `UPDATE workout_set
+       SET weight_kg = ?, reps = ?, rir = ?, kind = ?, note = ?, duration_sec = ?, distance_m = ?
+       WHERE id = ?`,
+      [
+        input.weightKg,
+        input.reps,
+        input.rir,
+        input.kind ?? 'working',
+        input.note ?? null,
+        input.durationSec ?? null,
+        input.distanceM ?? null,
+        setId,
+      ],
+    );
+  }
+
+  // Finished workouts stay correctable, and the event log keeps what they said before.
+  correctCompletedSet(setId: string, input: SetInput, operationId: string) {
+    return this.apply(operationId, async (tx) => {
+      validateSet(input);
+      const { set, session } = await this.requireCompletedSet(tx, setId);
+      await this.writeSet(tx, setId, input);
+      return {
+        sessionId: session.id,
+        entityId: setId,
+        type: 'completed_set_corrected',
+        payload: { before: toSet(set), after: input },
+      };
+    });
+  }
+
+  deleteCompletedSet(setId: string, operationId: string) {
+    return this.apply(operationId, async (tx) => {
+      const { set, session } = await this.requireCompletedSet(tx, setId);
+      const remaining = await tx.first<{ count: number }>(
+        `SELECT COUNT(*) AS count FROM workout_set
+         JOIN session_exercise ON session_exercise.id = workout_set.session_exercise_id
+         WHERE session_exercise.session_id = ?`,
+        [session.id],
+      );
+      if ((remaining?.count ?? 0) <= 1) {
+        throw new WorkoutError('last_set', 'A completed workout keeps at least one set');
+      }
+      await tx.run('DELETE FROM workout_set WHERE id = ?', [setId]);
+      await tx.run(
+        'UPDATE workout_set SET position = position - 1 WHERE session_exercise_id = ? AND position > ?',
+        [set.session_exercise_id, set.position],
+      );
+      return {
+        sessionId: session.id,
+        entityId: setId,
+        type: 'completed_set_deleted',
+        payload: { before: toSet(set) },
       };
     });
   }
@@ -422,11 +583,10 @@ export class WorkoutEngine {
     }
 
     await this.apply(this.createId(), async (tx) => {
-      await tx.run('UPDATE workout_session SET state = ?, paused_at = ? WHERE id = ?', [
-        nextState(interrupted.state, 'pause'),
-        interrupted.last_activity_at,
-        interrupted.id,
-      ]);
+      await tx.run(
+        'UPDATE workout_session SET state = ?, paused_at = ?, recovery_required = 1 WHERE id = ?',
+        [nextState(interrupted.state, 'pause'), interrupted.last_activity_at, interrupted.id],
+      );
       return { sessionId: interrupted.id, entityId: interrupted.id, type: 'session_recovered' };
     });
     return interrupted.id;
@@ -461,6 +621,7 @@ export class WorkoutEngine {
       pausedAt: row.paused_at,
       pausedMs: row.paused_ms,
       finishedAt: row.finished_at,
+      recoveryRequired: row.recovery_required === 1,
       exercises: exerciseRows.map((exercise) =>
         toExercise(
           exercise,
@@ -468,6 +629,17 @@ export class WorkoutEngine {
         ),
       ),
     };
+  }
+
+  async getCompletedSet(setId: string) {
+    const row = await this.database.first<SetRow & { exercise_id: string }>(
+      `SELECT workout_set.*, session_exercise.exercise_id FROM workout_set
+       JOIN session_exercise ON session_exercise.id = workout_set.session_exercise_id
+       JOIN workout_session ON workout_session.id = session_exercise.session_id
+       WHERE workout_set.id = ? AND workout_session.state = 'completed'`,
+      [setId],
+    );
+    return row ? { set: toSet(row), exerciseId: row.exercise_id } : null;
   }
 
   async getOpenSession() {
@@ -478,7 +650,13 @@ export class WorkoutEngine {
   }
 
   async getLastPerformance(exerciseId: string, excludingSessionId?: string) {
-    const last = await this.database.first<{ id: string }>(
+    const [latest] = await this.getRecentPerformances(exerciseId, 1, excludingSessionId);
+    return latest ?? [];
+  }
+
+  // Newest first, one list of sets per finished workout that included the exercise.
+  async getRecentPerformances(exerciseId: string, count: number, excludingSessionId?: string) {
+    const recent = await this.database.all<{ id: string }>(
       `SELECT session_exercise.id FROM session_exercise
        JOIN workout_session ON workout_session.id = session_exercise.session_id
        WHERE session_exercise.exercise_id = ?
@@ -488,16 +666,17 @@ export class WorkoutEngine {
            SELECT 1 FROM workout_set WHERE workout_set.session_exercise_id = session_exercise.id
          )
        ORDER BY workout_session.finished_at DESC, session_exercise.position DESC
-       LIMIT 1`,
-      [exerciseId, excludingSessionId ?? null],
+       LIMIT ?`,
+      [exerciseId, excludingSessionId ?? null, count],
     );
-    if (!last) {
-      return [];
-    }
-    const rows = await this.database.all<SetRow>(
-      'SELECT * FROM workout_set WHERE session_exercise_id = ? ORDER BY position',
-      [last.id],
+    return Promise.all(
+      recent.map(async ({ id }) => {
+        const rows = await this.database.all<SetRow>(
+          'SELECT * FROM workout_set WHERE session_exercise_id = ? ORDER BY position',
+          [id],
+        );
+        return rows.map(toSet);
+      }),
     );
-    return rows.map(toSet);
   }
 }

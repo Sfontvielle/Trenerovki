@@ -165,3 +165,73 @@ describe('data transfer', () => {
     expect(await database.all('SELECT version FROM schema_migrations')).toHaveLength(migrations.length);
   });
 });
+
+describe('timed sets migration', () => {
+  it('keeps recorded sets and plans, then allows sets without reps', async () => {
+    const database = createTestDatabase();
+    await migrate(database, migrations.filter(({ version }) => version <= 3));
+    await database.run(
+      `INSERT INTO workout_session (id, title, state, started_at, last_activity_at)
+       VALUES ('s', 'Т', 'completed', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')`,
+    );
+    await database.run(
+      "INSERT INTO session_exercise (id, session_id, position, exercise_id) VALUES ('e', 's', 1, 'bench-press')",
+    );
+    await database.run(
+      `INSERT INTO workout_set (id, session_exercise_id, position, weight_kg, reps, completed_at)
+       VALUES ('w', 'e', 1, 80, 8, '2026-01-01T00:00:00.000Z')`,
+    );
+    await database.run("INSERT INTO program_day (id, position, name) VALUES ('d', 1, 'День')");
+    await database.run(
+      `INSERT INTO program_exercise (id, program_day_id, position, exercise_id, target_sets, reps_min, reps_max)
+       VALUES ('p', 'd', 1, 'bench-press', 3, 8, 12)`,
+    );
+    const snapshots: number[] = [];
+
+    await migrate(database, migrations, {
+      beforePending: async (version) => {
+        snapshots.push(version);
+      },
+    });
+
+    expect(snapshots).toEqual([3]);
+    expect(await database.first('SELECT weight_kg, reps, duration_sec FROM workout_set')).toEqual({
+      weight_kg: 80,
+      reps: 8,
+      duration_sec: null,
+    });
+    expect(await database.all('SELECT reps_min, target_duration_sec FROM program_exercise')).toEqual([
+      { reps_min: 8, target_duration_sec: null },
+    ]);
+    await database.run(
+      `INSERT INTO workout_set (id, session_exercise_id, position, duration_sec, completed_at)
+       VALUES ('t', 'e', 2, 60, '2026-01-01T00:00:00.000Z')`,
+    );
+    await expect(
+      database.run(
+        `INSERT INTO workout_set (id, session_exercise_id, position, completed_at)
+         VALUES ('x', 'e', 3, '2026-01-01T00:00:00.000Z')`,
+      ),
+    ).rejects.toThrow();
+  });
+
+  it('does not call the hook when nothing is pending', async () => {
+    const database = createTestDatabase();
+    await migrate(database);
+    const beforePending = jest.fn();
+
+    await migrate(database, migrations, { beforePending });
+
+    expect(beforePending).not.toHaveBeenCalled();
+  });
+
+  it('exports what exists before the later tables are created', async () => {
+    const database = createTestDatabase();
+    await migrate(database, migrations.filter(({ version }) => version === 1));
+
+    const backup = JSON.parse(await exportAllData(database));
+
+    expect(Object.keys(backup.tables)).toContain('profile');
+    expect(Object.keys(backup.tables)).not.toContain('food');
+  });
+});

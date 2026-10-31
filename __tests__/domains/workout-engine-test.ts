@@ -3,7 +3,7 @@ const randomUUID = () => `id-${++nextId}`;
 
 import type { Database } from '@/domains/data-platform/database';
 import { migrate } from '@/domains/data-platform/migrations';
-import { suggestNextWeight } from '@/domains/workout/progression';
+import { suggestNextSet, suggestRestSeconds } from '@/domains/workout/progression';
 import { formatDuration, sessionDurationMs } from '@/domains/workout/session-time';
 import { type SessionCommand, type SessionState, nextState } from '@/domains/workout/state-machine';
 import { WorkoutError, type WorkoutSet } from '@/domains/workout/types';
@@ -378,7 +378,7 @@ describe('WorkoutEngine', () => {
   });
 });
 
-describe('suggestNextWeight', () => {
+describe('suggestNextSet', () => {
   const makeSet = (overrides: Partial<WorkoutSet>): WorkoutSet => ({
     id: 'set',
     position: 1,
@@ -387,58 +387,196 @@ describe('suggestNextWeight', () => {
     rir: 2,
     kind: 'working',
     note: null,
+    durationSec: null,
+    distanceM: null,
     completedAt: '2026-11-01T10:00:00.000Z',
     ...overrides,
   });
+  const target = { repsMin: 8, repsMax: 12, plannedSets: 2 };
 
-  it('suggests a step up when every planned set reached the top of the range', () => {
-    expect(suggestNextWeight([makeSet({}), makeSet({})], 12, 2)).toBe(82.5);
-    expect(suggestNextWeight([makeSet({ rir: 1 })], 12, 1)).toBe(82.5);
+  it('adds weight when every planned set reached the top of the range with reserve', () => {
+    expect(suggestNextSet([[makeSet({}), makeSet({})]], target)).toMatchObject({
+      kind: 'add_weight',
+      weightKg: 82.5,
+      reps: 8,
+    });
   });
 
   it('uses a smaller step for light weights', () => {
-    expect(suggestNextWeight([makeSet({ weightKg: 4 })], 12, 1)).toBe(5);
+    expect(suggestNextSet([[makeSet({ weightKg: 4 })]], { ...target, plannedSets: 1 })?.weightKg).toBe(5);
   });
 
   it('ignores warm-up sets', () => {
     const warmup = makeSet({ weightKg: 40, reps: 5, rir: null, kind: 'warmup' });
 
-    expect(suggestNextWeight([warmup, makeSet({}), makeSet({})], 12, 2)).toBe(82.5);
+    expect(suggestNextSet([[warmup, makeSet({}), makeSet({})]], target)?.kind).toBe('add_weight');
   });
 
-  it('stays quiet when a set fell short', () => {
-    expect(suggestNextWeight([makeSet({}), makeSet({ reps: 10 })], 12, 2)).toBeNull();
+  it('adds a rep inside the range before adding weight', () => {
+    expect(suggestNextSet([[makeSet({ reps: 10 }), makeSet({ reps: 9 })]], target)).toMatchObject({
+      kind: 'add_rep',
+      weightKg: 80,
+      reps: 10,
+    });
   });
 
-  it('stays quiet when fewer sets than planned were done', () => {
-    expect(suggestNextWeight([makeSet({})], 12, 3)).toBeNull();
+  it('holds the weight without reserve or when weights differ', () => {
+    expect(suggestNextSet([[makeSet({ rir: 0 }), makeSet({ rir: 0 })]], target)?.kind).toBe('hold');
+    expect(suggestNextSet([[makeSet({ rir: null }), makeSet({})]], target)?.kind).toBe('hold');
+    expect(suggestNextSet([[makeSet({}), makeSet({ weightKg: 75 })]], target)?.kind).toBe('hold');
   });
 
-  it('stays quiet when a set was at failure or the reserve is unknown', () => {
-    expect(suggestNextWeight([makeSet({ rir: 0 })], 12, 1)).toBeNull();
-    expect(suggestNextWeight([makeSet({ rir: null })], 12, 1)).toBeNull();
+  it('holds after one bad workout and reduces after two', () => {
+    const short = [makeSet({ reps: 6 }), makeSet({ reps: 5 })];
+
+    expect(suggestNextSet([short], target)?.kind).toBe('hold');
+    expect(suggestNextSet([short, short], target)).toMatchObject({ kind: 'reduce_weight', weightKg: 72, reps: 8 });
   });
 
-  it('stays quiet after sets with different weights', () => {
-    expect(suggestNextWeight([makeSet({}), makeSet({ weightKg: 75 })], 12, 2)).toBeNull();
+  it('stays quiet without a complete last workout or a plan', () => {
+    expect(suggestNextSet([[makeSet({})]], { ...target, plannedSets: 3 })).toBeNull();
+    expect(suggestNextSet([[makeSet({})]], { repsMin: null, repsMax: null, plannedSets: null })).toBeNull();
+    expect(suggestNextSet([], target)).toBeNull();
   });
 
-  it('stays quiet without a target or without history', () => {
-    expect(suggestNextWeight([makeSet({})], null, null)).toBeNull();
-    expect(suggestNextWeight([], 12, 3)).toBeNull();
-  });
-
-  it('stays quiet for bodyweight sets', () => {
-    expect(suggestNextWeight([makeSet({ weightKg: null })], 12, 1)).toBeNull();
+  it('adds reps to bodyweight work and time to timed work', () => {
+    expect(suggestNextSet([[makeSet({ weightKg: null })]], { ...target, plannedSets: 1 })).toMatchObject({
+      kind: 'add_rep',
+      reps: 13,
+    });
+    expect(
+      suggestNextSet([[makeSet({ weightKg: null, reps: null, durationSec: 40 })]], { ...target, plannedSets: 1 }),
+    ).toMatchObject({ kind: 'add_time', durationSec: 45 });
   });
 });
 
-describe('formatDuration', () => {
-  it.each([
-    [0, '0:00'],
-    [65_000, '1:05'],
-    [3_725_000, '1:02:05'],
-  ])('formats %d ms as %s', (durationMs, expected) => {
-    expect(formatDuration(durationMs)).toBe(expected);
+describe('suggestRestSeconds', () => {
+  it('rests longer after heavy compound work than after isolation or timed work', () => {
+    expect(suggestRestSeconds({ isolation: false, timed: false, heavy: true })).toBe(180);
+    expect(suggestRestSeconds({ isolation: false, timed: false, heavy: false })).toBe(120);
+    expect(suggestRestSeconds({ isolation: true, timed: false, heavy: false })).toBe(75);
+    expect(suggestRestSeconds({ isolation: false, timed: true, heavy: false })).toBe(45);
+  });
+});
+
+describe('timed sets, groups, recovery and corrections', () => {
+  async function startTwo(engine: WorkoutEngine) {
+    const sessionId = await engine.startSession({
+      operationId: randomUUID(),
+      title: 'Тест',
+      programDayId: null,
+      exercises: [
+        { exerciseId: 'bench-press', plannedSets: 3, repsMin: 8, repsMax: 12 },
+        { exerciseId: 'dumbbell-row', plannedSets: 3, repsMin: 8, repsMax: 12 },
+        { exerciseId: 'running', plannedSets: 1, repsMin: null, repsMax: null, targetDurationSec: 600 },
+      ],
+    });
+    const session = await engine.getSession(sessionId);
+    return { sessionId, exercises: session!.exercises };
+  }
+
+  it('records time and distance without reps', async () => {
+    const { engine } = await setup();
+    const { exercises } = await startTwo(engine);
+
+    await engine.logSet(
+      exercises[2].id,
+      { weightKg: null, reps: null, rir: null, durationSec: 600, distanceM: 1500 },
+      randomUUID(),
+    );
+
+    const session = await engine.getOpenSession();
+    expect(session?.exercises[2].sets[0]).toMatchObject({ reps: null, durationSec: 600, distanceM: 1500 });
+    expect(session?.exercises[2].targetDurationSec).toBe(600);
+  });
+
+  it('refuses a set with nothing measured', async () => {
+    const { engine } = await setup();
+    const { exercises } = await startTwo(engine);
+
+    await expectCode(
+      engine.logSet(exercises[0].id, { weightKg: 50, reps: null, rir: null }, randomUUID()),
+      'invalid_set',
+    );
+  });
+
+  it('links neighbours into one group and dissolves a group of one', async () => {
+    const { engine } = await setup();
+    const { exercises } = await startTwo(engine);
+
+    await engine.linkWithNext(exercises[0].id, randomUUID());
+    await engine.linkWithNext(exercises[1].id, randomUUID());
+    let session = await engine.getOpenSession();
+    const groupId = session?.exercises[0].groupId;
+    expect(groupId).toBeTruthy();
+    expect(session?.exercises.map((exercise) => exercise.groupId)).toEqual([groupId, groupId, groupId]);
+
+    await engine.unlinkExercise(exercises[2].id, randomUUID());
+    await engine.unlinkExercise(exercises[1].id, randomUUID());
+    session = await engine.getOpenSession();
+    expect(session?.exercises.map((exercise) => exercise.groupId)).toEqual([null, null, null]);
+  });
+
+  it('refuses to link the last exercise', async () => {
+    const { engine } = await setup();
+    const { exercises } = await startTwo(engine);
+
+    await expectCode(engine.linkWithNext(exercises[2].id, randomUUID()), 'no_next_exercise');
+  });
+
+  it('marks an interrupted session until the user decides', async () => {
+    const { engine } = await setup();
+    const { sessionId } = await startTwo(engine);
+
+    await engine.recoverInterruptedSession();
+    expect((await engine.getSession(sessionId))?.recoveryRequired).toBe(true);
+
+    await engine.resumeSession(sessionId, randomUUID());
+    expect((await engine.getSession(sessionId))?.recoveryRequired).toBe(false);
+  });
+
+  async function finished(engine: WorkoutEngine) {
+    const { sessionId, exercises } = await startTwo(engine);
+    await engine.logSet(exercises[0].id, { weightKg: 50, reps: 8, rir: 2 }, randomUUID());
+    await engine.logSet(exercises[0].id, { weightKg: 50, reps: 7, rir: 1 }, randomUUID());
+    await engine.completeSession(sessionId, randomUUID());
+    return (await engine.getSession(sessionId))!;
+  }
+
+  it('corrects a finished workout and keeps what it said before', async () => {
+    const { database, engine } = await setup();
+    const session = await finished(engine);
+    const [first] = session.exercises[0].sets;
+
+    await engine.correctCompletedSet(first.id, { weightKg: 55, reps: 8, rir: 2 }, randomUUID());
+
+    expect((await engine.getSession(session.id))?.exercises[0].sets[0].weightKg).toBe(55);
+    const event = await database.first<{ payload: string }>(
+      "SELECT payload FROM workout_event WHERE type = 'completed_set_corrected'",
+    );
+    expect(JSON.parse(event!.payload).before.weightKg).toBe(50);
+  });
+
+  it('deletes finished sets but keeps at least one', async () => {
+    const { engine } = await setup();
+    const session = await finished(engine);
+    const [first, second] = session.exercises[0].sets;
+
+    await engine.deleteCompletedSet(first.id, randomUUID());
+    expect((await engine.getSession(session.id))?.exercises[0].sets).toMatchObject([{ id: second.id, position: 1 }]);
+
+    await expectCode(engine.deleteCompletedSet(second.id, randomUUID()), 'last_set');
+  });
+
+  it('does not correct sets of a workout still in progress', async () => {
+    const { engine } = await setup();
+    const { exercises } = await startTwo(engine);
+    await engine.logSet(exercises[0].id, { weightKg: 50, reps: 8, rir: 2 }, randomUUID());
+    const session = await engine.getOpenSession();
+
+    await expectCode(
+      engine.correctCompletedSet(session!.exercises[0].sets[0].id, { weightKg: 55, reps: 8, rir: 2 }, randomUUID()),
+      'session_not_completed',
+    );
   });
 });

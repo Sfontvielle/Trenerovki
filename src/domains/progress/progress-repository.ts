@@ -29,7 +29,8 @@ export type ExerciseTrendPoint = {
   sessionId: string;
   finishedAt: string;
   topWeightKg: number | null;
-  bestReps: number;
+  bestReps: number | null;
+  longestSec: number | null;
 };
 
 export async function getSummary(database: Database, now: Date): Promise<ProgressSummary> {
@@ -99,7 +100,7 @@ export async function getExerciseRecords(database: Database): Promise<ExerciseRe
   const rows = await database.all<{
     exercise_id: string;
     weight_kg: number | null;
-    reps: number;
+    reps: number | null;
     finished_at: string;
   }>(
     `SELECT session_exercise.exercise_id, workout_set.weight_kg, workout_set.reps,
@@ -115,10 +116,11 @@ export async function getExerciseRecords(database: Database): Promise<ExerciseRe
     const current = records.get(row.exercise_id);
     const weight = row.weight_kg ?? 0;
     const currentWeight = current?.bestWeightKg ?? 0;
+    const reps = row.reps ?? 0;
     const stronger =
       !current ||
       weight > currentWeight ||
-      (weight === currentWeight && row.reps > current.repsAtBest);
+      (weight === currentWeight && reps > current.repsAtBest);
     const lastPerformedAt =
       current && current.lastPerformedAt > row.finished_at
         ? current.lastPerformedAt
@@ -127,7 +129,7 @@ export async function getExerciseRecords(database: Database): Promise<ExerciseRe
     records.set(row.exercise_id, {
       exerciseId: row.exercise_id,
       bestWeightKg: stronger ? row.weight_kg : current.bestWeightKg,
-      repsAtBest: stronger ? row.reps : current.repsAtBest,
+      repsAtBest: stronger ? reps : current.repsAtBest,
       lastPerformedAt,
     });
   }
@@ -146,11 +148,13 @@ export async function getExerciseTrend(
     session_id: string;
     finished_at: string;
     top_weight: number | null;
-    best_reps: number;
+    best_reps: number | null;
+    longest: number | null;
   }>(
     `SELECT workout_session.id AS session_id, workout_session.finished_at,
             MAX(workout_set.weight_kg) AS top_weight,
-            MAX(workout_set.reps) AS best_reps
+            MAX(workout_set.reps) AS best_reps,
+            MAX(workout_set.duration_sec) AS longest
      FROM workout_set
      JOIN session_exercise ON session_exercise.id = workout_set.session_exercise_id
      JOIN workout_session ON workout_session.id = session_exercise.session_id
@@ -168,5 +172,6 @@ export async function getExerciseTrend(
     finishedAt: row.finished_at,
     topWeightKg: row.top_weight,
     bestReps: row.best_reps,
+    longestSec: row.longest,
   }));
 }

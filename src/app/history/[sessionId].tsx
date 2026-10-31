@@ -1,6 +1,6 @@
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { useAppData } from '@/app-data/app-data';
 import { useScreenData } from '@/app-data/use-screen-data';
@@ -9,6 +9,7 @@ import { AppText, Button, Panel, Screen, useTheme } from '@/design-system';
 import { exerciseName } from '@/domains/exercises/catalog';
 import { formatDuration, sessionDurationMs } from '@/domains/workout/session-time';
 import { describeSet } from '@/features/workout/set-labels';
+import { useStartWorkout } from '@/features/workout/use-start-workout';
 import { formatDate, formatNumber } from '@/lib/format';
 import { returnToTabs } from '@/lib/navigation';
 
@@ -16,13 +17,17 @@ export default function SessionHistoryScreen() {
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
   const { engine } = useAppData();
   const { theme } = useTheme();
-  const load = useCallback(() => engine.getSession(sessionId), [engine, sessionId]);
+  const { repeat, starting, error } = useStartWorkout();
+  const load = useCallback(async () => {
+    const [session, open] = await Promise.all([engine.getSession(sessionId), engine.getOpenSession()]);
+    return { session, canRepeat: open === null };
+  }, [engine, sessionId]);
   const state = useScreenData(load);
 
   return (
     <Screen scroll belowHeader>
       <DataView state={state}>
-        {(session) => {
+        {({ session, canRepeat }) => {
           if (!session || session.state !== 'completed' || !session.finishedAt) {
             return (
               <Panel>
@@ -36,7 +41,7 @@ export default function SessionHistoryScreen() {
           const volume = performed
             .flatMap((exercise) => exercise.sets)
             .filter((set) => set.kind !== 'warmup')
-            .reduce((total, set) => total + (set.weightKg ?? 0) * set.reps, 0);
+            .reduce((total, set) => total + (set.weightKg ?? 0) * (set.reps ?? 0), 0);
 
           return (
             <>
@@ -54,13 +59,38 @@ export default function SessionHistoryScreen() {
                 <Panel key={exercise.id}>
                   <AppText variant="heading">{exerciseName(exercise.exerciseId)}</AppText>
                   {exercise.sets.map((set) => (
-                    <AppText key={set.id} variant="callout" tone="secondary">
-                      {`${set.position}. ${describeSet(set)}`}
-                    </AppText>
+                    <Pressable
+                      key={set.id}
+                      accessibilityHint="Открывает исправление подхода"
+                      accessibilityRole="button"
+                      onPress={() => router.push(`/history/set/${set.id}`)}
+                      style={{ minHeight: theme.sizes.minTouch, justifyContent: 'center' }}
+                    >
+                      <AppText variant="callout" tone="secondary">
+                        {`${set.position}. ${describeSet(set)}`}
+                      </AppText>
+                    </Pressable>
                   ))}
                 </Panel>
               ))}
 
+              <AppText variant="caption" tone="secondary">
+                Нажмите на подход, чтобы исправить ошибку в записи.
+              </AppText>
+
+              {error ? (
+                <AppText accessibilityLiveRegion="polite" tone="danger">
+                  {error}
+                </AppText>
+              ) : null}
+              {canRepeat ? (
+                <Button
+                  label="Повторить тренировку"
+                  variant="secondary"
+                  loading={starting}
+                  onPress={() => repeat(session)}
+                />
+              ) : null}
               <Button label="Готово" variant="secondary" onPress={returnToTabs} />
             </>
           );

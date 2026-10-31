@@ -35,7 +35,7 @@ const profile: Profile = {
   goal: 'muscle',
   experience: 'intermediate',
   daysPerWeek: 3,
-  sessionMinutes: 60,
+  sessionMinutes: 45,
   equipment: 'gym',
   limitations: [],
   trainingDays: [],
@@ -329,7 +329,7 @@ describe('workout', () => {
 
     await renderRouter('./src/app');
 
-    expect(await screen.findByText('Тренировка не завершена')).toBeTruthy();
+    expect(await screen.findByText('Тренировка была прервана')).toBeTruthy();
     const session = await database.first<{ state: string }>('SELECT state FROM workout_session');
     expect(session?.state).toBe('paused');
     expect(await database.all('SELECT id FROM workout_set')).toHaveLength(1);
@@ -668,7 +668,7 @@ describe('weight suggestion and safety', () => {
     expect(screen.getByText('Попробовать 82,5 кг?')).toBeTruthy();
     expect(screen.getByLabelText('Вес, кг').props.value).toBe('80');
 
-    await press('Подставить вес');
+    await press('Подставить значения');
 
     expect(screen.getByLabelText('Вес, кг').props.value).toBe('82,5');
     expect(await database.all('SELECT id FROM workout_set')).toHaveLength(1);
@@ -782,7 +782,7 @@ describe('recovery through the interface', () => {
     ]);
 
     await renderRouter('./src/app');
-    await screen.findByText('Тренировка не завершена');
+    await screen.findByText('Тренировка была прервана');
 
     await press('Продолжить тренировку');
     await screen.findByText('Продолжить');
@@ -1117,7 +1117,7 @@ describe('body weight and coach', () => {
   it('offers a way back to an open workout from other tabs', async () => {
     await seedOpenWorkout();
     await renderRouter('./src/app');
-    await screen.findByText('Тренировка не завершена');
+    await screen.findByText('Тренировка была прервана');
 
     await testRouter.navigate('/progress');
     await screen.findByRole('button', { name: 'Вернуться к тренировке' });
@@ -1335,6 +1335,113 @@ describe('nutrition diary', () => {
     expect(await screen.findByText(/Запись не сохранена.*закончилось место/)).toBeTruthy();
     expect(screen.getByLabelText('Название').props.value).toBe('Рис');
     transaction.mockRestore();
+  });
+});
+
+describe('workout depth', () => {
+  async function openSession(exercises: Parameters<WorkoutEngine['startSession']>[0]['exercises']) {
+    await seedProfile();
+    const engine = new WorkoutEngine({ database, createId, now: () => new Date() });
+    const sessionId = await engine.startSession({
+      operationId: createId(),
+      title: 'Тест',
+      programDayId: null,
+      exercises,
+    });
+    await engine.pauseSession(sessionId, createId());
+    await engine.resumeSession(sessionId, createId());
+    return { engine, sessionId, session: (await engine.getSession(sessionId))! };
+  }
+
+  async function resumeOnOverview() {
+    await renderRouter('./src/app', { initialUrl: '/workout' });
+    await screen.findByRole('button', { name: 'Продолжить' });
+    await press('Продолжить');
+    await screen.findByRole('button', { name: 'Пауза' });
+  }
+
+  it('links exercises into a superset and walks between them', async () => {
+    const { session } = await openSession([
+      { exerciseId: 'bench-press', plannedSets: 3, repsMin: 8, repsMax: 12 },
+      { exerciseId: 'dumbbell-row', plannedSets: 3, repsMin: 8, repsMax: 12 },
+    ]);
+    await resumeOnOverview();
+
+    await press(/^Объединить со следующим/);
+
+    expect(await screen.findAllByText('Суперсет')).toHaveLength(2);
+
+    await testRouter.push(`/workout/${session.exercises[0].id}`);
+
+    expect(await screen.findByText('Суперсет: 1 из 2')).toBeTruthy();
+    await press('Дальше: Тяга гантели в наклоне');
+    expect(await screen.findByText('Суперсет: 2 из 2')).toBeTruthy();
+  });
+
+  it('records a cardio session in minutes and kilometres', async () => {
+    const { session } = await openSession([
+      { exerciseId: 'walking', plannedSets: 1, repsMin: null, repsMax: null, targetDurationSec: 900 },
+    ]);
+    await resumeOnOverview();
+    await testRouter.push(`/workout/${session.exercises[0].id}`);
+    await screen.findByLabelText('Время, мин');
+
+    expect(screen.getByText('План: 1 × 15 мин')).toBeTruthy();
+    expect(screen.getByLabelText('Время, мин').props.value).toBe('15');
+    await type('Дистанция, км', '1,5');
+    await press('Записать подход');
+
+    expect(await screen.findByText('1. 15 мин, 1,5 км')).toBeTruthy();
+    expect(await database.all('SELECT reps, duration_sec, distance_m FROM workout_set')).toEqual([
+      { reps: null, duration_sec: 900, distance_m: 1500 },
+    ]);
+  });
+
+  async function finishedWorkout() {
+    const { engine, session, sessionId } = await openSession([
+      { exerciseId: 'bench-press', plannedSets: 2, repsMin: 8, repsMax: 12 },
+    ]);
+    await engine.logSet(session.exercises[0].id, { weightKg: 60, reps: 10, rir: 2 }, createId());
+    await engine.logSet(session.exercises[0].id, { weightKg: 60, reps: 9, rir: 1 }, createId());
+    await engine.completeSession(sessionId, createId());
+    return sessionId;
+  }
+
+  it('corrects a mistake in a finished workout', async () => {
+    const sessionId = await finishedWorkout();
+    await renderRouter('./src/app', { initialUrl: `/history/${sessionId}` });
+    await screen.findByText('1. 60 кг × 10, запас 2');
+
+    await press('1. 60 кг × 10, запас 2');
+    await screen.findByLabelText('Вес, кг');
+    await type('Вес, кг', '65');
+    await press('Сохранить исправление');
+
+    expect(await screen.findByText('1. 65 кг × 10, запас 2')).toBeTruthy();
+  });
+
+  it('repeats a past workout with its exercises', async () => {
+    const sessionId = await finishedWorkout();
+    await renderRouter('./src/app', { initialUrl: `/history/${sessionId}` });
+    await screen.findByText('1. 60 кг × 10, запас 2');
+
+    await press('Повторить тренировку');
+
+    expect(await screen.findByText('Жим штанги лёжа')).toBeTruthy();
+    const open = await database.first<{ state: string }>(
+      "SELECT state FROM workout_session WHERE state = 'active'",
+    );
+    expect(open?.state).toBe('active');
+  });
+
+  it('shows a rest recommendation for the exercise', async () => {
+    const { session } = await openSession([
+      { exerciseId: 'lateral-raise', plannedSets: 3, repsMin: 10, repsMax: 15 },
+    ]);
+    await resumeOnOverview();
+    await testRouter.push(`/workout/${session.exercises[0].id}`);
+
+    expect(await screen.findByText(/обычно хватает 1:15/)).toBeTruthy();
   });
 });
 

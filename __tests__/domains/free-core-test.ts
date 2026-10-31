@@ -2,7 +2,7 @@ import { deleteBodyWeight, listBodyWeight, saveBodyWeight } from '@/domains/body
 import type { Database } from '@/domains/data-platform/database';
 import { BackupError, exportAllData, inspectBackup, restoreAllData } from '@/domains/data-platform/data-transfer';
 import { migrate, migrations } from '@/domains/data-platform/migrations';
-import { exerciseName, registerCustomExerciseNames } from '@/domains/exercises/catalog';
+import { exerciseName, registerCustomExercises } from '@/domains/exercises/catalog';
 import { addCustomExercise, listCustomExercises } from '@/domains/exercises/custom-exercise-repository';
 import { buildInsights, getInsightData } from '@/domains/insights/local-insights';
 import { logFood } from '@/domains/nutrition/nutrition-repository';
@@ -172,8 +172,8 @@ describe('editing the plan', () => {
     const [day] = await getProgram(database);
     const [first] = day.exercises;
 
-    await replaceProgramExercise(database, first.id, 'leg-press', { min: 8, max: 12 });
-    await addProgramExercise(database, day.id, 'crunch', createId(), { min: 10, max: 15 });
+    await replaceProgramExercise(database, first.id, 'leg-press', { repsMin: 8, repsMax: 12, targetDurationSec: null });
+    await addProgramExercise(database, day.id, 'crunch', createId(), { repsMin: 10, repsMax: 15, targetDurationSec: null });
     await removeProgramExercise(database, first.id);
 
     const [edited] = await getProgram(database);
@@ -195,11 +195,17 @@ describe('custom exercises', () => {
   it('stores and names a custom exercise', async () => {
     const { database } = await setup();
 
-    await addCustomExercise(database, { id: 'custom-1', name: ' Жим в смите ', muscleGroup: 'chest' }, NOW);
+    await addCustomExercise(
+      database,
+      { id: 'custom-1', name: ' Жим в смите ', muscleGroup: 'chest', tracking: 'reps', equipment: [] },
+      NOW,
+    );
     const custom = await listCustomExercises(database);
-    registerCustomExerciseNames(custom);
+    registerCustomExercises(custom);
 
-    expect(custom).toEqual([{ id: 'custom-1', name: 'Жим в смите', muscleGroup: 'chest' }]);
+    expect(custom).toEqual([
+      { id: 'custom-1', name: 'Жим в смите', muscleGroup: 'chest', tracking: 'reps', equipment: [] },
+    ]);
     expect(exerciseName('custom-1')).toBe('Жим в смите');
   });
 });
@@ -284,7 +290,11 @@ describe('backup', () => {
       now: NOW,
     });
     await saveBodyWeight(context.database, '2026-11-04', 80, NOW);
-    await addCustomExercise(context.database, { id: 'custom-1', name: 'Своё', muscleGroup: 'chest' }, NOW);
+    await addCustomExercise(
+      context.database,
+      { id: 'custom-1', name: 'Своё', muscleGroup: 'chest', tracking: 'reps', equipment: [] },
+      NOW,
+    );
     return context;
   }
 
@@ -364,7 +374,7 @@ describe('backup', () => {
   it('restores a backup from an older schema version', async () => {
     const { database } = await seedData();
     const parsed = JSON.parse(await exportAllData(database));
-    parsed.schemaVersion = migrations.length - 1;
+    parsed.schemaVersion = 2;
     for (const row of parsed.tables.workout_set) {
       delete row.kind;
       delete row.note;

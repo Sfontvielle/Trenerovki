@@ -2,7 +2,8 @@ export type Sex = 'male' | 'female';
 export type Goal = 'muscle' | 'fat_loss' | 'recomposition' | 'strength' | 'maintenance';
 export type Experience = 'beginner' | 'intermediate' | 'advanced';
 export type Equipment = 'gym' | 'dumbbells' | 'bar' | 'bodyweight';
-export type Limitation = 'shoulders' | 'knees' | 'lower_back';
+export const limitations = ['shoulders', 'elbows', 'wrists', 'neck', 'lower_back', 'hips', 'knees', 'ankles'] as const;
+export type Limitation = (typeof limitations)[number];
 
 export const MIN_AGE = 18;
 export const MAX_AGE = 100;

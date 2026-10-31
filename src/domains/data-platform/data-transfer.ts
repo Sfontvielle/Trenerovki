@@ -34,9 +34,16 @@ export async function exportAllData(database: Database) {
   const schema = await database.first<{ version: number }>(
     'SELECT MAX(version) AS version FROM schema_migrations',
   );
+  // Runs before migrations too, when later tables do not exist yet.
+  const existing = await database.all<{ name: string }>(
+    "SELECT name FROM sqlite_master WHERE type = 'table'",
+  );
+  const names = new Set(existing.map(({ name }) => name));
   const tables: Record<string, unknown[]> = {};
   for (const table of exportedTables) {
-    tables[table] = await database.all(`SELECT * FROM ${table}`);
+    if (names.has(table)) {
+      tables[table] = await database.all(`SELECT * FROM ${table}`);
+    }
   }
   return JSON.stringify(
     { format: 'ironvant-export', version: 1, schemaVersion: schema?.version ?? 0, tables },

@@ -9,8 +9,8 @@ import { AppText, Button, Panel } from '@/design-system';
 import { exerciseName } from '@/domains/exercises/catalog';
 import { getProgram } from '@/domains/program/program-repository';
 import { OpenSessionBanner } from '@/features/workout/open-session-banner';
+import { describeTarget } from '@/features/workout/set-labels';
 import { useStartWorkout } from '@/features/workout/use-start-workout';
-import { formatRepRange } from '@/lib/format';
 
 export default function WorkoutsScreen() {
   const { database, engine } = useAppData();
@@ -40,7 +40,7 @@ export default function WorkoutsScreen() {
                 <AppText variant="heading">{day.name}</AppText>
                 {day.exercises.map((exercise) => (
                   <AppText key={exercise.id} variant="callout" tone="secondary">
-                    {`${exerciseName(exercise.exerciseId)}: ${exercise.targetSets} × ${formatRepRange(exercise.repsMin, exercise.repsMax)}`}
+                    {`${exerciseName(exercise.exerciseId)}: ${describeTarget({ sets: exercise.targetSets, repsMin: exercise.repsMin, repsMax: exercise.repsMax, durationSec: exercise.targetDurationSec })}`}
                   </AppText>
                 ))}
                 {openSession ? null : (

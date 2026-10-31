@@ -49,6 +49,11 @@ export const equipmentHints: Record<Equipment, string> = {
 
 export const limitationLabels: Record<Limitation, string> = {
   shoulders: 'Плечи',
-  knees: 'Колени',
+  elbows: 'Локти',
+  wrists: 'Запястья',
+  neck: 'Шея',
   lower_back: 'Поясница',
+  hips: 'Тазобедренные суставы',
+  knees: 'Колени',
+  ankles: 'Голеностопы',
 };

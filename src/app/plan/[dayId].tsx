@@ -7,10 +7,16 @@ import { useScreenData } from '@/app-data/use-screen-data';
 import { DataView } from '@/components/states';
 import { AppText, Button, Panel, Screen, useTheme } from '@/design-system';
 import { exerciseName } from '@/domains/exercises/catalog';
-import { getProgram, removeProgramExercise } from '@/domains/program/program-repository';
+import { createId } from '@/domains/data-platform/ids';
+import {
+  getProgram,
+  linkProgramExerciseWithNext,
+  removeProgramExercise,
+  unlinkProgramExercise,
+} from '@/domains/program/program-repository';
+import { describeTarget, groupLabel } from '@/features/workout/set-labels';
 import { confirm } from '@/lib/confirm';
 import { describeFailure } from '@/lib/describe-failure';
-import { formatRepRange } from '@/lib/format';
 
 export default function EditPlanDayScreen() {
   const { dayId } = useLocalSearchParams<{ dayId: string }>();
@@ -43,6 +49,17 @@ export default function EditPlanDayScreen() {
     }
   };
 
+  const changeLink = async (action: () => Promise<void>) => {
+    setError(null);
+    try {
+      await action();
+      state.reload();
+    } catch (cause) {
+      console.error(cause);
+      setError(`Связь не изменена. ${describeFailure(cause)}`);
+    }
+  };
+
   return (
     <Screen scroll belowHeader>
       <DataView state={state}>
@@ -52,14 +69,29 @@ export default function EditPlanDayScreen() {
               <AppText accessibilityRole="header" variant="title">
                 {day.name}
               </AppText>
-              {day.exercises.map((exercise) => {
+              {day.exercises.map((exercise, index) => {
                 const name = exerciseName(exercise.exerciseId);
+                const next = day.exercises[index + 1];
+                const linked = Boolean(exercise.groupId && next?.groupId === exercise.groupId);
+                const groupSize = day.exercises.filter(
+                  ({ groupId }) => groupId && groupId === exercise.groupId,
+                ).length;
                 return (
                   <Panel key={exercise.id}>
                     <AppText variant="heading">{name}</AppText>
                     <AppText variant="callout" tone="secondary">
-                      {`${exercise.targetSets} × ${formatRepRange(exercise.repsMin, exercise.repsMax)}`}
+                      {describeTarget({
+                        sets: exercise.targetSets,
+                        repsMin: exercise.repsMin,
+                        repsMax: exercise.repsMax,
+                        durationSec: exercise.targetDurationSec,
+                      })}
                     </AppText>
+                    {groupSize > 1 ? (
+                      <AppText variant="caption" tone="accent">
+                        {groupLabel(groupSize)}
+                      </AppText>
+                    ) : null}
                     <View style={{ flexDirection: 'row', gap: theme.spacing.s }}>
                       <View style={{ flex: 1 }}>
                         <Button
@@ -84,6 +116,20 @@ export default function EditPlanDayScreen() {
                         />
                       </View>
                     </View>
+                    {next ? (
+                      <Button
+                        accessibilityLabel={`${linked ? 'Разъединить' : 'Объединить со следующим'}: ${name}`}
+                        label={linked ? 'Разъединить' : 'Объединить со следующим'}
+                        variant="secondary"
+                        onPress={() =>
+                          changeLink(() =>
+                            linked
+                              ? unlinkProgramExercise(database, exercise.id)
+                              : linkProgramExerciseWithNext(database, exercise.id, createId),
+                          )
+                        }
+                      />
+                    ) : null}
                   </Panel>
                 );
               })}

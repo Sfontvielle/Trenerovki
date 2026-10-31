@@ -1,4 +1,4 @@
-import { type Exercise, type MovementPattern, exercises, findExercise } from '../exercises/catalog';
+import { type Exercise, type MovementPattern, exerciseTracking, exercises, findExercise } from '../exercises/catalog';
 import type { DaysPerWeek, Experience, Goal, Profile, SessionMinutes } from '../profile/profile';
 
 type PlanProfile = Pick<
@@ -9,8 +9,10 @@ type PlanProfile = Pick<
 export type PlannedDayExercise = {
   exerciseId: string;
   targetSets: number;
-  repsMin: number;
-  repsMax: number;
+  repsMin: number | null;
+  repsMax: number | null;
+  targetDurationSec?: number | null;
+  groupId?: string | null;
 };
 
 export type PlannedDay = {
@@ -122,8 +124,29 @@ function repRange(exercise: Exercise | null, goal: Goal, experience: Experience)
     : compoundRepRanges[goal];
 }
 
-export function repRangeFor(exerciseId: string, goal: Goal, experience: Experience) {
-  return repRange(findExercise(exerciseId), goal, experience);
+const HOLD_SECONDS = 30;
+const MOBILITY_SECONDS = 60;
+const CARDIO_SECONDS = 15 * 60;
+
+export function targetFor(exerciseId: string, goal: Goal, experience: Experience) {
+  const tracking = exerciseTracking(exerciseId);
+  if (tracking !== 'reps') {
+    const exercise = findExercise(exerciseId);
+    const seconds =
+      tracking === 'cardio' ? CARDIO_SECONDS : exercise?.category === 'mobility' ? MOBILITY_SECONDS : HOLD_SECONDS;
+    return { repsMin: null, repsMax: null, targetDurationSec: seconds };
+  }
+  const range = repRange(findExercise(exerciseId), goal, experience);
+  return { repsMin: range.min, repsMax: range.max, targetDurationSec: null };
+}
+
+const FINISHER_MIN_MINUTES = 45;
+const WARM_UP_MIN_MINUTES = 60;
+const cardioGoals: Goal[] = ['fat_loss', 'recomposition', 'maintenance'];
+
+function pickOne(pool: Exercise[], pattern: MovementPattern, dayIndex: number) {
+  const candidates = pool.filter((exercise) => exercise.pattern === pattern);
+  return candidates.length > 0 ? candidates[dayIndex % candidates.length] : null;
 }
 
 function pickExercises(patterns: MovementPattern[], pool: Exercise[], dayIndex: number) {
@@ -149,6 +172,8 @@ export function generatePlan(profile: PlanProfile): PlannedDay[] {
   const { daysPerWeek, equipment, experience, goal, limitations, sessionMinutes } = profile;
   const usable = exercises.filter(
     (exercise) =>
+      exercise.tracking === 'reps' &&
+      exercise.category === 'strength' &&
       exercise.equipment.includes(equipment) &&
       !exercise.loads.some((area) => limitations.includes(area)) &&
       (experience !== 'beginner' || !exercise.demanding),
@@ -175,16 +200,31 @@ export function generatePlan(profile: PlanProfile): PlannedDay[] {
       }))
     : fromTemplates;
 
-  return days.map(({ name, chosen }) => ({
-    name,
-    exercises: chosen.slice(0, limit).map((exercise) => {
-      const range = repRange(exercise, goal, experience);
-      return {
-        exerciseId: exercise.id,
-        targetSets: setsByExperience[experience],
-        repsMin: range.min,
-        repsMax: range.max,
-      };
-    }),
-  }));
+  const extras = exercises.filter(
+    (exercise) =>
+      exercise.equipment.includes(equipment) &&
+      !exercise.loads.some((area) => limitations.includes(area)) &&
+      !exercise.demanding,
+  );
+
+  return days.map(({ name, chosen }, dayIndex) => {
+    const warmUp = sessionMinutes >= WARM_UP_MIN_MINUTES ? pickOne(extras, 'mobility', dayIndex) : null;
+    const finisher =
+      sessionMinutes >= FINISHER_MIN_MINUTES && cardioGoals.includes(goal)
+        ? pickOne(extras, 'cardio', dayIndex)
+        : null;
+
+    return {
+      name,
+      exercises: [
+        ...(warmUp ? [{ exerciseId: warmUp.id, targetSets: 1, ...targetFor(warmUp.id, goal, experience) }] : []),
+        ...chosen.slice(0, limit).map((exercise) => ({
+          exerciseId: exercise.id,
+          targetSets: setsByExperience[experience],
+          ...targetFor(exercise.id, goal, experience),
+        })),
+        ...(finisher ? [{ exerciseId: finisher.id, targetSets: 1, ...targetFor(finisher.id, goal, experience) }] : []),
+      ],
+    };
+  });
 }

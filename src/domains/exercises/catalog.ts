@@ -11,9 +11,37 @@ export type MovementPattern =
   | 'biceps'
   | 'triceps'
   | 'calves'
-  | 'core';
+  | 'core'
+  | 'chest_fly'
+  | 'rear_delt'
+  | 'carry'
+  | 'conditioning'
+  | 'cardio'
+  | 'mobility';
 
-export type MuscleGroup = 'chest' | 'back' | 'shoulders' | 'arms' | 'legs' | 'core';
+export type MuscleGroup = 'chest' | 'back' | 'shoulders' | 'arms' | 'legs' | 'core' | 'full_body';
+
+export type Muscle =
+  | 'chest'
+  | 'front_delts'
+  | 'side_delts'
+  | 'rear_delts'
+  | 'traps'
+  | 'lats'
+  | 'upper_back'
+  | 'lower_back'
+  | 'biceps'
+  | 'triceps'
+  | 'forearms'
+  | 'abs'
+  | 'obliques'
+  | 'glutes'
+  | 'quads'
+  | 'hamstrings'
+  | 'calves';
+
+export type ExerciseCategory = 'strength' | 'functional' | 'cardio' | 'mobility';
+export type Tracking = 'reps' | 'duration' | 'cardio';
 
 export type Exercise = {
   id: string;
@@ -25,10 +53,26 @@ export type Exercise = {
   // Technically demanding lifts are left out of beginner plans.
   demanding: boolean;
   isolation: boolean;
+  category: ExerciseCategory;
+  tracking: Tracking;
+  primary: Muscle[];
+  secondary: Muscle[];
 };
+
+type Seed = Omit<Exercise, 'category' | 'tracking' | 'demanding' | 'isolation' | 'loads' | 'secondary'> &
+  Partial<Pick<Exercise, 'tracking' | 'demanding' | 'isolation' | 'loads' | 'secondary'>>;
 
 const anywhere: Equipment[] = ['gym', 'dumbbells', 'bar', 'bodyweight'];
 const withWeights: Equipment[] = ['gym', 'dumbbells'];
+
+function seed(category: ExerciseCategory, tracking: Tracking, exercise: Seed): Exercise {
+  return { demanding: false, isolation: false, loads: [], secondary: [], category, tracking, ...exercise };
+}
+
+const strength = (exercise: Seed) => seed('strength', 'reps', exercise);
+const functional = (exercise: Seed) => seed('functional', 'reps', exercise);
+const cardio = (exercise: Seed) => seed('cardio', 'cardio', exercise);
+const mobility = (exercise: Seed) => seed('mobility', 'duration', exercise);
 
 export const muscleGroupLabels: Record<MuscleGroup, string> = {
   chest: 'Грудь',
@@ -37,51 +81,134 @@ export const muscleGroupLabels: Record<MuscleGroup, string> = {
   arms: 'Руки',
   legs: 'Ноги',
   core: 'Мышцы корпуса',
+  full_body: 'Всё тело',
+};
+
+export const muscleLabels: Record<Muscle, string> = {
+  chest: 'Грудные',
+  front_delts: 'Передняя дельта',
+  side_delts: 'Средняя дельта',
+  rear_delts: 'Задняя дельта',
+  traps: 'Трапеции',
+  lats: 'Широчайшие',
+  upper_back: 'Верх спины',
+  lower_back: 'Разгибатели спины',
+  biceps: 'Бицепс',
+  triceps: 'Трицепс',
+  forearms: 'Предплечья',
+  abs: 'Пресс',
+  obliques: 'Косые мышцы живота',
+  glutes: 'Ягодичные',
+  quads: 'Передняя поверхность бедра',
+  hamstrings: 'Задняя поверхность бедра',
+  calves: 'Икроножные',
+};
+
+export const categoryLabels: Record<ExerciseCategory, string> = {
+  strength: 'Силовые',
+  functional: 'Функциональные',
+  cardio: 'Кардио',
+  mobility: 'Мобильность',
 };
 
 export const exercises: Exercise[] = [
-  { id: 'machine-chest-press', name: 'Жим от груди в тренажёре', pattern: 'horizontal_push', muscleGroup: 'chest', equipment: ['gym'], loads: ['shoulders'], demanding: false, isolation: false },
-  { id: 'bench-press', name: 'Жим штанги лёжа', pattern: 'horizontal_push', muscleGroup: 'chest', equipment: ['gym'], loads: ['shoulders'], demanding: true, isolation: false },
-  { id: 'incline-dumbbell-press', name: 'Жим гантелей на наклонной скамье', pattern: 'horizontal_push', muscleGroup: 'chest', equipment: ['gym'], loads: ['shoulders'], demanding: true, isolation: false },
-  { id: 'floor-dumbbell-press', name: 'Жим гантелей лёжа на полу', pattern: 'horizontal_push', muscleGroup: 'chest', equipment: ['dumbbells'], loads: ['shoulders'], demanding: false, isolation: false },
-  { id: 'push-up', name: 'Отжимания', pattern: 'horizontal_push', muscleGroup: 'chest', equipment: anywhere, loads: ['shoulders'], demanding: false, isolation: false },
-  { id: 'dumbbell-shoulder-press', name: 'Жим гантелей сидя', pattern: 'vertical_push', muscleGroup: 'shoulders', equipment: withWeights, loads: ['shoulders'], demanding: false, isolation: false },
-  { id: 'overhead-press', name: 'Жим штанги стоя', pattern: 'vertical_push', muscleGroup: 'shoulders', equipment: ['gym'], loads: ['shoulders', 'lower_back'], demanding: true, isolation: false },
-  { id: 'pike-push-up', name: 'Отжимания с поднятым тазом', pattern: 'vertical_push', muscleGroup: 'shoulders', equipment: ['bar', 'bodyweight'], loads: ['shoulders'], demanding: true, isolation: false },
-  { id: 'lateral-raise', name: 'Махи гантелями в стороны', pattern: 'vertical_push', muscleGroup: 'shoulders', equipment: withWeights, loads: ['shoulders'], demanding: false, isolation: true },
-  { id: 'chest-supported-row', name: 'Тяга в тренажёре с упором грудью', pattern: 'horizontal_pull', muscleGroup: 'back', equipment: ['gym'], loads: [], demanding: false, isolation: false },
-  { id: 'seated-cable-row', name: 'Тяга горизонтального блока', pattern: 'horizontal_pull', muscleGroup: 'back', equipment: ['gym'], loads: ['lower_back'], demanding: false, isolation: false },
-  { id: 'dumbbell-row', name: 'Тяга гантели в наклоне', pattern: 'horizontal_pull', muscleGroup: 'back', equipment: withWeights, loads: ['lower_back'], demanding: false, isolation: false },
-  { id: 'inverted-row', name: 'Австралийские подтягивания', pattern: 'horizontal_pull', muscleGroup: 'back', equipment: ['bar'], loads: [], demanding: false, isolation: false },
-  { id: 'superman', name: 'Супермен лёжа на полу', pattern: 'horizontal_pull', muscleGroup: 'back', equipment: ['bodyweight'], loads: ['lower_back'], demanding: false, isolation: true },
-  { id: 'lat-pulldown', name: 'Тяга верхнего блока', pattern: 'vertical_pull', muscleGroup: 'back', equipment: ['gym'], loads: ['shoulders'], demanding: false, isolation: false },
-  { id: 'pull-up', name: 'Подтягивания', pattern: 'vertical_pull', muscleGroup: 'back', equipment: ['gym', 'bar'], loads: ['shoulders'], demanding: true, isolation: false },
-  { id: 'leg-press', name: 'Жим ногами', pattern: 'squat', muscleGroup: 'legs', equipment: ['gym'], loads: ['knees', 'lower_back'], demanding: false, isolation: false },
-  { id: 'back-squat', name: 'Приседания со штангой', pattern: 'squat', muscleGroup: 'legs', equipment: ['gym'], loads: ['knees', 'lower_back'], demanding: true, isolation: false },
-  { id: 'goblet-squat', name: 'Приседания с гантелью', pattern: 'squat', muscleGroup: 'legs', equipment: withWeights, loads: ['knees'], demanding: false, isolation: false },
-  { id: 'bodyweight-squat', name: 'Приседания', pattern: 'squat', muscleGroup: 'legs', equipment: anywhere, loads: ['knees'], demanding: false, isolation: false },
-  { id: 'dumbbell-romanian-deadlift', name: 'Румынская тяга с гантелями', pattern: 'hinge', muscleGroup: 'legs', equipment: withWeights, loads: ['lower_back'], demanding: false, isolation: false },
-  { id: 'romanian-deadlift', name: 'Румынская тяга', pattern: 'hinge', muscleGroup: 'legs', equipment: ['gym'], loads: ['lower_back'], demanding: true, isolation: false },
-  { id: 'leg-curl', name: 'Сгибание ног в тренажёре', pattern: 'hinge', muscleGroup: 'legs', equipment: ['gym'], loads: ['knees'], demanding: false, isolation: true },
-  { id: 'glute-bridge', name: 'Ягодичный мост', pattern: 'hinge', muscleGroup: 'legs', equipment: anywhere, loads: [], demanding: false, isolation: true },
-  { id: 'walking-lunge', name: 'Выпады', pattern: 'lunge', muscleGroup: 'legs', equipment: anywhere, loads: ['knees'], demanding: false, isolation: false },
-  { id: 'leg-extension', name: 'Разгибание ног в тренажёре', pattern: 'lunge', muscleGroup: 'legs', equipment: ['gym'], loads: ['knees'], demanding: false, isolation: true },
-  { id: 'barbell-curl', name: 'Сгибания рук со штангой', pattern: 'biceps', muscleGroup: 'arms', equipment: ['gym'], loads: [], demanding: false, isolation: true },
-  { id: 'dumbbell-curl', name: 'Сгибания рук с гантелями', pattern: 'biceps', muscleGroup: 'arms', equipment: withWeights, loads: [], demanding: false, isolation: true },
-  { id: 'triceps-pushdown', name: 'Разгибания рук на блоке', pattern: 'triceps', muscleGroup: 'arms', equipment: ['gym'], loads: [], demanding: false, isolation: true },
-  { id: 'dumbbell-overhead-extension', name: 'Французский жим с гантелью', pattern: 'triceps', muscleGroup: 'arms', equipment: withWeights, loads: ['shoulders'], demanding: false, isolation: true },
-  { id: 'calf-raise', name: 'Подъёмы на носки', pattern: 'calves', muscleGroup: 'legs', equipment: anywhere, loads: [], demanding: false, isolation: true },
-  { id: 'crunch', name: 'Скручивания', pattern: 'core', muscleGroup: 'core', equipment: anywhere, loads: ['lower_back'], demanding: false, isolation: true },
-  { id: 'dead-bug', name: 'Мёртвый жук', pattern: 'core', muscleGroup: 'core', equipment: anywhere, loads: [], demanding: false, isolation: true },
+  strength({ id: 'machine-chest-press', name: 'Жим от груди в тренажёре', pattern: 'horizontal_push', muscleGroup: 'chest', equipment: ['gym'], loads: ['shoulders'], primary: ['chest'], secondary: ['front_delts', 'triceps'] }),
+  strength({ id: 'bench-press', name: 'Жим штанги лёжа', pattern: 'horizontal_push', muscleGroup: 'chest', equipment: ['gym'], loads: ['shoulders', 'elbows', 'wrists'], demanding: true, primary: ['chest'], secondary: ['front_delts', 'triceps'] }),
+  strength({ id: 'incline-dumbbell-press', name: 'Жим гантелей на наклонной скамье', pattern: 'horizontal_push', muscleGroup: 'chest', equipment: ['gym'], loads: ['shoulders'], demanding: true, primary: ['chest'], secondary: ['front_delts', 'triceps'] }),
+  strength({ id: 'floor-dumbbell-press', name: 'Жим гантелей лёжа на полу', pattern: 'horizontal_push', muscleGroup: 'chest', equipment: ['dumbbells'], loads: ['shoulders'], primary: ['chest'], secondary: ['triceps'] }),
+  strength({ id: 'push-up', name: 'Отжимания', pattern: 'horizontal_push', muscleGroup: 'chest', equipment: anywhere, loads: ['shoulders', 'wrists'], primary: ['chest'], secondary: ['front_delts', 'triceps', 'abs'] }),
+  strength({ id: 'dumbbell-shoulder-press', name: 'Жим гантелей сидя', pattern: 'vertical_push', muscleGroup: 'shoulders', equipment: withWeights, loads: ['shoulders'], primary: ['front_delts', 'side_delts'], secondary: ['triceps'] }),
+  strength({ id: 'overhead-press', name: 'Жим штанги стоя', pattern: 'vertical_push', muscleGroup: 'shoulders', equipment: ['gym'], loads: ['shoulders', 'lower_back'], demanding: true, primary: ['front_delts', 'side_delts'], secondary: ['triceps', 'traps', 'abs'] }),
+  strength({ id: 'pike-push-up', name: 'Отжимания с поднятым тазом', pattern: 'vertical_push', muscleGroup: 'shoulders', equipment: ['bar', 'bodyweight'], loads: ['shoulders', 'wrists'], demanding: true, primary: ['front_delts'], secondary: ['triceps', 'side_delts'] }),
+  strength({ id: 'lateral-raise', name: 'Махи гантелями в стороны', pattern: 'vertical_push', muscleGroup: 'shoulders', equipment: withWeights, loads: ['shoulders'], isolation: true, primary: ['side_delts'], secondary: ['traps'] }),
+  strength({ id: 'chest-supported-row', name: 'Тяга в тренажёре с упором грудью', pattern: 'horizontal_pull', muscleGroup: 'back', equipment: ['gym'], primary: ['upper_back', 'lats'], secondary: ['biceps', 'rear_delts'] }),
+  strength({ id: 'seated-cable-row', name: 'Тяга горизонтального блока', pattern: 'horizontal_pull', muscleGroup: 'back', equipment: ['gym'], loads: ['lower_back'], primary: ['upper_back', 'lats'], secondary: ['biceps', 'forearms'] }),
+  strength({ id: 'dumbbell-row', name: 'Тяга гантели в наклоне', pattern: 'horizontal_pull', muscleGroup: 'back', equipment: withWeights, loads: ['lower_back'], primary: ['lats', 'upper_back'], secondary: ['biceps', 'forearms'] }),
+  strength({ id: 'inverted-row', name: 'Австралийские подтягивания', pattern: 'horizontal_pull', muscleGroup: 'back', equipment: ['bar'], primary: ['upper_back', 'lats'], secondary: ['biceps', 'rear_delts'] }),
+  strength({ id: 'superman', name: 'Супермен лёжа на полу', pattern: 'horizontal_pull', muscleGroup: 'back', equipment: ['bodyweight'], loads: ['lower_back'], isolation: true, primary: ['lower_back'], secondary: ['glutes'] }),
+  strength({ id: 'lat-pulldown', name: 'Тяга верхнего блока', pattern: 'vertical_pull', muscleGroup: 'back', equipment: ['gym'], loads: ['shoulders'], primary: ['lats'], secondary: ['biceps', 'upper_back'] }),
+  strength({ id: 'pull-up', name: 'Подтягивания', pattern: 'vertical_pull', muscleGroup: 'back', equipment: ['gym', 'bar'], loads: ['shoulders', 'elbows'], demanding: true, primary: ['lats'], secondary: ['biceps', 'upper_back', 'forearms'] }),
+  strength({ id: 'leg-press', name: 'Жим ногами', pattern: 'squat', muscleGroup: 'legs', equipment: ['gym'], loads: ['knees', 'lower_back'], primary: ['quads', 'glutes'], secondary: ['hamstrings'] }),
+  strength({ id: 'back-squat', name: 'Приседания со штангой', pattern: 'squat', muscleGroup: 'legs', equipment: ['gym'], loads: ['knees', 'lower_back', 'hips'], demanding: true, primary: ['quads', 'glutes'], secondary: ['hamstrings', 'lower_back', 'abs'] }),
+  strength({ id: 'goblet-squat', name: 'Приседания с гантелью', pattern: 'squat', muscleGroup: 'legs', equipment: withWeights, loads: ['knees'], primary: ['quads', 'glutes'], secondary: ['abs'] }),
+  strength({ id: 'bodyweight-squat', name: 'Приседания', pattern: 'squat', muscleGroup: 'legs', equipment: anywhere, loads: ['knees'], primary: ['quads', 'glutes'], secondary: ['hamstrings'] }),
+  strength({ id: 'dumbbell-romanian-deadlift', name: 'Румынская тяга с гантелями', pattern: 'hinge', muscleGroup: 'legs', equipment: withWeights, loads: ['lower_back'], primary: ['hamstrings', 'glutes'], secondary: ['lower_back', 'forearms'] }),
+  strength({ id: 'romanian-deadlift', name: 'Румынская тяга', pattern: 'hinge', muscleGroup: 'legs', equipment: ['gym'], loads: ['lower_back'], demanding: true, primary: ['hamstrings', 'glutes'], secondary: ['lower_back', 'forearms'] }),
+  strength({ id: 'leg-curl', name: 'Сгибание ног в тренажёре', pattern: 'hinge', muscleGroup: 'legs', equipment: ['gym'], loads: ['knees'], isolation: true, primary: ['hamstrings'], secondary: ['calves'] }),
+  strength({ id: 'glute-bridge', name: 'Ягодичный мост', pattern: 'hinge', muscleGroup: 'legs', equipment: anywhere, isolation: true, primary: ['glutes'], secondary: ['hamstrings'] }),
+  strength({ id: 'walking-lunge', name: 'Выпады', pattern: 'lunge', muscleGroup: 'legs', equipment: anywhere, loads: ['knees'], primary: ['quads', 'glutes'], secondary: ['hamstrings'] }),
+  strength({ id: 'leg-extension', name: 'Разгибание ног в тренажёре', pattern: 'lunge', muscleGroup: 'legs', equipment: ['gym'], loads: ['knees'], isolation: true, primary: ['quads'] }),
+  strength({ id: 'barbell-curl', name: 'Сгибания рук со штангой', pattern: 'biceps', muscleGroup: 'arms', equipment: ['gym'], loads: ['elbows', 'wrists'], isolation: true, primary: ['biceps'], secondary: ['forearms'] }),
+  strength({ id: 'dumbbell-curl', name: 'Сгибания рук с гантелями', pattern: 'biceps', muscleGroup: 'arms', equipment: withWeights, loads: ['elbows'], isolation: true, primary: ['biceps'], secondary: ['forearms'] }),
+  strength({ id: 'triceps-pushdown', name: 'Разгибания рук на блоке', pattern: 'triceps', muscleGroup: 'arms', equipment: ['gym'], loads: ['elbows'], isolation: true, primary: ['triceps'] }),
+  strength({ id: 'dumbbell-overhead-extension', name: 'Французский жим с гантелью', pattern: 'triceps', muscleGroup: 'arms', equipment: withWeights, loads: ['shoulders', 'elbows'], isolation: true, primary: ['triceps'] }),
+  strength({ id: 'calf-raise', name: 'Подъёмы на носки', pattern: 'calves', muscleGroup: 'legs', equipment: anywhere, loads: ['ankles'], isolation: true, primary: ['calves'] }),
+  strength({ id: 'crunch', name: 'Скручивания', pattern: 'core', muscleGroup: 'core', equipment: anywhere, loads: ['lower_back', 'neck'], isolation: true, primary: ['abs'], secondary: ['obliques'] }),
+  strength({ id: 'dead-bug', name: 'Мёртвый жук', pattern: 'core', muscleGroup: 'core', equipment: anywhere, isolation: true, primary: ['abs'], secondary: ['obliques'] }),
+
+  strength({ id: 'incline-push-up', name: 'Отжимания с опорой на возвышение', pattern: 'horizontal_push', muscleGroup: 'chest', equipment: anywhere, loads: ['shoulders', 'wrists'], primary: ['chest'], secondary: ['front_delts', 'triceps'] }),
+  strength({ id: 'dip', name: 'Отжимания на брусьях', pattern: 'horizontal_push', muscleGroup: 'chest', equipment: ['gym', 'bar'], loads: ['shoulders', 'elbows'], demanding: true, primary: ['chest', 'triceps'], secondary: ['front_delts'] }),
+  strength({ id: 'cable-fly', name: 'Сведение рук на блоке', pattern: 'chest_fly', muscleGroup: 'chest', equipment: ['gym'], loads: ['shoulders'], isolation: true, primary: ['chest'], secondary: ['front_delts'] }),
+  strength({ id: 'reverse-fly', name: 'Разведения гантелей в наклоне', pattern: 'rear_delt', muscleGroup: 'shoulders', equipment: withWeights, loads: ['lower_back'], isolation: true, primary: ['rear_delts'], secondary: ['upper_back'] }),
+  strength({ id: 'face-pull', name: 'Тяга каната к лицу', pattern: 'rear_delt', muscleGroup: 'shoulders', equipment: ['gym'], isolation: true, primary: ['rear_delts'], secondary: ['traps', 'upper_back'] }),
+  strength({ id: 'assisted-pull-up', name: 'Подтягивания в гравитроне', pattern: 'vertical_pull', muscleGroup: 'back', equipment: ['gym'], loads: ['shoulders', 'elbows'], primary: ['lats'], secondary: ['biceps', 'upper_back'] }),
+  strength({ id: 'deadlift', name: 'Становая тяга', pattern: 'hinge', muscleGroup: 'legs', equipment: ['gym'], loads: ['lower_back', 'hips'], demanding: true, primary: ['glutes', 'hamstrings', 'lower_back'], secondary: ['traps', 'forearms', 'quads'] }),
+  strength({ id: 'hip-thrust', name: 'Ягодичный мост со штангой', pattern: 'hinge', muscleGroup: 'legs', equipment: ['gym'], loads: ['hips'], demanding: true, primary: ['glutes'], secondary: ['hamstrings'] }),
+  strength({ id: 'split-squat', name: 'Сплит-приседания', pattern: 'lunge', muscleGroup: 'legs', equipment: anywhere, loads: ['knees'], primary: ['quads', 'glutes'], secondary: ['hamstrings'] }),
+  strength({ id: 'step-up', name: 'Зашагивания на опору', pattern: 'lunge', muscleGroup: 'legs', equipment: anywhere, loads: ['knees', 'ankles'], primary: ['quads', 'glutes'], secondary: ['calves'] }),
+  strength({ id: 'hammer-curl', name: 'Молотковые сгибания', pattern: 'biceps', muscleGroup: 'arms', equipment: withWeights, loads: ['elbows'], isolation: true, primary: ['biceps', 'forearms'] }),
+  strength({ id: 'close-push-up', name: 'Отжимания узким упором', pattern: 'triceps', muscleGroup: 'arms', equipment: anywhere, loads: ['elbows', 'wrists', 'shoulders'], primary: ['triceps'], secondary: ['chest', 'front_delts'] }),
+  strength({ id: 'plank', name: 'Планка', pattern: 'core', muscleGroup: 'core', equipment: anywhere, tracking: 'duration', loads: ['shoulders', 'lower_back'], isolation: true, primary: ['abs'], secondary: ['obliques', 'front_delts'] }),
+  strength({ id: 'side-plank', name: 'Боковая планка', pattern: 'core', muscleGroup: 'core', equipment: anywhere, tracking: 'duration', loads: ['shoulders'], isolation: true, primary: ['obliques'], secondary: ['abs', 'side_delts'] }),
+  strength({ id: 'bird-dog', name: 'Птица-собака', pattern: 'core', muscleGroup: 'core', equipment: anywhere, isolation: true, primary: ['lower_back', 'abs'], secondary: ['glutes'] }),
+  strength({ id: 'hanging-knee-raise', name: 'Подъём коленей в висе', pattern: 'core', muscleGroup: 'core', equipment: ['gym', 'bar'], loads: ['shoulders'], demanding: true, isolation: true, primary: ['abs'], secondary: ['forearms'] }),
+
+  functional({ id: 'farmer-walk', name: 'Прогулка фермера', pattern: 'carry', muscleGroup: 'full_body', equipment: withWeights, tracking: 'duration', primary: ['forearms', 'traps'], secondary: ['abs', 'glutes'] }),
+  functional({ id: 'kettlebell-swing', name: 'Махи гирей', pattern: 'conditioning', muscleGroup: 'full_body', equipment: withWeights, loads: ['lower_back'], demanding: true, primary: ['glutes', 'hamstrings'], secondary: ['lower_back', 'abs', 'forearms'] }),
+  functional({ id: 'dumbbell-thruster', name: 'Трастеры с гантелями', pattern: 'conditioning', muscleGroup: 'full_body', equipment: withWeights, loads: ['shoulders', 'knees'], demanding: true, primary: ['quads', 'front_delts'], secondary: ['glutes', 'triceps'] }),
+  functional({ id: 'burpee', name: 'Бёрпи', pattern: 'conditioning', muscleGroup: 'full_body', equipment: anywhere, loads: ['shoulders', 'knees', 'lower_back', 'wrists'], demanding: true, primary: ['chest', 'quads'], secondary: ['abs', 'front_delts', 'calves'] }),
+  functional({ id: 'jump-squat', name: 'Прыжки из приседа', pattern: 'conditioning', muscleGroup: 'legs', equipment: anywhere, loads: ['knees', 'ankles', 'hips'], demanding: true, primary: ['quads', 'glutes'], secondary: ['calves'] }),
+  functional({ id: 'mountain-climber', name: 'Скалолаз', pattern: 'conditioning', muscleGroup: 'full_body', equipment: anywhere, tracking: 'duration', loads: ['shoulders', 'wrists'], primary: ['abs'], secondary: ['front_delts', 'quads'] }),
+  functional({ id: 'bear-crawl', name: 'Медвежья походка', pattern: 'conditioning', muscleGroup: 'full_body', equipment: anywhere, tracking: 'duration', loads: ['shoulders', 'wrists'], primary: ['abs', 'front_delts'], secondary: ['quads'] }),
+
+  cardio({ id: 'walking', name: 'Ходьба', pattern: 'cardio', muscleGroup: 'full_body', equipment: anywhere, primary: ['calves', 'glutes'], secondary: ['quads'] }),
+  cardio({ id: 'running', name: 'Бег', pattern: 'cardio', muscleGroup: 'full_body', equipment: anywhere, loads: ['knees', 'ankles', 'hips'], primary: ['quads', 'calves'], secondary: ['glutes', 'hamstrings'] }),
+  cardio({ id: 'treadmill', name: 'Беговая дорожка', pattern: 'cardio', muscleGroup: 'full_body', equipment: ['gym'], loads: ['knees', 'ankles'], primary: ['quads', 'calves'], secondary: ['glutes'] }),
+  cardio({ id: 'cycling', name: 'Велосипед', pattern: 'cardio', muscleGroup: 'legs', equipment: anywhere, loads: ['knees'], primary: ['quads'], secondary: ['glutes', 'calves'] }),
+  cardio({ id: 'stationary-bike', name: 'Велотренажёр', pattern: 'cardio', muscleGroup: 'legs', equipment: ['gym'], loads: ['knees'], primary: ['quads'], secondary: ['glutes', 'calves'] }),
+  cardio({ id: 'elliptical', name: 'Эллиптический тренажёр', pattern: 'cardio', muscleGroup: 'full_body', equipment: ['gym'], primary: ['quads', 'glutes'], secondary: ['calves'] }),
+  cardio({ id: 'rowing-machine', name: 'Гребной тренажёр', pattern: 'cardio', muscleGroup: 'full_body', equipment: ['gym'], loads: ['lower_back'], primary: ['upper_back', 'quads'], secondary: ['biceps', 'glutes'] }),
+  cardio({ id: 'stair-climber', name: 'Лестница', pattern: 'cardio', muscleGroup: 'legs', equipment: anywhere, loads: ['knees', 'ankles'], primary: ['glutes', 'quads'], secondary: ['calves'] }),
+  cardio({ id: 'jump-rope', name: 'Скакалка', pattern: 'cardio', muscleGroup: 'full_body', equipment: anywhere, loads: ['knees', 'ankles'], demanding: true, primary: ['calves'], secondary: ['quads', 'forearms'] }),
+  cardio({ id: 'swimming', name: 'Плавание', pattern: 'cardio', muscleGroup: 'full_body', equipment: anywhere, loads: ['shoulders'], primary: ['lats', 'front_delts'], secondary: ['abs', 'quads'] }),
+
+  mobility({ id: 'cat-cow', name: 'Кошка-корова', pattern: 'mobility', muscleGroup: 'back', equipment: anywhere, primary: ['lower_back'], secondary: ['abs'] }),
+  mobility({ id: 'childs-pose', name: 'Поза ребёнка', pattern: 'mobility', muscleGroup: 'back', equipment: anywhere, loads: ['knees'], primary: ['lats', 'lower_back'] }),
+  mobility({ id: 'thoracic-rotation', name: 'Вращения грудного отдела', pattern: 'mobility', muscleGroup: 'back', equipment: anywhere, primary: ['upper_back'], secondary: ['obliques'] }),
+  mobility({ id: 'hip-flexor-stretch', name: 'Растяжка сгибателей бедра', pattern: 'mobility', muscleGroup: 'legs', equipment: anywhere, loads: ['knees'], primary: ['quads'], secondary: ['glutes'] }),
+  mobility({ id: 'hamstring-stretch', name: 'Растяжка задней поверхности бедра', pattern: 'mobility', muscleGroup: 'legs', equipment: anywhere, primary: ['hamstrings'] }),
+  mobility({ id: 'figure-four-stretch', name: 'Растяжка ягодичных лёжа', pattern: 'mobility', muscleGroup: 'legs', equipment: anywhere, primary: ['glutes'] }),
+  mobility({ id: 'chest-doorway-stretch', name: 'Растяжка груди в дверном проёме', pattern: 'mobility', muscleGroup: 'chest', equipment: anywhere, loads: ['shoulders'], primary: ['chest'], secondary: ['front_delts'] }),
+  mobility({ id: 'wall-slide', name: 'Скольжение руками по стене', pattern: 'mobility', muscleGroup: 'shoulders', equipment: anywhere, primary: ['traps', 'rear_delts'] }),
+  mobility({ id: 'ankle-rock', name: 'Покачивания на голеностопе', pattern: 'mobility', muscleGroup: 'legs', equipment: anywhere, primary: ['calves'] }),
+  mobility({ id: 'lunge-rotation', name: 'Выпад с поворотом корпуса', pattern: 'mobility', muscleGroup: 'full_body', equipment: anywhere, loads: ['knees'], primary: ['glutes', 'quads'], secondary: ['upper_back', 'obliques'] }),
 ];
 
-const exercisesById = new Map(exercises.map((exercise) => [exercise.id, exercise]));
-const customNames = new Map<string, string>();
+export type CustomExerciseInfo = {
+  id: string;
+  name: string;
+  muscleGroup: MuscleGroup;
+  tracking: Tracking;
+  equipment: Equipment[];
+};
 
-export function registerCustomExerciseNames(entries: { id: string; name: string }[]) {
-  customNames.clear();
-  for (const { id, name } of entries) {
-    customNames.set(id, name);
+const exercisesById = new Map(exercises.map((exercise) => [exercise.id, exercise]));
+const customExercises = new Map<string, CustomExerciseInfo>();
+
+export function registerCustomExercises(entries: CustomExerciseInfo[]) {
+  customExercises.clear();
+  for (const entry of entries) {
+    customExercises.set(entry.id, entry);
   }
 }
 
@@ -90,5 +217,42 @@ export function findExercise(exerciseId: string) {
 }
 
 export function exerciseName(exerciseId: string) {
-  return findExercise(exerciseId)?.name ?? customNames.get(exerciseId) ?? 'Неизвестное упражнение';
+  return findExercise(exerciseId)?.name ?? customExercises.get(exerciseId)?.name ?? 'Неизвестное упражнение';
+}
+
+export function exerciseTracking(exerciseId: string): Tracking {
+  return findExercise(exerciseId)?.tracking ?? customExercises.get(exerciseId)?.tracking ?? 'reps';
+}
+
+type AlternativeFilter = {
+  equipment: Equipment;
+  limitations: Limitation[];
+  excluded?: string[];
+  count?: number;
+};
+
+// Same movement first, then anything that trains the same main muscles.
+export function findAlternatives(
+  exerciseId: string,
+  { equipment, limitations, excluded = [], count = 5 }: AlternativeFilter,
+) {
+  const source = findExercise(exerciseId);
+  if (!source) {
+    return [];
+  }
+  const allowed = exercises.filter(
+    (exercise) =>
+      exercise.id !== exerciseId &&
+      !excluded.includes(exercise.id) &&
+      exercise.equipment.includes(equipment) &&
+      !exercise.loads.some((area) => limitations.includes(area)),
+  );
+  const samePattern = allowed.filter((exercise) => exercise.pattern === source.pattern);
+  const sameMuscle = allowed.filter(
+    (exercise) =>
+      exercise.pattern !== source.pattern &&
+      exercise.category === source.category &&
+      exercise.primary.some((muscle) => source.primary.includes(muscle)),
+  );
+  return [...samePattern, ...sameMuscle].slice(0, count);
 }

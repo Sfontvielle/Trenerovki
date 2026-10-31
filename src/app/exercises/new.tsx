@@ -4,17 +4,23 @@ import { useState } from 'react';
 import { useAppData } from '@/app-data/app-data';
 import { ChoiceGroup } from '@/components/choice-group';
 import { AppText, Button, Screen, TextField } from '@/design-system';
-import { type MuscleGroup, muscleGroupLabels } from '@/domains/exercises/catalog';
+import { type MuscleGroup, type Tracking, muscleGroupLabels } from '@/domains/exercises/catalog';
 import { addCustomExercise } from '@/domains/exercises/custom-exercise-repository';
 import { createId } from '@/domains/data-platform/ids';
 import { describeFailure } from '@/lib/describe-failure';
 
 const muscleGroups = Object.keys(muscleGroupLabels) as MuscleGroup[];
+const trackingChoices: { value: Tracking; label: string }[] = [
+  { value: 'reps', label: 'Повторы' },
+  { value: 'duration', label: 'Время' },
+  { value: 'cardio', label: 'Кардио' },
+];
 
 export default function NewExerciseScreen() {
   const { database, reloadAll } = useAppData();
   const [name, setName] = useState('');
   const [muscleGroup, setMuscleGroup] = useState<MuscleGroup | null>(null);
+  const [tracking, setTracking] = useState<Tracking>('reps');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,7 +32,7 @@ export default function NewExerciseScreen() {
     setSaving(true);
     setError(null);
     try {
-      await addCustomExercise(database, { id: createId(), name, muscleGroup }, new Date());
+      await addCustomExercise(database, { id: createId(), name, muscleGroup, tracking, equipment: [] }, new Date());
       await reloadAll();
       router.back();
     } catch (cause) {
@@ -44,6 +50,12 @@ export default function NewExerciseScreen() {
         isSelected={(value) => muscleGroup === value}
         label="Группа мышц"
         onSelect={setMuscleGroup}
+      />
+      <ChoiceGroup
+        choices={trackingChoices}
+        isSelected={(value) => tracking === value}
+        label="Что записывать"
+        onSelect={setTracking}
       />
       {error ? (
         <AppText accessibilityLiveRegion="polite" tone="danger">

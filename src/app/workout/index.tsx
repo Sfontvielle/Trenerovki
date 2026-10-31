@@ -10,9 +10,10 @@ import { createId } from '@/domains/data-platform/ids';
 import { exerciseName } from '@/domains/exercises/catalog';
 import { formatDuration, sessionDurationMs } from '@/domains/workout/session-time';
 import type { SessionExercise, WorkoutSession } from '@/domains/workout/types';
+import { describeTarget, groupLabel } from '@/features/workout/set-labels';
 import { confirm } from '@/lib/confirm';
 import { describeFailure } from '@/lib/describe-failure';
-import { formatRepRange, pluralize } from '@/lib/format';
+import { pluralize } from '@/lib/format';
 import { returnToTabs } from '@/lib/navigation';
 
 function useNow(running: boolean) {
@@ -36,9 +37,14 @@ function useNow(running: boolean) {
 
 function describeProgress(exercise: SessionExercise) {
   const done = exercise.sets.length;
-  const reps = formatRepRange(exercise.repsMin, exercise.repsMax);
+  const target = describeTarget({
+    sets: null,
+    repsMin: exercise.repsMin,
+    repsMax: exercise.repsMax,
+    durationSec: exercise.targetDurationSec,
+  });
   const planned = exercise.plannedSets === null ? `${done}` : `${done} из ${exercise.plannedSets}`;
-  return reps ? `Подходы: ${planned}, цель ${reps}` : `Подходы: ${planned}`;
+  return target ? `Подходы: ${planned}, цель ${target}` : `Подходы: ${planned}`;
 }
 
 type SessionOverviewProps = {
@@ -121,24 +127,70 @@ function SessionOverview({ session, onChanged }: SessionOverviewProps) {
         </AppText>
       </View>
 
+      {session.recoveryRequired ? (
+        <Panel>
+          <AppText variant="heading">Тренировка была прервана</AppText>
+          <AppText tone="secondary">
+            Все записанные подходы сохранены. Время после последнего действия не считается. Проверьте их и
+            выберите: продолжить, завершить или отменить тренировку.
+          </AppText>
+        </Panel>
+      ) : null}
+
       {session.exercises.length === 0 ? (
         <AppText tone="secondary">Добавьте первое упражнение, чтобы начать записывать подходы.</AppText>
       ) : null}
 
-      {session.exercises.map((exercise) => (
-        <Pressable
-          key={exercise.id}
-          accessibilityRole="button"
-          onPress={() => router.push(`/workout/${exercise.id}`)}
-        >
-          <Panel>
-            <AppText variant="heading">{exerciseName(exercise.exerciseId)}</AppText>
-            <AppText variant="callout" tone="secondary">
-              {describeProgress(exercise)}
-            </AppText>
-          </Panel>
-        </Pressable>
-      ))}
+      {session.exercises.map((exercise, index) => {
+        const name = exerciseName(exercise.exerciseId);
+        const next = session.exercises[index + 1];
+        const groupSize = session.exercises.filter(({ groupId }) => groupId && groupId === exercise.groupId).length;
+        const linkedToNext = Boolean(next && exercise.groupId && next.groupId === exercise.groupId);
+        return (
+          <View key={exercise.id} style={{ gap: theme.spacing.s }}>
+            <Pressable accessibilityRole="button" onPress={() => router.push(`/workout/${exercise.id}`)}>
+              <Panel>
+                <AppText variant="heading">{name}</AppText>
+                <AppText variant="callout" tone="secondary">
+                  {describeProgress(exercise)}
+                </AppText>
+                {groupSize > 1 ? (
+                  <AppText variant="caption" tone="accent">
+                    {groupLabel(groupSize)}
+                  </AppText>
+                ) : null}
+              </Panel>
+            </Pressable>
+            {paused ? null : linkedToNext ? (
+              <Button
+                accessibilityLabel={`Разъединить: ${name}`}
+                label="Разъединить"
+                variant="secondary"
+                disabled={busy}
+                onPress={() =>
+                  run(async () => {
+                    await engine.unlinkExercise(exercise.id, createId());
+                    onChanged();
+                  })
+                }
+              />
+            ) : next ? (
+              <Button
+                accessibilityLabel={`Объединить со следующим: ${name}`}
+                label="Объединить со следующим"
+                variant="secondary"
+                disabled={busy}
+                onPress={() =>
+                  run(async () => {
+                    await engine.linkWithNext(exercise.id, createId());
+                    onChanged();
+                  })
+                }
+              />
+            ) : null}
+          </View>
+        );
+      })}
 
       <Button
         label="Добавить упражнение"

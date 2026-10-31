@@ -48,8 +48,9 @@ import {
   type SymbolName,
   WeekdayPicker,
 } from '@/features/profile/questionnaire-parts';
+import { describeTarget } from '@/features/workout/set-labels';
 import { describeFailure } from '@/lib/describe-failure';
-import { formatRepRange, parseDecimal, pluralize } from '@/lib/format';
+import { parseDecimal, pluralize } from '@/lib/format';
 
 const pages = [
   'name',
@@ -259,7 +260,7 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
               <AppText variant="heading">{day.name}</AppText>
               {day.exercises.map((exercise) => (
                 <AppText key={exercise.exerciseId} variant="callout" tone="secondary">
-                  {`${exerciseName(exercise.exerciseId)}: ${exercise.targetSets} × ${formatRepRange(exercise.repsMin, exercise.repsMax)}`}
+                  {`${exerciseName(exercise.exerciseId)}: ${describeTarget({ sets: exercise.targetSets, repsMin: exercise.repsMin, repsMax: exercise.repsMax, durationSec: exercise.targetDurationSec ?? null })}`}
                 </AppText>
               ))}
             </Panel>

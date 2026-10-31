@@ -10,7 +10,9 @@ type OpenSessionBannerProps = {
 export function OpenSessionBanner({ session }: OpenSessionBannerProps) {
   return (
     <Panel>
-      <AppText variant="heading">Тренировка не завершена</AppText>
+      <AppText variant="heading">
+        {session.recoveryRequired ? 'Тренировка была прервана' : 'Тренировка не завершена'}
+      </AppText>
       <AppText tone="secondary">
         {`${session.title}. Записанные подходы сохранены.`}
       </AppText>

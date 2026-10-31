@@ -7,10 +7,12 @@ export type WorkoutSet = {
   id: string;
   position: number;
   weightKg: number | null;
-  reps: number;
+  reps: number | null;
   rir: number | null;
   kind: SetKind;
   note: string | null;
+  durationSec: number | null;
+  distanceM: number | null;
   completedAt: string;
 };
 
@@ -22,6 +24,8 @@ export type SessionExercise = {
   plannedSets: number | null;
   repsMin: number | null;
   repsMax: number | null;
+  targetDurationSec: number | null;
+  groupId: string | null;
   sets: WorkoutSet[];
 };
 
@@ -34,6 +38,7 @@ export type WorkoutSession = {
   pausedAt: string | null;
   pausedMs: number;
   finishedAt: string | null;
+  recoveryRequired: boolean;
   exercises: SessionExercise[];
 };
 
@@ -42,22 +47,29 @@ export type PlannedExercise = {
   plannedSets: number | null;
   repsMin: number | null;
   repsMax: number | null;
+  targetDurationSec?: number | null;
+  groupId?: string | null;
 };
 
 export type SetInput = {
   weightKg: number | null;
-  reps: number;
+  reps: number | null;
   rir: number | null;
   kind?: SetKind;
   note?: string | null;
+  durationSec?: number | null;
+  distanceM?: number | null;
 };
 
 export type WorkoutErrorCode =
   | 'session_already_open'
   | 'session_not_found'
+  | 'session_not_completed'
   | 'exercise_not_found'
   | 'exercise_has_sets'
+  | 'no_next_exercise'
   | 'set_not_found'
+  | 'last_set'
   | 'invalid_transition'
   | 'session_not_active'
   | 'invalid_set';

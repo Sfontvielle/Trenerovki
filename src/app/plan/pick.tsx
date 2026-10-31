@@ -5,7 +5,7 @@ import { useAppData } from '@/app-data/app-data';
 import { AppText, Screen } from '@/design-system';
 import { createId } from '@/domains/data-platform/ids';
 import { exerciseName, findExercise } from '@/domains/exercises/catalog';
-import { repRangeFor } from '@/domains/program/generate-plan';
+import { targetFor } from '@/domains/program/generate-plan';
 import { addProgramExercise, replaceProgramExercise } from '@/domains/program/program-repository';
 import { ExerciseList } from '@/features/exercises/exercise-list';
 import { limitationLabels } from '@/features/profile/labels';
@@ -37,11 +37,11 @@ export default function PickPlanExerciseScreen() {
         }
       }
 
-      const range = repRangeFor(exerciseId, profile?.goal ?? 'muscle', profile?.experience ?? 'intermediate');
+      const target = targetFor(exerciseId, profile?.goal ?? 'muscle', profile?.experience ?? 'intermediate');
       if (replaceId) {
-        await replaceProgramExercise(database, replaceId, exerciseId, range);
+        await replaceProgramExercise(database, replaceId, exerciseId, target);
       } else {
-        await addProgramExercise(database, dayId, exerciseId, createId(), range);
+        await addProgramExercise(database, dayId, exerciseId, createId(), target);
       }
       router.back();
     } catch (cause) {

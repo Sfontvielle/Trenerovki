@@ -9,6 +9,13 @@ export type Migration = {
   rebuildsTables?: boolean;
 };
 
+export class DatabaseDamagedError extends Error {
+  constructor(details: string) {
+    super(`Database failed its integrity check: ${details}`);
+    this.name = 'DatabaseDamagedError';
+  }
+}
+
 export class DatabaseTooNewError extends Error {
   constructor(version: number) {
     super(`Database schema version ${version} is newer than this app supports`);
@@ -153,9 +160,71 @@ export const migrations: Migration[] = [
       )`,
     ],
   },
+  {
+    version: 4,
+    name: 'timed sets, exercise groups and session recovery',
+    rebuildsTables: true,
+    statements: [
+      `CREATE TABLE workout_set_new (
+        id TEXT PRIMARY KEY,
+        session_exercise_id TEXT NOT NULL REFERENCES session_exercise(id) ON DELETE CASCADE,
+        position INTEGER NOT NULL,
+        weight_kg REAL,
+        reps INTEGER CHECK (reps IS NULL OR reps > 0),
+        rir INTEGER,
+        completed_at TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'working'
+          CHECK (kind IN ('working', 'warmup', 'drop', 'rest_pause')),
+        note TEXT,
+        duration_sec INTEGER CHECK (duration_sec IS NULL OR duration_sec > 0),
+        distance_m REAL CHECK (distance_m IS NULL OR distance_m > 0),
+        CHECK (reps IS NOT NULL OR duration_sec IS NOT NULL OR distance_m IS NOT NULL),
+        UNIQUE (session_exercise_id, position)
+      )`,
+      `INSERT INTO workout_set_new
+         (id, session_exercise_id, position, weight_kg, reps, rir, completed_at, kind, note)
+       SELECT id, session_exercise_id, position, weight_kg, reps, rir, completed_at, kind, note
+       FROM workout_set`,
+      'DROP TABLE workout_set',
+      'ALTER TABLE workout_set_new RENAME TO workout_set',
+      'CREATE INDEX workout_set_by_exercise ON workout_set (session_exercise_id)',
+      `CREATE TABLE program_exercise_new (
+        id TEXT PRIMARY KEY,
+        program_day_id TEXT NOT NULL REFERENCES program_day(id) ON DELETE CASCADE,
+        position INTEGER NOT NULL,
+        exercise_id TEXT NOT NULL,
+        target_sets INTEGER NOT NULL,
+        reps_min INTEGER,
+        reps_max INTEGER,
+        target_duration_sec INTEGER,
+        group_id TEXT,
+        UNIQUE (program_day_id, position)
+      )`,
+      `INSERT INTO program_exercise_new
+         (id, program_day_id, position, exercise_id, target_sets, reps_min, reps_max)
+       SELECT id, program_day_id, position, exercise_id, target_sets, reps_min, reps_max
+       FROM program_exercise`,
+      'DROP TABLE program_exercise',
+      'ALTER TABLE program_exercise_new RENAME TO program_exercise',
+      'ALTER TABLE session_exercise ADD COLUMN target_duration_sec INTEGER',
+      'ALTER TABLE session_exercise ADD COLUMN group_id TEXT',
+      'ALTER TABLE workout_session ADD COLUMN recovery_required INTEGER NOT NULL DEFAULT 0',
+      "ALTER TABLE custom_exercise ADD COLUMN tracking TEXT NOT NULL DEFAULT 'reps'",
+      "ALTER TABLE custom_exercise ADD COLUMN equipment TEXT NOT NULL DEFAULT '[]'",
+    ],
+  },
 ];
 
-export async function migrate(database: Database, available: Migration[] = migrations) {
+type MigrationHooks = {
+  // Runs once before pending migrations, with the version the data is at now.
+  beforePending?: (fromVersion: number) => Promise<void>;
+};
+
+export async function migrate(
+  database: Database,
+  available: Migration[] = migrations,
+  { beforePending }: MigrationHooks = {},
+) {
   await database.run(`CREATE TABLE IF NOT EXISTS schema_migrations (
     version INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
@@ -173,6 +242,16 @@ export async function migrate(database: Database, available: Migration[] = migra
   const pending = available
     .filter(({ version }) => !appliedVersions.has(version))
     .sort((first, second) => first.version - second.version);
+
+  if (pending.length === 0) {
+    return;
+  }
+
+  const check = await database.first<{ integrity_check: string }>('PRAGMA integrity_check');
+  if (check?.integrity_check !== 'ok') {
+    throw new DatabaseDamagedError(check?.integrity_check ?? 'no result');
+  }
+  await beforePending?.(Math.max(0, ...appliedVersions));
 
   for (const migration of pending) {
     await applyMigration(database, migration);

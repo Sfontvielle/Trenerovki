@@ -1,17 +1,24 @@
 import type { Database } from '../data-platform/database';
-import type { MuscleGroup } from './catalog';
+import type { Equipment } from '../profile/profile';
+import type { CustomExerciseInfo, MuscleGroup, Tracking } from './catalog';
 
-export type CustomExercise = {
-  id: string;
-  name: string;
-  muscleGroup: MuscleGroup;
-};
+export type CustomExercise = CustomExerciseInfo;
 
 export async function listCustomExercises(database: Database): Promise<CustomExercise[]> {
-  const rows = await database.all<{ id: string; name: string; muscle_group: MuscleGroup }>(
-    'SELECT id, name, muscle_group FROM custom_exercise ORDER BY name',
-  );
-  return rows.map((row) => ({ id: row.id, name: row.name, muscleGroup: row.muscle_group }));
+  const rows = await database.all<{
+    id: string;
+    name: string;
+    muscle_group: MuscleGroup;
+    tracking: Tracking;
+    equipment: string;
+  }>('SELECT id, name, muscle_group, tracking, equipment FROM custom_exercise ORDER BY name');
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    muscleGroup: row.muscle_group,
+    tracking: row.tracking,
+    equipment: JSON.parse(row.equipment) as Equipment[],
+  }));
 }
 
 export async function addCustomExercise(
@@ -20,7 +27,15 @@ export async function addCustomExercise(
   now: Date,
 ) {
   await database.run(
-    'INSERT INTO custom_exercise (id, name, muscle_group, created_at) VALUES (?, ?, ?, ?)',
-    [exercise.id, exercise.name.trim(), exercise.muscleGroup, now.toISOString()],
+    `INSERT INTO custom_exercise (id, name, muscle_group, tracking, equipment, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [
+      exercise.id,
+      exercise.name.trim(),
+      exercise.muscleGroup,
+      exercise.tracking,
+      JSON.stringify(exercise.equipment),
+      now.toISOString(),
+    ],
   );
 }

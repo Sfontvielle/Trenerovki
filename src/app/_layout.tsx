@@ -55,6 +55,7 @@ function RootStack() {
             options={{ ...withHeader, presentation: 'modal', title: 'Добавить упражнение' }}
           />
           <Stack.Screen name="history/[sessionId]" options={{ ...withHeader, title: 'Тренировка' }} />
+          <Stack.Screen name="history/set/[setId]" options={{ ...withHeader, title: 'Исправить подход' }} />
           <Stack.Screen name="exercise-progress/[exerciseId]" options={{ ...withHeader, title: 'Динамика' }} />
           <Stack.Screen
             name="food/add"

@@ -6,18 +6,17 @@ import { formatDuration } from '@/domains/workout/session-time';
 import { successFeedback } from '@/lib/haptics';
 
 const TICK_MS = 500;
-const durations = [
-  { seconds: 60, label: '1:00' },
-  { seconds: 90, label: '1:30' },
-  { seconds: 120, label: '2:00' },
-  { seconds: 180, label: '3:00' },
-];
+const durations = [45, 60, 75, 90, 120, 180];
 
 function deadlineAfter(seconds: number) {
   return Date.now() + seconds * 1000;
 }
 
-export function RestTimer() {
+type RestTimerProps = {
+  recommendedSeconds: number;
+};
+
+export function RestTimer({ recommendedSeconds }: RestTimerProps) {
   const { theme } = useTheme();
   const [endsAt, setEndsAt] = useState<number | null>(null);
   const [remainingMs, setRemainingMs] = useState(0);
@@ -75,12 +74,17 @@ export function RestTimer() {
             </AppText>
           ) : (
             <AppText variant="callout" tone="secondary">
-              Необязательно. Таймер работает, пока открыт этот экран.
+              {`Необязательно. Для этого упражнения обычно хватает ${formatDuration(recommendedSeconds * 1000)}. Таймер работает, пока открыт этот экран.`}
             </AppText>
           )}
           <View style={[styles.row, { gap: theme.spacing.s }]}>
-            {durations.map(({ seconds, label }) => (
-              <Chip key={seconds} label={label} selected={false} onPress={() => start(seconds)} />
+            {durations.map((seconds) => (
+              <Chip
+                key={seconds}
+                label={formatDuration(seconds * 1000)}
+                selected={seconds === recommendedSeconds}
+                onPress={() => start(seconds)}
+              />
             ))}
           </View>
         </>

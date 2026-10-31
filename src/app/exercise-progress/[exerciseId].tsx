@@ -9,6 +9,7 @@ import { TrendBars } from '@/components/trend-bars';
 import { AppText, Panel, Screen, useTheme } from '@/design-system';
 import { exerciseName } from '@/domains/exercises/catalog';
 import { type ExerciseTrendPoint, getExerciseTrend } from '@/domains/progress/progress-repository';
+import { formatSeconds } from '@/features/workout/set-labels';
 import { formatDate, formatWeight } from '@/lib/format';
 
 function toChart(trend: ExerciseTrendPoint[]) {
@@ -24,12 +25,22 @@ function toChart(trend: ExerciseTrendPoint[]) {
       })),
     };
   }
+  if (trend.every((point) => point.bestReps === null)) {
+    return {
+      title: 'Лучшее время по тренировкам',
+      points: trend.map((point) => ({
+        key: point.sessionId,
+        value: point.longestSec ?? 0,
+        label: `${formatDate(point.finishedAt)}: ${formatSeconds(point.longestSec ?? 0)}`,
+      })),
+    };
+  }
   return {
     title: 'Лучшие повторы по тренировкам',
     points: trend.map((point) => ({
       key: point.sessionId,
-      value: point.bestReps,
-      label: `${formatDate(point.finishedAt)}: ${point.bestReps} повт.`,
+      value: point.bestReps ?? 0,
+      label: `${formatDate(point.finishedAt)}: ${point.bestReps ?? 0} повт.`,
     })),
   };
 }

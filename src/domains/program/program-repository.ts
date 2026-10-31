@@ -7,8 +7,10 @@ export type ProgramExercise = {
   id: string;
   exerciseId: string;
   targetSets: number;
-  repsMin: number;
-  repsMax: number;
+  repsMin: number | null;
+  repsMax: number | null;
+  targetDurationSec: number | null;
+  groupId: string | null;
 };
 
 export type ProgramDay = {
@@ -34,8 +36,9 @@ export async function replaceProgram(
     for (const [index, exercise] of day.exercises.entries()) {
       await tx.run(
         `INSERT INTO program_exercise
-           (id, program_day_id, position, exercise_id, target_sets, reps_min, reps_max)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+           (id, program_day_id, position, exercise_id, target_sets, reps_min, reps_max,
+            target_duration_sec, group_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           createId(),
           dayId,
@@ -44,6 +47,8 @@ export async function replaceProgram(
           exercise.targetSets,
           exercise.repsMin,
           exercise.repsMax,
+          exercise.targetDurationSec ?? null,
+          exercise.groupId ?? null,
         ],
       );
     }
@@ -59,8 +64,10 @@ export async function getProgram(database: Database): Promise<ProgramDay[]> {
     program_day_id: string;
     exercise_id: string;
     target_sets: number;
-    reps_min: number;
-    reps_max: number;
+    reps_min: number | null;
+    reps_max: number | null;
+    target_duration_sec: number | null;
+    group_id: string | null;
   }>('SELECT * FROM program_exercise ORDER BY position');
 
   return days.map((day) => ({
@@ -73,25 +80,71 @@ export async function getProgram(database: Database): Promise<ProgramDay[]> {
         targetSets: row.target_sets,
         repsMin: row.reps_min,
         repsMax: row.reps_max,
+        targetDurationSec: row.target_duration_sec,
+        groupId: row.group_id,
       })),
   }));
 }
 
-type RepRange = {
-  min: number;
-  max: number;
+export type ExerciseTarget = {
+  repsMin: number | null;
+  repsMax: number | null;
+  targetDurationSec: number | null;
 };
 
 export async function replaceProgramExercise(
   database: Database,
   id: string,
   exerciseId: string,
-  range: RepRange,
+  target: ExerciseTarget,
 ) {
   await database.run(
-    'UPDATE program_exercise SET exercise_id = ?, reps_min = ?, reps_max = ? WHERE id = ?',
-    [exerciseId, range.min, range.max, id],
+    `UPDATE program_exercise
+     SET exercise_id = ?, reps_min = ?, reps_max = ?, target_duration_sec = ?
+     WHERE id = ?`,
+    [exerciseId, target.repsMin, target.repsMax, target.targetDurationSec, id],
   );
+}
+
+export async function linkProgramExerciseWithNext(database: Database, id: string, createId: () => string) {
+  await database.transaction(async (tx) => {
+    const exercise = await tx.first<{ program_day_id: string; position: number; group_id: string | null }>(
+      'SELECT program_day_id, position, group_id FROM program_exercise WHERE id = ?',
+      [id],
+    );
+    const next = exercise
+      ? await tx.first<{ id: string; group_id: string | null }>(
+          'SELECT id, group_id FROM program_exercise WHERE program_day_id = ? AND position = ?',
+          [exercise.program_day_id, exercise.position + 1],
+        )
+      : null;
+    if (!exercise || !next) {
+      return;
+    }
+    const groupId = exercise.group_id ?? next.group_id ?? createId();
+    await tx.run('UPDATE program_exercise SET group_id = ? WHERE id IN (?, ?)', [groupId, id, next.id]);
+    if (next.group_id && next.group_id !== groupId) {
+      await tx.run('UPDATE program_exercise SET group_id = ? WHERE group_id = ?', [groupId, next.group_id]);
+    }
+  });
+}
+
+export async function unlinkProgramExercise(database: Database, id: string) {
+  await database.transaction(async (tx) => {
+    const exercise = await tx.first<{ group_id: string | null }>(
+      'SELECT group_id FROM program_exercise WHERE id = ?',
+      [id],
+    );
+    await tx.run('UPDATE program_exercise SET group_id = NULL WHERE id = ?', [id]);
+    if (exercise?.group_id) {
+      const left = await tx.all<{ id: string }>('SELECT id FROM program_exercise WHERE group_id = ?', [
+        exercise.group_id,
+      ]);
+      if (left.length === 1) {
+        await tx.run('UPDATE program_exercise SET group_id = NULL WHERE id = ?', [left[0].id]);
+      }
+    }
+  });
 }
 
 export async function removeProgramExercise(database: Database, id: string) {
@@ -116,7 +169,7 @@ export async function addProgramExercise(
   dayId: string,
   exerciseId: string,
   id: string,
-  range: RepRange,
+  target: ExerciseTarget,
 ) {
   await database.transaction(async (tx) => {
     const last = await tx.first<{
@@ -125,16 +178,18 @@ export async function addProgramExercise(
     }>('SELECT * FROM program_exercise WHERE program_day_id = ? ORDER BY position DESC LIMIT 1', [dayId]);
     await tx.run(
       `INSERT INTO program_exercise
-         (id, program_day_id, position, exercise_id, target_sets, reps_min, reps_max)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+         (id, program_day_id, position, exercise_id, target_sets, reps_min, reps_max,
+          target_duration_sec)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         dayId,
         (last?.position ?? 0) + 1,
         exerciseId,
         last?.target_sets ?? DEFAULT_SETS,
-        range.min,
-        range.max,
+        target.repsMin,
+        target.repsMax,
+        target.targetDurationSec,
       ],
     );
   });
