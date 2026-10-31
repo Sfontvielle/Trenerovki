@@ -1,6 +1,5 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Share } from 'react-native';
 
 import { useAppData } from '@/app-data/app-data';
 import { ChoiceGroup } from '@/components/choice-group';
@@ -14,7 +13,8 @@ import {
   accentNames,
   useTheme,
 } from '@/design-system';
-import { deleteAllData, exportAllData } from '@/domains/data-platform/data-transfer';
+import { BackupError, type BackupProblem, deleteAllData, restoreAllData } from '@/domains/data-platform/data-transfer';
+import { pickBackup, shareBackup } from '@/features/profile/backup';
 import {
   equipmentLabels,
   experienceHints,
@@ -39,10 +39,26 @@ const accentLabels: Record<AccentName, string> = {
   rose: 'Розовый',
 };
 
+const backupProblems: Record<BackupProblem, string> = {
+  not_a_backup: 'Это не резервная копия IRONVANT.',
+  too_new: 'Копия создана более новой версией приложения. Обновите IRONVANT.',
+  damaged: 'Файл копии повреждён. Текущие данные не изменились.',
+};
+
 export default function ProfileScreen() {
-  const { changeAccent, changeThemePreference, database, profile, refreshProfile } = useAppData();
+  const {
+    changeAccent,
+    changeHaptics,
+    changeThemePreference,
+    database,
+    hapticsEnabled,
+    profile,
+    refreshProfile,
+    reloadAll,
+  } = useAppData();
   const { theme, preference } = useTheme();
   const [message, setMessage] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const saveSetting = async (save: Promise<void>) => {
     setMessage(null);
@@ -54,13 +70,44 @@ export default function ProfileScreen() {
     }
   };
 
-  const exportData = async () => {
+  const saveBackup = async () => {
     setMessage(null);
+    setNotice(null);
     try {
-      await Share.share({ message: await exportAllData(database) });
+      await shareBackup(database);
     } catch (error) {
       console.error(error);
-      setMessage(`Экспорт не подготовлен. ${describeFailure(error)}`);
+      setMessage(`Копия не создана. ${describeFailure(error)}`);
+    }
+  };
+
+  const restoreBackup = async () => {
+    const approved = await confirm({
+      title: 'Восстановить из копии?',
+      message: 'Все текущие данные будут заменены данными из файла.',
+      confirmLabel: 'Выбрать файл',
+      destructive: true,
+    });
+    if (!approved) {
+      return;
+    }
+    setMessage(null);
+    setNotice(null);
+    try {
+      const text = await pickBackup();
+      if (text === null) {
+        return;
+      }
+      await restoreAllData(database, text);
+      await reloadAll();
+      setNotice('Данные восстановлены из копии.');
+    } catch (error) {
+      console.error(error);
+      setMessage(
+        error instanceof BackupError
+          ? backupProblems[error.problem]
+          : `Данные не восстановлены. Текущие данные не изменились. ${describeFailure(error)}`,
+      );
     }
   };
 
@@ -132,6 +179,15 @@ export default function ProfileScreen() {
           label="Акцент"
           onSelect={(value) => saveSetting(changeAccent(value))}
         />
+        <ChoiceGroup
+          choices={[
+            { value: 'on', label: 'Включён' },
+            { value: 'off', label: 'Выключен' },
+          ]}
+          isSelected={(value) => (value === 'on') === hapticsEnabled}
+          label="Тактильный отклик"
+          onSelect={(value) => saveSetting(changeHaptics(value === 'on'))}
+        />
       </Panel>
 
       <Panel>
@@ -141,16 +197,22 @@ export default function ProfileScreen() {
           резервную копию iPhone, если она включена.
         </AppText>
         <AppText variant="callout" tone="secondary">
-          Экспорт создаёт текстовую копию с вашими ответами и тренировками. Загрузить её обратно в
-          приложение пока нельзя.
+          Резервная копия это файл с вашими ответами, тренировками и питанием. Храните его в надёжном
+          месте: в нём есть личные данные.
         </AppText>
-        <Button label="Экспортировать данные" variant="secondary" onPress={exportData} />
+        <Button label="Сохранить резервную копию" variant="secondary" onPress={saveBackup} />
+        <Button label="Восстановить из копии" variant="secondary" onPress={restoreBackup} />
         <Button label="Удалить все данные" variant="secondary" onPress={deleteData} />
       </Panel>
 
       {message ? (
         <AppText accessibilityLiveRegion="polite" tone="danger">
           {message}
+        </AppText>
+      ) : null}
+      {notice ? (
+        <AppText accessibilityLiveRegion="polite" tone="success">
+          {notice}
         </AppText>
       ) : null}
 

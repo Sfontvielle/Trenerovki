@@ -46,6 +46,7 @@ import {
   QuestionTitle,
   SexCards,
   type SymbolName,
+  WeekdayPicker,
 } from '@/features/profile/questionnaire-parts';
 import { describeFailure } from '@/lib/describe-failure';
 import { formatRepRange, parseDecimal, pluralize } from '@/lib/format';
@@ -58,6 +59,7 @@ const pages = [
   'goal',
   'experience',
   'days',
+  'weekdays',
   'duration',
   'equipment',
   'limitations',
@@ -96,6 +98,7 @@ type Draft = {
   sessionMinutes: SessionMinutes | null;
   equipment: Equipment | null;
   limitations: Limitation[];
+  trainingDays: number[];
 };
 
 const emptyDraft: Draft = {
@@ -109,6 +112,7 @@ const emptyDraft: Draft = {
   sessionMinutes: null,
   equipment: null,
   limitations: [],
+  trainingDays: [],
 };
 
 function toDraft(profile: Profile | null): Draft {
@@ -133,6 +137,8 @@ function isPageComplete(page: Page, draft: Draft) {
       return draft.experience !== null;
     case 'days':
       return draft.daysPerWeek !== null;
+    case 'weekdays':
+      return draft.trainingDays.length === 0 || draft.trainingDays.length === draft.daysPerWeek;
     case 'duration':
       return draft.sessionMinutes !== null;
     case 'equipment':
@@ -147,7 +153,9 @@ function continueLabel(page: Page, draft: Draft) {
     return 'Показать план';
   }
   const skippable =
-    (page === 'sex' && draft.sex === null) || (page === 'weight' && draft.weightKg === null);
+    (page === 'sex' && draft.sex === null) ||
+    (page === 'weight' && draft.weightKg === null) ||
+    (page === 'weekdays' && draft.trainingDays.length === 0);
   return skippable ? 'Пропустить' : 'Продолжить';
 }
 
@@ -163,6 +171,7 @@ function toProfile(draft: Draft): Profile {
     sessionMinutes: draft.sessionMinutes as SessionMinutes,
     equipment: draft.equipment as Equipment,
     limitations: draft.limitations,
+    trainingDays: draft.trainingDays,
   };
 }
 
@@ -443,6 +452,25 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
           <>
             <QuestionTitle title="Сколько раз в неделю вы планируете тренироваться?" />
             <FrequencyPicker value={draft.daysPerWeek} onChange={(daysPerWeek) => update({ daysPerWeek })} />
+          </>
+        ) : null}
+
+        {page === 'weekdays' ? (
+          <>
+            <QuestionTitle
+              hint={`Необязательно. Выберите ${draft.daysPerWeek} ${pluralize(draft.daysPerWeek ?? 0, ['день', 'дня', 'дней'])}, и приложение подскажет, когда тренировка по плану`}
+              title="В какие дни удобно тренироваться?"
+            />
+            <WeekdayPicker
+              onToggle={(day) =>
+                update({
+                  trainingDays: draft.trainingDays.includes(day)
+                    ? draft.trainingDays.filter((item) => item !== day)
+                    : [...draft.trainingDays, day],
+                })
+              }
+              value={draft.trainingDays}
+            />
           </>
         ) : null}
 

@@ -42,6 +42,7 @@ const profile: Profile = {
   sessionMinutes: 60,
   equipment: 'gym',
   limitations: [],
+  trainingDays: [],
 };
 
 describe('catalog', () => {

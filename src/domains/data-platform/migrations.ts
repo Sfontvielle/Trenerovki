@@ -132,6 +132,27 @@ export const migrations: Migration[] = [
       'CREATE INDEX food_entry_by_day ON food_entry (day)',
     ],
   },
+  {
+    version: 3,
+    name: 'set details, body weight, schedule and custom exercises',
+    statements: [
+      `ALTER TABLE workout_set ADD COLUMN kind TEXT NOT NULL DEFAULT 'working'
+        CHECK (kind IN ('working', 'warmup', 'drop', 'rest_pause'))`,
+      'ALTER TABLE workout_set ADD COLUMN note TEXT',
+      "ALTER TABLE profile ADD COLUMN training_days TEXT NOT NULL DEFAULT '[]'",
+      `CREATE TABLE body_weight (
+        day TEXT PRIMARY KEY,
+        weight_kg REAL NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE TABLE custom_exercise (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        muscle_group TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )`,
+    ],
+  },
 ];
 
 export async function migrate(database: Database, available: Migration[] = migrations) {

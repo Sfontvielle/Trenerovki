@@ -61,6 +61,18 @@ function RootStack() {
             options={{ ...withHeader, presentation: 'modal', title: 'Добавить продукт' }}
           />
           <Stack.Screen name="food/[entryId]" options={{ ...withHeader, title: 'Запись' }} />
+          <Stack.Screen name="body-weight" options={{ ...withHeader, title: 'Вес тела' }} />
+          <Stack.Screen name="exercises/index" options={{ ...withHeader, title: 'Упражнения' }} />
+          <Stack.Screen name="exercises/[exerciseId]" options={{ ...withHeader, title: 'Упражнение' }} />
+          <Stack.Screen
+            name="exercises/new"
+            options={{ ...withHeader, presentation: 'modal', title: 'Новое упражнение' }}
+          />
+          <Stack.Screen name="plan/[dayId]" options={{ ...withHeader, title: 'Изменить день' }} />
+          <Stack.Screen
+            name="plan/pick"
+            options={{ ...withHeader, presentation: 'modal', title: 'Выбрать упражнение' }}
+          />
           <Stack.Screen name="design-system" options={{ ...withHeader, title: 'Дизайн-система' }} />
         </Stack.Protected>
       </Stack>

@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useCallback } from 'react';
 
 import { useAppData } from '@/app-data/app-data';
@@ -6,41 +7,50 @@ import { DataView } from '@/components/states';
 import { TabScreen } from '@/components/tab-screen';
 import { AppText, Button, Panel } from '@/design-system';
 import { exerciseName } from '@/domains/exercises/catalog';
+import { listBodyWeight } from '@/domains/body/body-weight-repository';
 import { dayKey, sumNutrients } from '@/domains/nutrition/nutrition';
 import { listDayEntries } from '@/domains/nutrition/nutrition-repository';
 import { getNextDay, getProgram } from '@/domains/program/program-repository';
+import { scheduleHeading } from '@/domains/program/schedule';
 import { getSummary } from '@/domains/progress/progress-repository';
 import { formatEnergy, formatMacros } from '@/features/nutrition/format-nutrition';
 import { OpenSessionBanner } from '@/features/workout/open-session-banner';
 import { useStartWorkout } from '@/features/workout/use-start-workout';
-import { pluralize } from '@/lib/format';
+import { formatWeight, pluralize } from '@/lib/format';
 
 export default function HomeScreen() {
-  const { database, engine } = useAppData();
+  const { database, engine, profile } = useAppData();
   const { start, starting, error } = useStartWorkout();
 
   const load = useCallback(async () => {
-    const [openSession, program, summary, foodEntries] = await Promise.all([
+    const [openSession, program, summary, foodEntries, bodyWeight] = await Promise.all([
       engine.getOpenSession(),
       getProgram(database),
       getSummary(database, new Date()),
       listDayEntries(database, dayKey(new Date())),
+      listBodyWeight(database, 1),
     ]);
-    return { openSession, nextDay: await getNextDay(database, program), summary, foodEntries };
+    return {
+      openSession,
+      nextDay: await getNextDay(database, program),
+      summary,
+      foodEntries,
+      latestWeight: bodyWeight.at(-1) ?? null,
+    };
   }, [database, engine]);
   const state = useScreenData(load);
 
   return (
     <TabScreen title="Главная">
       <DataView state={state}>
-        {({ openSession, nextDay, summary, foodEntries }) => (
+        {({ openSession, nextDay, summary, foodEntries, latestWeight }) => (
           <>
             {openSession ? <OpenSessionBanner session={openSession} /> : null}
 
             {!openSession && nextDay ? (
               <Panel>
                 <AppText variant="callout" tone="secondary">
-                  Следующая тренировка
+                  {scheduleHeading(profile?.trainingDays ?? [], new Date())}
                 </AppText>
                 <AppText variant="title">{nextDay.name}</AppText>
                 {nextDay.exercises.map((exercise) => (
@@ -80,6 +90,14 @@ export default function HomeScreen() {
               ) : (
                 <AppText tone="secondary">Пока ничего не записано</AppText>
               )}
+            </Panel>
+
+            <Panel>
+              <AppText variant="heading">Вес тела</AppText>
+              <AppText tone="secondary">
+                {latestWeight ? formatWeight(latestWeight.weightKg) : 'Пока не записан'}
+              </AppText>
+              <Button label="Записать вес" variant="secondary" onPress={() => router.push('/body-weight')} />
             </Panel>
 
             <AppText variant="caption" tone="secondary">

@@ -76,11 +76,19 @@ export const exercises: Exercise[] = [
 ];
 
 const exercisesById = new Map(exercises.map((exercise) => [exercise.id, exercise]));
+const customNames = new Map<string, string>();
+
+export function registerCustomExerciseNames(entries: { id: string; name: string }[]) {
+  customNames.clear();
+  for (const { id, name } of entries) {
+    customNames.set(id, name);
+  }
+}
 
 export function findExercise(exerciseId: string) {
   return exercisesById.get(exerciseId) ?? null;
 }
 
 export function exerciseName(exerciseId: string) {
-  return findExercise(exerciseId)?.name ?? 'Неизвестное упражнение';
+  return findExercise(exerciseId)?.name ?? customNames.get(exerciseId) ?? 'Неизвестное упражнение';
 }

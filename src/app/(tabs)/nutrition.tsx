@@ -16,6 +16,7 @@ import {
 } from '@/domains/nutrition/nutrition';
 import { listDayEntries } from '@/domains/nutrition/nutrition-repository';
 import { formatDayLabel, formatEnergy, formatMacros } from '@/features/nutrition/format-nutrition';
+import { SessionBar } from '@/features/workout/session-bar';
 import { formatNumber } from '@/lib/format';
 
 export default function NutritionScreen() {
@@ -52,6 +53,7 @@ export default function NutritionScreen() {
 
   return (
     <TabScreen title="Питание">
+      <SessionBar />
       <View style={[styles.dayRow, { gap: spacing.m }]}>
         {dayButton('‹', 'Предыдущий день', shiftDay(day, -1), false)}
         <AppText accessibilityLiveRegion="polite" variant="heading" style={styles.dayLabel}>

@@ -42,7 +42,7 @@ export async function getSummary(database: Database, now: Date): Promise<Progres
     `SELECT SUM(workout_set.weight_kg * workout_set.reps) AS volume FROM workout_set
      JOIN session_exercise ON session_exercise.id = workout_set.session_exercise_id
      JOIN workout_session ON workout_session.id = session_exercise.session_id
-     WHERE workout_session.state = 'completed'`,
+     WHERE workout_session.state = 'completed' AND workout_set.kind != 'warmup'`,
   );
 
   return {
@@ -65,7 +65,8 @@ export async function listCompletedSessions(database: Database): Promise<Session
     `SELECT workout_session.id, workout_session.title, workout_session.finished_at,
             workout_session.started_at, workout_session.paused_ms,
             COUNT(workout_set.id) AS set_count,
-            SUM(workout_set.weight_kg * workout_set.reps) AS volume
+            SUM(CASE WHEN workout_set.kind != 'warmup'
+                THEN workout_set.weight_kg * workout_set.reps END) AS volume
      FROM workout_session
      LEFT JOIN session_exercise ON session_exercise.session_id = workout_session.id
      LEFT JOIN workout_set ON workout_set.session_exercise_id = session_exercise.id
@@ -97,7 +98,7 @@ export async function getExerciseRecords(database: Database): Promise<ExerciseRe
      FROM workout_set
      JOIN session_exercise ON session_exercise.id = workout_set.session_exercise_id
      JOIN workout_session ON workout_session.id = session_exercise.session_id
-     WHERE workout_session.state = 'completed'`,
+     WHERE workout_session.state = 'completed' AND workout_set.kind != 'warmup'`,
   );
 
   const records = new Map<string, ExerciseRecord>();
@@ -144,7 +145,9 @@ export async function getExerciseTrend(
      FROM workout_set
      JOIN session_exercise ON session_exercise.id = workout_set.session_exercise_id
      JOIN workout_session ON workout_session.id = session_exercise.session_id
-     WHERE workout_session.state = 'completed' AND session_exercise.exercise_id = ?
+     WHERE workout_session.state = 'completed'
+       AND session_exercise.exercise_id = ?
+       AND workout_set.kind != 'warmup'
      GROUP BY workout_session.id
      ORDER BY workout_session.finished_at DESC
      LIMIT ?`,

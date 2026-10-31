@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useCallback } from 'react';
 
 import { useAppData } from '@/app-data/app-data';
@@ -50,8 +51,20 @@ export default function WorkoutsScreen() {
                     onPress={() => start(day.name, day)}
                   />
                 )}
+                <Button
+                  accessibilityLabel={`Изменить день: ${day.name}`}
+                  label="Изменить день"
+                  variant="secondary"
+                  onPress={() => router.push(`/plan/${day.id}`)}
+                />
               </Panel>
             ))}
+
+            <Button
+              label="Библиотека упражнений"
+              variant="secondary"
+              onPress={() => router.push('/exercises')}
+            />
 
             {openSession ? null : (
               <Button

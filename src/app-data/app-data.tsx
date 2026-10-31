@@ -8,12 +8,16 @@ import { openAppDatabase } from '@/domains/data-platform/expo-database';
 import { createId } from '@/domains/data-platform/ids';
 import { DatabaseTooNewError, migrate } from '@/domains/data-platform/migrations';
 import { SettingsRepository } from '@/domains/data-platform/settings-repository';
+import { registerCustomExerciseNames } from '@/domains/exercises/catalog';
+import { listCustomExercises } from '@/domains/exercises/custom-exercise-repository';
 import type { Profile } from '@/domains/profile/profile';
 import { getProfile } from '@/domains/profile/profile-repository';
 import { WorkoutEngine } from '@/domains/workout/workout-engine';
+import { setHapticsEnabled } from '@/lib/haptics';
 
 const THEME_KEY = 'theme_preference';
 const ACCENT_KEY = 'accent';
+const HAPTICS_KEY = 'haptics';
 const ALLOWED_IDLE_MS = 3 * 60 * 60 * 1000;
 
 type Services = {
@@ -24,15 +28,18 @@ type Services = {
 
 type AppDataValue = Services & {
   profile: Profile | null;
+  hapticsEnabled: boolean;
   refreshProfile: () => Promise<void>;
+  reloadAll: () => Promise<void>;
   changeThemePreference: (preference: ThemePreference) => Promise<void>;
   changeAccent: (accent: AccentName) => Promise<void>;
+  changeHaptics: (enabled: boolean) => Promise<void>;
 };
 
 type LoadState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'ready'; services: Services; profile: Profile | null };
+  | { status: 'ready'; services: Services; profile: Profile | null; hapticsEnabled: boolean };
 
 const AppDataContext = createContext<AppDataValue | null>(null);
 
@@ -54,13 +61,17 @@ async function openServices() {
   return { database, engine, settings: new SettingsRepository(database) };
 }
 
-async function readThemeSettings(settings: SettingsRepository) {
+async function readAppearance(settings: SettingsRepository) {
   try {
-    const [preference, accent] = await Promise.all([settings.get(THEME_KEY), settings.get(ACCENT_KEY)]);
-    return { preference, accent };
+    const [preference, accent, haptics] = await Promise.all([
+      settings.get(THEME_KEY),
+      settings.get(ACCENT_KEY),
+      settings.get(HAPTICS_KEY),
+    ]);
+    return { preference, accent, hapticsEnabled: haptics !== 'off' };
   } catch (error) {
     console.error(error);
-    return { preference: null, accent: null };
+    return { preference: null, accent: null, hapticsEnabled: true };
   }
 }
 
@@ -69,24 +80,29 @@ export function AppDataProvider({ children }: PropsWithChildren) {
   const [state, setState] = useState<LoadState>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
 
+  const readAll = useCallback(
+    async (services: Services) => {
+      const profile = await getProfile(services.database);
+      registerCustomExerciseNames(await listCustomExercises(services.database));
+      const { preference, accent, hapticsEnabled } = await readAppearance(services.settings);
+      setPreference(isThemePreference(preference) ? preference : 'system');
+      setAccent(isAccent(accent) ? accent : 'cyan');
+      setHapticsEnabled(hapticsEnabled);
+      return { status: 'ready' as const, services, profile, hapticsEnabled };
+    },
+    [setAccent, setPreference],
+  );
+
   useEffect(() => {
     let active = true;
 
     async function load() {
       try {
         const services = await openServices();
-        const profile = await getProfile(services.database);
-        const { preference, accent } = await readThemeSettings(services.settings);
-        if (!active) {
-          return;
+        const ready = await readAll(services);
+        if (active) {
+          setState(ready);
         }
-        if (isThemePreference(preference)) {
-          setPreference(preference);
-        }
-        if (isAccent(accent)) {
-          setAccent(accent);
-        }
-        setState({ status: 'ready', services, profile });
       } catch (error) {
         console.error(error);
         if (active) {
@@ -105,9 +121,11 @@ export function AppDataProvider({ children }: PropsWithChildren) {
     return () => {
       active = false;
     };
-  }, [attempt, setAccent, setPreference]);
+  }, [attempt, readAll]);
 
-  const services = state.status === 'ready' ? state.services : null;
+  const ready = state.status === 'ready' ? state : null;
+  const services = ready?.services ?? null;
+  const hapticsEnabled = ready?.hapticsEnabled ?? true;
 
   useEffect(() => {
     if (!services) {
@@ -126,8 +144,14 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       return;
     }
     const profile = await getProfile(services.database);
-    setState({ status: 'ready', services, profile });
-  }, [services]);
+    setState({ status: 'ready', services, profile, hapticsEnabled });
+  }, [hapticsEnabled, services]);
+
+  const reloadAll = useCallback(async () => {
+    if (services) {
+      setState(await readAll(services));
+    }
+  }, [readAll, services]);
 
   const changeThemePreference = useCallback(
     async (preference: ThemePreference) => {
@@ -143,6 +167,15 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       await services?.settings.set(ACCENT_KEY, accent);
     },
     [services, setAccent],
+  );
+
+  const changeHaptics = useCallback(
+    async (enabled: boolean) => {
+      setHapticsEnabled(enabled);
+      setState((current) => (current.status === 'ready' ? { ...current, hapticsEnabled: enabled } : current));
+      await services?.settings.set(HAPTICS_KEY, enabled ? 'on' : 'off');
+    },
+    [services],
   );
 
   if (state.status === 'loading') {
@@ -172,9 +205,12 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       value={{
         ...state.services,
         profile: state.profile,
+        hapticsEnabled: state.hapticsEnabled,
         refreshProfile,
+        reloadAll,
         changeThemePreference,
         changeAccent,
+        changeHaptics,
       }}
     >
       {children}

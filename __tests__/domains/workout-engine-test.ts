@@ -375,6 +375,8 @@ describe('suggestNextWeight', () => {
     weightKg: 80,
     reps: 12,
     rir: 2,
+    kind: 'working',
+    note: null,
     completedAt: '2026-11-01T10:00:00.000Z',
     ...overrides,
   });
@@ -386,6 +388,12 @@ describe('suggestNextWeight', () => {
 
   it('uses a smaller step for light weights', () => {
     expect(suggestNextWeight([makeSet({ weightKg: 4 })], 12, 1)).toBe(5);
+  });
+
+  it('ignores warm-up sets', () => {
+    const warmup = makeSet({ weightKg: 40, reps: 5, rir: null, kind: 'warmup' });
+
+    expect(suggestNextWeight([warmup, makeSet({}), makeSet({})], 12, 2)).toBe(82.5);
   });
 
   it('stays quiet when a set fell short', () => {

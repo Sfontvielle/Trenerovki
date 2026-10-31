@@ -1,11 +1,16 @@
 import type { SessionState } from './state-machine';
 
+export const setKinds = ['working', 'warmup', 'drop', 'rest_pause'] as const;
+export type SetKind = (typeof setKinds)[number];
+
 export type WorkoutSet = {
   id: string;
   position: number;
   weightKg: number | null;
   reps: number;
   rir: number | null;
+  kind: SetKind;
+  note: string | null;
   completedAt: string;
 };
 
@@ -43,6 +48,8 @@ export type SetInput = {
   weightKg: number | null;
   reps: number;
   rir: number | null;
+  kind?: SetKind;
+  note?: string | null;
 };
 
 export type WorkoutErrorCode =

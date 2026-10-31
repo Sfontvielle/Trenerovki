@@ -9,12 +9,13 @@ export function suggestNextWeight(
   repsMax: number | null,
   plannedSets: number | null,
 ) {
-  if (repsMax === null || lastSets.length === 0 || lastSets.length < (plannedSets ?? 0)) {
+  const workingSets = lastSets.filter((set) => set.kind === 'working');
+  if (repsMax === null || workingSets.length === 0 || workingSets.length < (plannedSets ?? 0)) {
     return null;
   }
 
-  const heaviest = Math.max(...lastSets.map((set) => set.weightKg ?? 0));
-  const readyToProgress = lastSets.every(
+  const heaviest = Math.max(...workingSets.map((set) => set.weightKg ?? 0));
+  const readyToProgress = workingSets.every(
     (set) => set.weightKg === heaviest && set.reps >= repsMax && set.rir !== null && set.rir >= 1,
   );
   if (!readyToProgress || heaviest <= 0) {

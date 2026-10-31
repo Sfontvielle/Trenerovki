@@ -14,6 +14,7 @@ import {
   listCompletedSessions,
 } from '@/domains/progress/progress-repository';
 import { formatDuration, sessionDurationMs } from '@/domains/workout/session-time';
+import { SessionBar } from '@/features/workout/session-bar';
 import { formatDate, formatNumber, formatWeight, pluralize } from '@/lib/format';
 
 export default function ProgressScreen() {
@@ -32,6 +33,8 @@ export default function ProgressScreen() {
 
   return (
     <TabScreen title="Прогресс">
+      <SessionBar />
+      <Button label="Вес тела" variant="secondary" onPress={() => router.push('/body-weight')} />
       <DataView state={state}>
         {({ summary, sessions, records }) =>
           sessions.length === 0 ? (

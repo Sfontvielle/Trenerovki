@@ -8,7 +8,8 @@ import { DataView } from '@/components/states';
 import { AppText, Button, Panel, Screen, useTheme } from '@/design-system';
 import { exerciseName } from '@/domains/exercises/catalog';
 import { formatDuration, sessionDurationMs } from '@/domains/workout/session-time';
-import { formatDate, formatNumber, formatWeight } from '@/lib/format';
+import { describeSet } from '@/features/workout/set-labels';
+import { formatDate, formatNumber } from '@/lib/format';
 import { returnToTabs } from '@/lib/navigation';
 
 export default function SessionHistoryScreen() {
@@ -34,6 +35,7 @@ export default function SessionHistoryScreen() {
           const performed = session.exercises.filter((exercise) => exercise.sets.length > 0);
           const volume = performed
             .flatMap((exercise) => exercise.sets)
+            .filter((set) => set.kind !== 'warmup')
             .reduce((total, set) => total + (set.weightKg ?? 0) * set.reps, 0);
 
           return (
@@ -53,7 +55,7 @@ export default function SessionHistoryScreen() {
                   <AppText variant="heading">{exerciseName(exercise.exerciseId)}</AppText>
                   {exercise.sets.map((set) => (
                     <AppText key={set.id} variant="callout" tone="secondary">
-                      {`${set.position}. ${formatWeight(set.weightKg)} × ${set.reps}${set.rir === null ? '' : `, запас ${set.rir}`}`}
+                      {`${set.position}. ${describeSet(set)}`}
                     </AppText>
                   ))}
                 </Panel>

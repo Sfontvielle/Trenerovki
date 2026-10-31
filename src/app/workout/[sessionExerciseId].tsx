@@ -8,6 +8,7 @@ import { DataView } from '@/components/states';
 import { AppText, Button, Panel, Screen, useTheme } from '@/design-system';
 import { createId } from '@/domains/data-platform/ids';
 import { exerciseName } from '@/domains/exercises/catalog';
+import { RestTimer } from '@/features/workout/rest-timer';
 import { SetLogger } from '@/features/workout/set-logger';
 import { confirm } from '@/lib/confirm';
 import { describeFailure } from '@/lib/describe-failure';
@@ -83,7 +84,7 @@ export default function WorkoutExerciseScreen() {
           const reps = formatRepRange(exercise.repsMin, exercise.repsMax);
           const paused = session.state === 'paused';
           const setsSignature = exercise.sets
-            .map((set) => `${set.id}:${set.weightKg}:${set.reps}:${set.rir}`)
+            .map((set) => `${set.id}:${set.weightKg}:${set.reps}:${set.rir}:${set.kind}:${set.note}`)
             .join('|');
 
           return (
@@ -112,12 +113,19 @@ export default function WorkoutExerciseScreen() {
                 onChanged={state.reload}
               />
 
+              {paused ? null : <RestTimer />}
+
               {error ? (
                 <AppText accessibilityLiveRegion="polite" tone="danger">
                   {error}
                 </AppText>
               ) : null}
 
+              <Button
+                label="Как выполнять"
+                variant="secondary"
+                onPress={() => router.push(`/exercises/${exercise.exerciseId}`)}
+              />
               <Button label="Боль или дискомфорт" variant="secondary" onPress={reportDiscomfort} />
               {exercise.sets.length === 0 && !paused ? (
                 <Button label="Убрать из тренировки" variant="secondary" onPress={removeFromWorkout} />

@@ -4,8 +4,10 @@ import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, useTheme } from '@/design-system';
 import { allowedDaysPerWeek, type DaysPerWeek, type Sex } from '@/domains/profile/profile';
+import { weekdays } from '@/domains/program/schedule';
 import { sexLabels } from '@/features/profile/labels';
 import { pluralize } from '@/lib/format';
+import { selectionFeedback } from '@/lib/haptics';
 
 export type SymbolName = ComponentProps<typeof SymbolView>['name'];
 
@@ -128,7 +130,10 @@ export function ChoiceCard({ title, hint, symbol, selected, multiple = false, on
       accessibilityLabel={title}
       accessibilityRole={multiple ? 'checkbox' : 'radio'}
       accessibilityState={{ checked: selected }}
-      onPress={onPress}
+      onPress={() => {
+        selectionFeedback();
+        onPress();
+      }}
       style={({ pressed }) => [
         styles.card,
         selectedSurface(theme, selected),
@@ -185,7 +190,10 @@ export function SexCards({ value, onChange }: SexCardsProps) {
             accessibilityLabel={sexLabels[sex]}
             accessibilityRole="radio"
             accessibilityState={{ checked: selected }}
-            onPress={() => onChange(selected ? null : sex)}
+            onPress={() => {
+              selectionFeedback();
+              onChange(selected ? null : sex);
+            }}
             style={({ pressed }) => [
               styles.sexCard,
               selectedSurface(theme, selected),
@@ -231,7 +239,10 @@ export function FrequencyPicker({ value, onChange }: FrequencyPickerProps) {
               accessibilityLabel={`${days} ${timesWord(days)} в неделю`}
               accessibilityRole="radio"
               accessibilityState={{ checked: selected }}
-              onPress={() => onChange(days)}
+              onPress={() => {
+                selectionFeedback();
+                onChange(days);
+              }}
               style={({ pressed }) => [
                 styles.dayChip,
                 selectedSurface(theme, selected),
@@ -254,7 +265,56 @@ export function FrequencyPicker({ value, onChange }: FrequencyPickerProps) {
   );
 }
 
+type WeekdayPickerProps = {
+  value: number[];
+  onToggle: (day: number) => void;
+};
+
+export function WeekdayPicker({ value, onToggle }: WeekdayPickerProps) {
+  const { theme } = useTheme();
+  const { radii, sizes, spacing } = theme;
+
+  return (
+    <View style={[styles.weekdays, { gap: spacing.s }]}>
+      {weekdays.map((day) => {
+        const selected = value.includes(day.value);
+        return (
+          <Pressable
+            key={day.value}
+            accessibilityLabel={day.short}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: selected }}
+            onPress={() => {
+              selectionFeedback();
+              onToggle(day.value);
+            }}
+            style={({ pressed }) => [
+              styles.dayChip,
+              selectedSurface(theme, selected),
+              {
+                borderRadius: radii.control,
+                height: sizes.minTouch,
+                minWidth: sizes.minTouch,
+                opacity: pressed ? 0.8 : 1,
+              },
+            ]}
+          >
+            <AppText variant="callout" tone={selected ? 'accent' : 'primary'}>
+              {day.short}
+            </AppText>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  weekdays: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
   back: {
     alignItems: 'center',
     justifyContent: 'center',

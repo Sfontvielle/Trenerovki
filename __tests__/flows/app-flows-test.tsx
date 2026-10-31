@@ -1,6 +1,6 @@
 import { act, fireEvent } from '@testing-library/react-native';
 import { renderRouter, screen, testRouter } from 'expo-router/testing-library';
-import { Alert, Share } from 'react-native';
+import { Alert } from 'react-native';
 
 import type { Database } from '@/domains/data-platform/database';
 import { openAppDatabase } from '@/domains/data-platform/expo-database';
@@ -9,6 +9,8 @@ import { SettingsRepository } from '@/domains/data-platform/settings-repository'
 import { completeOnboarding } from '@/domains/profile/complete-onboarding';
 import type { Profile } from '@/domains/profile/profile';
 import { getProfile } from '@/domains/profile/profile-repository';
+import { exportAllData } from '@/domains/data-platform/data-transfer';
+import { pickBackup, shareBackup } from '@/features/profile/backup';
 import { generatePlan } from '@/domains/program/generate-plan';
 import { getProgram } from '@/domains/program/program-repository';
 import { listCompletedSessions } from '@/domains/progress/progress-repository';
@@ -16,6 +18,7 @@ import { WorkoutEngine } from '@/domains/workout/workout-engine';
 import { createTestDatabase } from '../../test-support/test-database';
 
 jest.mock('@/domains/data-platform/expo-database', () => ({ openAppDatabase: jest.fn() }));
+jest.mock('@/features/profile/backup', () => ({ pickBackup: jest.fn(), shareBackup: jest.fn() }));
 jest.mock('@/domains/data-platform/ids', () => {
   let next = 0;
   return { createId: () => `generated-${++next}` };
@@ -35,6 +38,7 @@ const profile: Profile = {
   sessionMinutes: 60,
   equipment: 'gym',
   limitations: [],
+  trainingDays: [],
 };
 
 let database: Database;
@@ -121,6 +125,7 @@ describe('new user', () => {
     await press('Продолжить');
     await press(/^3 раза/, 'radio');
     await press('Продолжить');
+    await press('Пропустить');
     await press('45 минут', 'radio');
     await press('Продолжить');
     await press('Тренажёрный зал', 'radio');
@@ -168,6 +173,12 @@ describe('new user', () => {
     await press('Продолжить');
     await press(/^4 раза/, 'radio');
     await press('Продолжить');
+    await press('Пн', 'checkbox');
+    expect(screen.getByRole('button', { name: 'Продолжить', disabled: true })).toBeTruthy();
+    await press('Вт', 'checkbox');
+    await press('Чт', 'checkbox');
+    await press('Сб', 'checkbox');
+    await press('Продолжить');
     await press('60 минут', 'radio');
     await press('Продолжить');
     await press('Гантели дома', 'radio');
@@ -182,6 +193,7 @@ describe('new user', () => {
       weightKg: 62.5,
       daysPerWeek: 4,
       equipment: 'dumbbells',
+      trainingDays: [1, 2, 4, 6],
     });
   });
 
@@ -352,15 +364,62 @@ describe('profile', () => {
     expect(screen.getByRole('radio', { name: 'Розовый', checked: true })).toBeTruthy();
   });
 
-  it('exports the data through the share sheet', async () => {
-    const share = jest.spyOn(Share, 'share').mockResolvedValue({ action: 'sharedAction', activityType: undefined });
+  it('saves a backup file', async () => {
     await seedProfile();
     await renderRouter('./src/app', { initialUrl: '/profile' });
     await screen.findByText('Тема');
 
-    await press('Экспортировать данные');
+    await press('Сохранить резервную копию');
 
-    expect(JSON.parse(share.mock.calls[0][0].message as string).format).toBe('ironvant-export');
+    expect(shareBackup).toHaveBeenCalledWith(database);
+  });
+
+  it('restores a backup after confirmation and refreshes the app', async () => {
+    await seedProfile();
+    const backup = await exportAllData(database);
+    await database.run("UPDATE profile SET name = 'Другое имя'");
+    jest.mocked(pickBackup).mockResolvedValueOnce(backup);
+    await renderRouter('./src/app', { initialUrl: '/profile' });
+    await screen.findByText('Другое имя');
+
+    await press('Восстановить из копии');
+
+    expect(await screen.findByText('Данные восстановлены из копии.')).toBeTruthy();
+    expect(screen.getByText('Ислам')).toBeTruthy();
+  });
+
+  it('explains a wrong file and leaves the data alone', async () => {
+    await seedProfile();
+    jest.mocked(pickBackup).mockResolvedValueOnce('not a backup');
+    await renderRouter('./src/app', { initialUrl: '/profile' });
+    await screen.findByText('Тема');
+
+    await press('Восстановить из копии');
+
+    expect(await screen.findByText('Это не резервная копия IRONVANT.')).toBeTruthy();
+    expect(await getProfile(database)).not.toBeNull();
+  });
+
+  it('does nothing when the file picker is cancelled', async () => {
+    await seedProfile();
+    jest.mocked(pickBackup).mockResolvedValueOnce(null);
+    await renderRouter('./src/app', { initialUrl: '/profile' });
+    await screen.findByText('Тема');
+
+    await press('Восстановить из копии');
+
+    expect(screen.queryByText('Данные восстановлены из копии.')).toBeNull();
+    expect(await getProfile(database)).not.toBeNull();
+  });
+
+  it('stores the haptics choice', async () => {
+    await seedProfile();
+    await renderRouter('./src/app', { initialUrl: '/profile' });
+    await screen.findByText('Тема');
+
+    await press('Выключен', 'radio');
+
+    expect(await new SettingsRepository(database).get('haptics')).toBe('off');
   });
 
   it('deletes everything after confirmation and returns to the welcome screen', async () => {
@@ -715,7 +774,7 @@ describe('changing the answers', () => {
     await press('Изменить ответы и план');
     await screen.findByLabelText('Как вас зовут');
     expect(screen.getByLabelText('Как вас зовут').props.value).toBe('Ислам');
-    for (let step = 0; step < 9; step += 1) {
+    for (let step = 0; step < 10; step += 1) {
       await press(/^(Продолжить|Пропустить)$/);
     }
     await press('Плечи', 'checkbox');
@@ -729,6 +788,173 @@ describe('changing the answers', () => {
     expect(await getProfile(database)).toMatchObject({ limitations: ['shoulders'] });
     expect(await database.all('SELECT id FROM workout_set')).toHaveLength(1);
     expect(await database.all("SELECT id FROM workout_session WHERE state = 'completed'")).toHaveLength(1);
+  });
+});
+
+describe('plan and library', () => {
+  it('replaces an exercise in a plan day', async () => {
+    await seedProfile();
+    const [day] = await getProgram(database);
+    const first = day.exercises[0];
+    await renderRouter('./src/app', { initialUrl: `/plan/${day.id}` });
+    await screen.findAllByRole('button', { name: /^Заменить/ });
+
+    await press(/^Заменить/);
+    await screen.findByLabelText('Найти упражнение');
+    await press(/Мёртвый жук/);
+
+    const [edited] = await getProgram(database);
+    expect(edited.exercises[0].id).toBe(first.id);
+    expect(edited.exercises[0].exerciseId).toBe('dead-bug');
+  });
+
+  it('removes an exercise after confirmation and keeps it when declined', async () => {
+    await seedProfile();
+    const [day] = await getProgram(database);
+    await renderRouter('./src/app', { initialUrl: `/plan/${day.id}` });
+    await screen.findAllByRole('button', { name: /^Убрать/ });
+
+    confirmButton = 0;
+    await press(/^Убрать/);
+    expect((await getProgram(database))[0].exercises).toHaveLength(day.exercises.length);
+
+    confirmButton = 1;
+    await press(/^Убрать/);
+    await screen.findAllByRole('button', { name: /^Заменить/ });
+    expect((await getProgram(database))[0].exercises).toHaveLength(day.exercises.length - 1);
+  });
+
+  it('shows the technique of an exercise', async () => {
+    await seedProfile();
+
+    await renderRouter('./src/app', { initialUrl: '/exercises/bench-press' });
+
+    expect(await screen.findByText('Как выполнять')).toBeTruthy();
+    expect(screen.getByText(/экспертной проверки пока не было/)).toBeTruthy();
+  });
+
+  it('adds a custom exercise and offers it in the library', async () => {
+    await seedProfile();
+    await renderRouter('./src/app', { initialUrl: '/exercises' });
+    await screen.findByLabelText('Найти упражнение');
+
+    await press('Новое упражнение');
+    await screen.findByText('Сохранить упражнение');
+    await type('Название', 'Жим в смите');
+    await press('Грудь', 'radio');
+    await press('Сохранить упражнение');
+
+    expect(await screen.findByText('Грудь, своё упражнение')).toBeTruthy();
+  });
+
+  it('filters the library by muscle group', async () => {
+    await seedProfile();
+    await renderRouter('./src/app', { initialUrl: '/exercises' });
+    await screen.findByLabelText('Найти упражнение');
+
+    await press('Мышцы корпуса', 'radio');
+
+    expect(await screen.findByText('Скручивания')).toBeTruthy();
+    expect(screen.queryByText('Жим штанги лёжа')).toBeNull();
+  });
+});
+
+describe('body weight and coach', () => {
+  it('records today\'s body weight and shows it on the home screen', async () => {
+    await seedProfile();
+    await renderRouter('./src/app', { initialUrl: '/body-weight' });
+    await screen.findByText('Записать вес');
+
+    await press('Вес тела: больше');
+    await press('Записать вес');
+
+    expect(await screen.findByText('Обновить вес за сегодня')).toBeTruthy();
+    expect(await database.all('SELECT weight_kg FROM body_weight')).toEqual([{ weight_kg: 80.1 }]);
+  });
+
+  it('shows local insights and says they are not AI', async () => {
+    await seedOpenWorkout();
+    await database.run(
+      `UPDATE workout_session SET state = 'completed', paused_at = NULL, finished_at = ?`,
+      [new Date().toISOString()],
+    );
+    await renderRouter('./src/app');
+    await screen.findByText('Следующая тренировка');
+
+    await testRouter.navigate('/coach');
+
+    expect(await screen.findByText('Регулярность')).toBeTruthy();
+    expect(screen.getByText(/без ИИ/)).toBeTruthy();
+  });
+
+  it('offers a way back to an open workout from other tabs', async () => {
+    await seedOpenWorkout();
+    await renderRouter('./src/app');
+    await screen.findByText('Тренировка не завершена');
+
+    await testRouter.navigate('/progress');
+    await screen.findByRole('button', { name: 'Вернуться к тренировке' });
+
+    await press('Вернуться к тренировке');
+
+    expect(screen).toHavePathname('/workout');
+  });
+});
+
+describe('set details', () => {
+  it('prefills the planned reps for the first set and records a warm-up with a note', async () => {
+    await seedProfile();
+    const [day] = await getProgram(database);
+    const planned = day.exercises[0];
+    const engine = new WorkoutEngine({ database, createId, now: () => new Date() });
+    const sessionId = await engine.startSession({
+      operationId: createId(),
+      title: day.name,
+      programDayId: day.id,
+      exercises: [
+        {
+          exerciseId: planned.exerciseId,
+          plannedSets: planned.targetSets,
+          repsMin: planned.repsMin,
+          repsMax: planned.repsMax,
+        },
+      ],
+    });
+    const session = await engine.getSession(sessionId);
+    await renderRouter('./src/app', { initialUrl: '/workout' });
+    await screen.findByText('Продолжить');
+    await press('Продолжить');
+    await screen.findByText('Пауза');
+    await testRouter.push(`/workout/${session!.exercises[0].id}`);
+    await screen.findByText('Записать подход');
+
+    expect(screen.getByLabelText('Повторы').props.value).toBe(String(planned.repsMin));
+
+    await type('Вес, кг', '40');
+    await press('Разминка', 'radio');
+    await type('Заметка', 'Лёгко');
+    await press('Записать подход');
+
+    expect(await screen.findByText('1. Разминка: 40 кг × 8. Лёгко')).toBeTruthy();
+  });
+
+  it('starts and stops the rest timer', async () => {
+    await seedOpenWorkout();
+    const exercise = await database.first<{ id: string }>(
+      'SELECT id FROM session_exercise ORDER BY position LIMIT 1',
+    );
+    await renderRouter('./src/app', { initialUrl: '/workout' });
+    await screen.findByText('Продолжить');
+    await press('Продолжить');
+    await screen.findByText('Пауза');
+    await testRouter.push(`/workout/${exercise!.id}`);
+    await screen.findByText('Отдых');
+
+    await press('1:30', 'radio');
+    expect(await screen.findByText('Остановить таймер')).toBeTruthy();
+
+    await press('Остановить таймер');
+    expect(screen.queryByText('Остановить таймер')).toBeNull();
   });
 });
 

@@ -4,14 +4,17 @@ import {
   type PlannedExercise,
   type SessionExercise,
   type SetInput,
+  type SetKind,
   WorkoutError,
   type WorkoutSession,
   type WorkoutSet,
+  setKinds,
 } from './types';
 
 const MAX_WEIGHT_KG = 1000;
 const MAX_REPS = 1000;
 const MAX_RIR = 10;
+const MAX_NOTE_LENGTH = 200;
 const DISCOMFORT_EVENT = 'discomfort_reported';
 const DISCOMFORT_MEMORY_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -44,6 +47,8 @@ type SetRow = {
   weight_kg: number | null;
   reps: number;
   rir: number | null;
+  kind: SetKind;
+  note: string | null;
   completed_at: string;
 };
 
@@ -53,13 +58,14 @@ export type EngineDependencies = {
   now: () => Date;
 };
 
-export function validateSet({ weightKg, reps, rir }: SetInput) {
+export function validateSet({ weightKg, reps, rir, kind = 'working', note = null }: SetInput) {
   const validWeight =
     weightKg === null || (Number.isFinite(weightKg) && weightKg >= 0 && weightKg <= MAX_WEIGHT_KG);
   const validReps = Number.isInteger(reps) && reps > 0 && reps <= MAX_REPS;
   const validRir = rir === null || (Number.isInteger(rir) && rir >= 0 && rir <= MAX_RIR);
+  const validDetails = setKinds.includes(kind) && (note === null || note.length <= MAX_NOTE_LENGTH);
 
-  if (!validWeight || !validReps || !validRir) {
+  if (!validWeight || !validReps || !validRir || !validDetails) {
     throw new WorkoutError('invalid_set', 'Set values are out of range');
   }
 }
@@ -71,6 +77,8 @@ function toSet(row: SetRow): WorkoutSet {
     weightKg: row.weight_kg,
     reps: row.reps,
     rir: row.rir,
+    kind: row.kind,
+    note: row.note,
     completedAt: row.completed_at,
   };
 }
@@ -345,8 +353,9 @@ export class WorkoutEngine {
       );
       const setId = this.createId();
       await tx.run(
-        `INSERT INTO workout_set (id, session_exercise_id, position, weight_kg, reps, rir, completed_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO workout_set
+           (id, session_exercise_id, position, weight_kg, reps, rir, kind, note, completed_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           setId,
           sessionExerciseId,
@@ -354,6 +363,8 @@ export class WorkoutEngine {
           input.weightKg,
           input.reps,
           input.rir,
+          input.kind ?? 'working',
+          input.note ?? null,
           timestamp,
         ],
       );
@@ -365,12 +376,10 @@ export class WorkoutEngine {
     return this.apply(operationId, async (tx) => {
       validateSet(input);
       const { set, exercise } = await this.requireActiveSet(tx, setId);
-      await tx.run('UPDATE workout_set SET weight_kg = ?, reps = ?, rir = ? WHERE id = ?', [
-        input.weightKg,
-        input.reps,
-        input.rir,
-        setId,
-      ]);
+      await tx.run(
+        'UPDATE workout_set SET weight_kg = ?, reps = ?, rir = ?, kind = ?, note = ? WHERE id = ?',
+        [input.weightKg, input.reps, input.rir, input.kind ?? 'working', input.note ?? null, setId],
+      );
       return {
         sessionId: exercise.session_id,
         entityId: setId,

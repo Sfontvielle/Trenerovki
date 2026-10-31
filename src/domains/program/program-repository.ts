@@ -1,6 +1,10 @@
 import type { Database, DatabaseExecutor } from '../data-platform/database';
 import type { PlannedDay } from './generate-plan';
 
+const DEFAULT_SETS = 3;
+const DEFAULT_REPS_MIN = 8;
+const DEFAULT_REPS_MAX = 12;
+
 export type ProgramExercise = {
   id: string;
   exerciseId: string;
@@ -73,6 +77,57 @@ export async function getProgram(database: Database): Promise<ProgramDay[]> {
         repsMax: row.reps_max,
       })),
   }));
+}
+
+export async function replaceProgramExercise(database: Database, id: string, exerciseId: string) {
+  await database.run('UPDATE program_exercise SET exercise_id = ? WHERE id = ?', [exerciseId, id]);
+}
+
+export async function removeProgramExercise(database: Database, id: string) {
+  await database.transaction(async (tx) => {
+    const row = await tx.first<{ program_day_id: string; position: number }>(
+      'SELECT program_day_id, position FROM program_exercise WHERE id = ?',
+      [id],
+    );
+    if (!row) {
+      return;
+    }
+    await tx.run('DELETE FROM program_exercise WHERE id = ?', [id]);
+    await tx.run(
+      'UPDATE program_exercise SET position = position - 1 WHERE program_day_id = ? AND position > ?',
+      [row.program_day_id, row.position],
+    );
+  });
+}
+
+export async function addProgramExercise(
+  database: Database,
+  dayId: string,
+  exerciseId: string,
+  id: string,
+) {
+  await database.transaction(async (tx) => {
+    const last = await tx.first<{
+      position: number;
+      target_sets: number;
+      reps_min: number;
+      reps_max: number;
+    }>('SELECT * FROM program_exercise WHERE program_day_id = ? ORDER BY position DESC LIMIT 1', [dayId]);
+    await tx.run(
+      `INSERT INTO program_exercise
+         (id, program_day_id, position, exercise_id, target_sets, reps_min, reps_max)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        dayId,
+        (last?.position ?? 0) + 1,
+        exerciseId,
+        last?.target_sets ?? DEFAULT_SETS,
+        last?.reps_min ?? DEFAULT_REPS_MIN,
+        last?.reps_max ?? DEFAULT_REPS_MAX,
+      ],
+    );
+  });
 }
 
 export async function getNextDay(database: Database, program: ProgramDay[]) {

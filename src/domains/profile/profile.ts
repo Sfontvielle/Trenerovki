@@ -26,6 +26,7 @@ export type Profile = {
   sessionMinutes: SessionMinutes;
   equipment: Equipment;
   limitations: Limitation[];
+  trainingDays: number[];
 };
 
 export function isValidName(name: string) {

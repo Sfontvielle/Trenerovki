@@ -2,14 +2,17 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { useAppData } from '@/app-data/app-data';
+import { ChoiceGroup } from '@/components/choice-group';
 import { AppText, Button, Panel, TextField, useTheme } from '@/design-system';
 import { createId } from '@/domains/data-platform/ids';
 import { suggestNextWeight } from '@/domains/workout/progression';
-import type { SessionExercise, SetInput, WorkoutSet } from '@/domains/workout/types';
+import { type SessionExercise, type SetInput, type SetKind, type WorkoutSet, setKinds } from '@/domains/workout/types';
 import { validateSet } from '@/domains/workout/workout-engine';
+import { describeSet, setKindLabels } from '@/features/workout/set-labels';
 import { confirm } from '@/lib/confirm';
 import { describeFailure } from '@/lib/describe-failure';
 import { formatInputNumber, formatWeight, parseDecimal } from '@/lib/format';
+import { successFeedback } from '@/lib/haptics';
 
 type SetLoggerProps = {
   exercise: SessionExercise;
@@ -19,16 +22,31 @@ type SetLoggerProps = {
   onChanged: () => void;
 };
 
-function describeSet(set: WorkoutSet) {
-  const rir = set.rir === null ? '' : `, запас ${set.rir}`;
-  return `${formatWeight(set.weightKg)} × ${set.reps}${rir}`;
+type FormValues = {
+  weightText: string;
+  repsText: string;
+  rirText: string;
+  kind: SetKind;
+  noteText: string;
+};
+
+function toForm(set: WorkoutSet | undefined, plannedReps: number | null): FormValues {
+  return {
+    weightText: formatInputNumber(set?.weightKg),
+    repsText: formatInputNumber(set?.reps ?? plannedReps),
+    rirText: formatInputNumber(set?.rir),
+    kind: 'working',
+    noteText: '',
+  };
 }
 
-function parseSet(weightText: string, repsText: string, rirText: string): SetInput | null {
+function parseSet({ weightText, repsText, rirText, kind, noteText }: FormValues): SetInput | null {
   const input = {
     weightKg: parseDecimal(weightText),
     reps: parseDecimal(repsText) ?? Number.NaN,
     rir: parseDecimal(rirText),
+    kind,
+    note: noteText.trim() || null,
   };
   try {
     validateSet(input);
@@ -48,32 +66,27 @@ export function SetLogger({ exercise, lastSets, paused, suggestionsAllowed, onCh
       : null;
 
   const [editing, setEditing] = useState<WorkoutSet | null>(null);
-  const [weightText, setWeightText] = useState(formatInputNumber(previous?.weightKg));
-  const [repsText, setRepsText] = useState(formatInputNumber(previous?.reps));
-  const [rirText, setRirText] = useState(formatInputNumber(previous?.rir));
+  const [form, setForm] = useState(() => toForm(previous, exercise.repsMin));
   const [operationId, setOperationId] = useState(createId);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fillForm = (set: WorkoutSet | undefined) => {
-    setWeightText(formatInputNumber(set?.weightKg));
-    setRepsText(formatInputNumber(set?.reps));
-    setRirText(formatInputNumber(set?.rir));
-    setError(null);
-  };
+  const update = (changes: Partial<FormValues>) => setForm((current) => ({ ...current, ...changes }));
 
   const startEditing = (set: WorkoutSet) => {
     setEditing(set);
-    fillForm(set);
+    setForm({ ...toForm(set, null), kind: set.kind, noteText: set.note ?? '' });
+    setError(null);
   };
 
   const stopEditing = () => {
     setEditing(null);
-    fillForm(previous);
+    setForm(toForm(previous, exercise.repsMin));
+    setError(null);
   };
 
   const submit = async () => {
-    const input = parseSet(weightText, repsText, rirText);
+    const input = parseSet(form);
     if (!input) {
       setError('Проверьте значения: вес до 1000 кг, повторы целым числом от 1, запас от 0 до 10.');
       return;
@@ -88,6 +101,7 @@ export function SetLogger({ exercise, lastSets, paused, suggestionsAllowed, onCh
         await engine.logSet(exercise.id, input, operationId);
       }
       setOperationId(createId());
+      successFeedback();
       onChanged();
     } catch (cause) {
       console.error(cause);
@@ -139,7 +153,7 @@ export function SetLogger({ exercise, lastSets, paused, suggestionsAllowed, onCh
           <Button
             label="Подставить вес"
             variant="secondary"
-            onPress={() => setWeightText(formatInputNumber(suggestion))}
+            onPress={() => update({ weightText: formatInputNumber(suggestion) })}
           />
         </Panel>
       ) : null}
@@ -186,21 +200,33 @@ export function SetLogger({ exercise, lastSets, paused, suggestionsAllowed, onCh
             hint="Оставьте пустым для упражнений со своим весом"
             keyboardType="decimal-pad"
             label="Вес, кг"
-            onChangeText={setWeightText}
-            value={weightText}
+            onChangeText={(weightText) => update({ weightText })}
+            value={form.weightText}
           />
           <TextField
             keyboardType="number-pad"
             label="Повторы"
-            onChangeText={setRepsText}
-            value={repsText}
+            onChangeText={(repsText) => update({ repsText })}
+            value={form.repsText}
           />
           <TextField
             hint="Сколько повторов вы могли бы ещё сделать. Необязательно"
             keyboardType="number-pad"
             label="Запас повторов"
-            onChangeText={setRirText}
-            value={rirText}
+            onChangeText={(rirText) => update({ rirText })}
+            value={form.rirText}
+          />
+          <ChoiceGroup
+            choices={setKinds.map((value) => ({ value, label: setKindLabels[value] }))}
+            isSelected={(value) => form.kind === value}
+            label="Тип подхода"
+            onSelect={(kind) => update({ kind })}
+          />
+          <TextField
+            label="Заметка"
+            maxLength={200}
+            onChangeText={(noteText) => update({ noteText })}
+            value={form.noteText}
           />
           {error ? (
             <AppText accessibilityLiveRegion="polite" variant="callout" tone="danger">
