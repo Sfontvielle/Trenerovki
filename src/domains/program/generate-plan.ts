@@ -4,7 +4,8 @@ import type { DaysPerWeek, Experience, Goal, Profile, SessionMinutes } from '../
 type PlanProfile = Pick<
   Profile,
   'goal' | 'experience' | 'daysPerWeek' | 'sessionMinutes' | 'equipment' | 'limitations'
->;
+> &
+  Partial<Pick<Profile, 'baseline'>>;
 
 export type PlannedDayExercise = {
   exerciseId: string;
@@ -169,14 +170,17 @@ function rotated<Item>(items: Item[], offset: number) {
 }
 
 export function generatePlan(profile: PlanProfile): PlannedDay[] {
-  const { daysPerWeek, equipment, experience, goal, limitations, sessionMinutes } = profile;
+  const { baseline, daysPerWeek, equipment, experience, goal, limitations, sessionMinutes } = profile;
+  // Self-reported starting form counts alongside experience, so nobody meets
+  // a demanding lift or a full push-up before they are ready for it.
+  const cautious = experience === 'beginner' || baseline === 'low';
   const usable = exercises.filter(
     (exercise) =>
       exercise.tracking === 'reps' &&
       exercise.category === 'strength' &&
       exercise.equipment.includes(equipment) &&
       !exercise.loads.some((area) => limitations.includes(area)) &&
-      (experience !== 'beginner' || !exercise.demanding),
+      (!cautious || (!exercise.demanding && (baseline !== 'low' || exercise.id !== 'push-up'))),
   );
   const pool = [
     ...usable.filter((exercise) => exercise.demanding),

@@ -94,7 +94,7 @@ describe('diary', () => {
 
     const [entry] = await listDayEntries(database, '2026-11-01');
     expect(entry).toMatchObject({ name: 'Овсянка', meal: 'breakfast', grams: 50, kcal: 183 });
-    expect(await listFoods(database)).toEqual([{ id: 'oats', name: 'Овсянка', ...oats }]);
+    expect(await listFoods(database)).toEqual([{ id: 'oats', name: 'Овсянка', source: 'user', ...oats }]);
   });
 
   it('applies a repeated save only once', async () => {

@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import { TextInput, View } from 'react-native';
 
 import { useAppData } from '@/app-data/app-data';
+import { ChoiceGroup } from '@/components/choice-group';
 import { FadeIn } from '@/components/fade-in';
 import { RulerPicker } from '@/components/ruler-picker';
 import { WheelPicker } from '@/components/wheel-picker';
@@ -11,25 +12,38 @@ import { createId } from '@/domains/data-platform/ids';
 import { exerciseName } from '@/domains/exercises/catalog';
 import { completeOnboarding, saveAnswers } from '@/domains/profile/complete-onboarding';
 import {
+  type ActivityLevel,
+  type Baseline,
   type DaysPerWeek,
+  type Diet,
   type Equipment,
   type Experience,
   type Goal,
   type Limitation,
   MAX_AGE,
+  MAX_HEIGHT_CM,
   MAX_WEIGHT_KG,
   MIN_AGE,
+  MIN_HEIGHT_CM,
   MIN_WEIGHT_KG,
+  type NutritionMode,
   type Profile,
   type SessionMinutes,
   type Sex,
   allowedSessionMinutes,
   isValidAge,
+  isValidHeight,
   isValidName,
   isValidWeight,
 } from '@/domains/profile/profile';
+import { estimateTargets } from '@/domains/nutrition/targets';
 import { generatePlan } from '@/domains/program/generate-plan';
+import { formatEnergy, formatMacros } from '@/features/nutrition/format-nutrition';
 import {
+  activityHints,
+  activityLabels,
+  baselineLabels,
+  dietLabels,
   equipmentHints,
   equipmentLabels,
   experienceHints,
@@ -37,6 +51,8 @@ import {
   goalHints,
   goalLabels,
   limitationLabels,
+  nutritionModeLabels,
+  sleepChoices,
 } from '@/features/profile/labels';
 import { PlanAnalysis } from '@/features/profile/plan-analysis';
 import {
@@ -57,19 +73,26 @@ const pages = [
   'age',
   'sex',
   'weight',
+  'height',
   'goal',
   'experience',
+  'baseline',
   'days',
   'weekdays',
   'duration',
   'equipment',
   'limitations',
+  'lifestyle',
+  'nutrition',
 ] as const;
 type Page = (typeof pages)[number];
 
 const REVIEW_PAGE = pages.length;
 const WEIGHT_START_KG = 75;
 const WEIGHT_STEP_KG = 0.5;
+const HEIGHT_START_CM = 170;
+const HEIGHT_STEP_CM = 1;
+const SHORT_SLEEP_HOURS = 6;
 const AGE_START = 30;
 const ages = Array.from({ length: MAX_AGE - MIN_AGE + 1 }, (_, index) => MIN_AGE + index);
 
@@ -100,6 +123,12 @@ type Draft = {
   equipment: Equipment | null;
   limitations: Limitation[];
   trainingDays: number[];
+  heightCm: number | null;
+  activityLevel: ActivityLevel | null;
+  usualSleepHours: number | null;
+  baseline: Baseline | null;
+  nutritionMode: NutritionMode;
+  diet: Diet;
 };
 
 const emptyDraft: Draft = {
@@ -114,6 +143,12 @@ const emptyDraft: Draft = {
   equipment: null,
   limitations: [],
   trainingDays: [],
+  heightCm: null,
+  activityLevel: null,
+  usualSleepHours: null,
+  baseline: null,
+  nutritionMode: 'targets',
+  diet: 'any',
 };
 
 function toDraft(profile: Profile | null): Draft {
@@ -132,6 +167,8 @@ function isPageComplete(page: Page, draft: Draft) {
       return isValidAge(parseDecimal(draft.ageText));
     case 'weight':
       return isValidWeight(draft.weightKg);
+    case 'height':
+      return isValidHeight(draft.heightCm);
     case 'goal':
       return draft.goal !== null;
     case 'experience':
@@ -150,12 +187,15 @@ function isPageComplete(page: Page, draft: Draft) {
 }
 
 function continueLabel(page: Page, draft: Draft) {
-  if (page === 'limitations') {
+  if (page === 'nutrition') {
     return 'Показать план';
   }
   const skippable =
     (page === 'sex' && draft.sex === null) ||
     (page === 'weight' && draft.weightKg === null) ||
+    (page === 'height' && draft.heightCm === null) ||
+    (page === 'baseline' && draft.baseline === null) ||
+    (page === 'lifestyle' && draft.activityLevel === null && draft.usualSleepHours === null) ||
     (page === 'weekdays' && draft.trainingDays.length === 0);
   return skippable ? 'Пропустить' : 'Продолжить';
 }
@@ -173,6 +213,12 @@ function toProfile(draft: Draft): Profile {
     equipment: draft.equipment as Equipment,
     limitations: draft.limitations,
     trainingDays: draft.trainingDays,
+    heightCm: draft.heightCm,
+    activityLevel: draft.activityLevel,
+    usualSleepHours: draft.usualSleepHours,
+    baseline: draft.baseline,
+    nutritionMode: draft.nutritionMode,
+    diet: draft.diet,
   };
 }
 
@@ -215,6 +261,7 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
 
     const profile = toProfile(draft);
     const plan = generatePlan(profile);
+    const targets = profile.nutritionMode === 'diary' ? null : estimateTargets(profile);
 
     const accept = async (replacePlan: boolean) => {
       setSaving(true);
@@ -269,6 +316,16 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
           <AppText variant="callout" tone="secondary">
             Начинайте с лёгкого веса: подходы должны даваться с запасом.
           </AppText>
+          {targets ? (
+            <AppText variant="callout" tone="secondary">
+              {`Ориентир по питанию на день: ${formatEnergy(targets.kcal)}, ${formatMacros(targets)}. Его можно изменить на вкладке «Питание».`}
+            </AppText>
+          ) : null}
+          {profile.usualSleepHours !== null && profile.usualSleepHours < SHORT_SLEEP_HOURS ? (
+            <AppText variant="callout" tone="secondary">
+              Вы спите меньше 6 часов. При недосыпе восстановление идёт хуже: следите за самочувствием.
+            </AppText>
+          ) : null}
           {profile.limitations.length > 0 ? (
             <AppText variant="callout" tone="secondary">
               Мы убрали из плана упражнения, которые заметно нагружают выбранные зоны. Это не медицинская
@@ -407,14 +464,14 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
 
         {page === 'sex' ? (
           <>
-            <QuestionTitle title="Ваш пол" hint="Необязательно. Пока не влияет на план" />
+            <QuestionTitle title="Ваш пол" hint="Необязательно. Нужен только для оценки калорий" />
             <SexCards value={draft.sex} onChange={(sex) => update({ sex })} />
           </>
         ) : null}
 
         {page === 'weight' ? (
           <>
-            <QuestionTitle title="Сколько вы весите?" hint="Необязательно. Пока не влияет на план" />
+            <QuestionTitle title="Сколько вы весите?" hint="Необязательно. Нужен для оценки калорий и белка" />
             <RulerPicker
               label="Вес"
               max={MAX_WEIGHT_KG}
@@ -437,6 +494,49 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
                 onPress={() => update({ weightKg: null })}
               />
             ) : null}
+          </>
+        ) : null}
+
+        {page === 'height' ? (
+          <>
+            <QuestionTitle title="Какой у вас рост?" hint="Необязательно. Нужен только для оценки калорий" />
+            <RulerPicker
+              label="Рост"
+              max={MAX_HEIGHT_CM}
+              min={MIN_HEIGHT_CM}
+              onChange={(heightCm) => update({ heightCm })}
+              start={HEIGHT_START_CM}
+              step={HEIGHT_STEP_CM}
+              unit="см"
+              value={draft.heightCm}
+            />
+            {!isValidHeight(draft.heightCm) ? (
+              <AppText accessibilityLiveRegion="polite" variant="callout" tone="danger" style={{ textAlign: 'center' }}>
+                {`Укажите рост от ${MIN_HEIGHT_CM} до ${MAX_HEIGHT_CM} см`}
+              </AppText>
+            ) : null}
+            {draft.heightCm !== null ? (
+              <Button label="Не указывать рост" variant="secondary" onPress={() => update({ heightCm: null })} />
+            ) : null}
+          </>
+        ) : null}
+
+        {page === 'baseline' ? (
+          <>
+            <QuestionTitle
+              hint="Необязательно. Делать ничего не нужно, ответьте по памяти. Отжимания с колен тоже считаются. Ответ помогает не ставить слишком сложные упражнения"
+              title="Сколько отжиманий подряд вы сделаете?"
+            />
+            <View accessibilityRole="radiogroup" style={{ gap: spacing.m }}>
+              {keysOf(baselineLabels).map((baseline) => (
+                <ChoiceCard
+                  key={baseline}
+                  onPress={() => update({ baseline })}
+                  selected={draft.baseline === baseline}
+                  title={baselineLabels[baseline]}
+                />
+              ))}
+            </View>
           </>
         ) : null}
 
@@ -558,6 +658,51 @@ export function Questionnaire({ initial, onDone }: QuestionnaireProps) {
                 />
               ))}
             </View>
+          </>
+        ) : null}
+
+        {page === 'lifestyle' ? (
+          <>
+            <QuestionTitle hint="Необязательно. Нужно для оценки калорий и восстановления" title="Ваш обычный день" />
+            <View accessibilityRole="radiogroup" style={{ gap: spacing.m }}>
+              {keysOf(activityLabels).map((activityLevel) => (
+                <ChoiceCard
+                  key={activityLevel}
+                  hint={activityHints[activityLevel]}
+                  onPress={() => update({ activityLevel })}
+                  selected={draft.activityLevel === activityLevel}
+                  title={activityLabels[activityLevel]}
+                />
+              ))}
+            </View>
+            <ChoiceGroup
+              choices={sleepChoices.map(({ hours, label }) => ({ value: hours, label }))}
+              isSelected={(hours) => draft.usualSleepHours === hours}
+              label="Сколько вы обычно спите"
+              onSelect={(usualSleepHours) => update({ usualSleepHours })}
+            />
+          </>
+        ) : null}
+
+        {page === 'nutrition' ? (
+          <>
+            <QuestionTitle hint="Можно изменить в любой момент" title="Как вести питание?" />
+            <View accessibilityRole="radiogroup" style={{ gap: spacing.m }}>
+              {keysOf(nutritionModeLabels).map((nutritionMode) => (
+                <ChoiceCard
+                  key={nutritionMode}
+                  onPress={() => update({ nutritionMode })}
+                  selected={draft.nutritionMode === nutritionMode}
+                  title={nutritionModeLabels[nutritionMode]}
+                />
+              ))}
+            </View>
+            <ChoiceGroup
+              choices={keysOf(dietLabels).map((value) => ({ value, label: dietLabels[value] }))}
+              isSelected={(diet) => draft.diet === diet}
+              label="Питание в базе продуктов"
+              onSelect={(diet) => update({ diet })}
+            />
           </>
         ) : null}
       </FadeIn>

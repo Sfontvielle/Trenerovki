@@ -38,6 +38,12 @@ const profile: Profile = {
   equipment: 'gym',
   limitations: [],
   trainingDays: [1, 3, 5],
+  heightCm: null,
+  activityLevel: null,
+  usualSleepHours: null,
+  baseline: null,
+  nutritionMode: 'targets',
+  diet: 'any',
 };
 
 async function setup() {

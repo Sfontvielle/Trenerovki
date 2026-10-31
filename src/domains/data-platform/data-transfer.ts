@@ -18,9 +18,13 @@ const exportedTables = [
   'coach_proposal',
   'plan_version',
   'coach_memory',
+  'nutrition_target',
+  'recipe_item',
 ] as const;
 
 const deletionOrder = [
+  'recipe_item',
+  'nutrition_target',
   'coach_memory',
   'plan_version',
   'coach_proposal',
@@ -84,6 +88,8 @@ const tableSince: Partial<Record<(typeof exportedTables)[number], number>> = {
   coach_proposal: 6,
   plan_version: 6,
   coach_memory: 6,
+  nutrition_target: 7,
+  recipe_item: 7,
 };
 
 export type BackupSummary = {

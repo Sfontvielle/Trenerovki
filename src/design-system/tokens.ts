@@ -110,6 +110,7 @@ export const sizes = {
   border: 1,
   coreInner: 88,
   coreOuter: 168,
+  scannerHeight: 260,
   chartHeight: 160,
   chartBar: 24,
   choiceMinHeight: 76,

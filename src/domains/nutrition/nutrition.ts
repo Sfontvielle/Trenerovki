@@ -21,9 +21,12 @@ export type Nutrients = {
   carbs: number;
 };
 
+export type FoodSource = 'user' | 'catalog' | 'barcode' | 'recipe';
+
 export type Food = Nutrients & {
   id: string;
   name: string;
+  source: FoodSource;
 };
 
 export type FoodEntry = Nutrients & {

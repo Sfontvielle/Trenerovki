@@ -15,10 +15,12 @@ import type { Profile } from '@/domains/profile/profile';
 import { getProfile } from '@/domains/profile/profile-repository';
 import { WorkoutEngine } from '@/domains/workout/workout-engine';
 import { setHapticsEnabled } from '@/lib/haptics';
+import { setSoundEnabled } from '@/lib/sounds';
 
 const THEME_KEY = 'theme_preference';
 const ACCENT_KEY = 'accent';
 const HAPTICS_KEY = 'haptics';
+const SOUND_KEY = 'sound';
 const ALLOWED_IDLE_MS = 3 * 60 * 60 * 1000;
 
 type Services = {
@@ -30,18 +32,20 @@ type Services = {
 type AppDataValue = Services & {
   profile: Profile | null;
   hapticsEnabled: boolean;
+  soundEnabled: boolean;
   resumeCount: number;
   refreshProfile: () => Promise<void>;
   reloadAll: () => Promise<void>;
   changeThemePreference: (preference: ThemePreference) => Promise<void>;
   changeAccent: (accent: AccentName) => Promise<void>;
   changeHaptics: (enabled: boolean) => Promise<void>;
+  changeSound: (enabled: boolean) => Promise<void>;
 };
 
 type LoadState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'ready'; services: Services; profile: Profile | null; hapticsEnabled: boolean };
+  | { status: 'ready'; services: Services; profile: Profile | null; hapticsEnabled: boolean; soundEnabled: boolean };
 
 const AppDataContext = createContext<AppDataValue | null>(null);
 
@@ -65,15 +69,16 @@ async function openServices() {
 
 async function readAppearance(settings: SettingsRepository) {
   try {
-    const [preference, accent, haptics] = await Promise.all([
+    const [preference, accent, haptics, sound] = await Promise.all([
       settings.get(THEME_KEY),
       settings.get(ACCENT_KEY),
       settings.get(HAPTICS_KEY),
+      settings.get(SOUND_KEY),
     ]);
-    return { preference, accent, hapticsEnabled: haptics !== 'off' };
+    return { preference, accent, hapticsEnabled: haptics !== 'off', soundEnabled: sound !== 'off' };
   } catch (error) {
     console.error(error);
-    return { preference: null, accent: null, hapticsEnabled: true };
+    return { preference: null, accent: null, hapticsEnabled: true, soundEnabled: true };
   }
 }
 
@@ -87,11 +92,12 @@ export function AppDataProvider({ children }: PropsWithChildren) {
     async (services: Services) => {
       const profile = await getProfile(services.database);
       registerCustomExercises(await listCustomExercises(services.database));
-      const { preference, accent, hapticsEnabled } = await readAppearance(services.settings);
+      const { preference, accent, hapticsEnabled, soundEnabled } = await readAppearance(services.settings);
       setPreference(isThemePreference(preference) ? preference : 'system');
       setAccent(isAccent(accent) ? accent : 'cyan');
       setHapticsEnabled(hapticsEnabled);
-      return { status: 'ready' as const, services, profile, hapticsEnabled };
+      setSoundEnabled(soundEnabled);
+      return { status: 'ready' as const, services, profile, hapticsEnabled, soundEnabled };
     },
     [setAccent, setPreference],
   );
@@ -131,6 +137,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
   const ready = state.status === 'ready' ? state : null;
   const services = ready?.services ?? null;
   const hapticsEnabled = ready?.hapticsEnabled ?? true;
+  const soundEnabled = ready?.soundEnabled ?? true;
 
   useEffect(() => {
     if (!services) {
@@ -153,8 +160,8 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       return;
     }
     const profile = await getProfile(services.database);
-    setState({ status: 'ready', services, profile, hapticsEnabled });
-  }, [hapticsEnabled, services]);
+    setState({ status: 'ready', services, profile, hapticsEnabled, soundEnabled });
+  }, [hapticsEnabled, services, soundEnabled]);
 
   const reloadAll = useCallback(async () => {
     if (services) {
@@ -187,6 +194,15 @@ export function AppDataProvider({ children }: PropsWithChildren) {
     [services],
   );
 
+  const changeSound = useCallback(
+    async (enabled: boolean) => {
+      setSoundEnabled(enabled);
+      setState((current) => (current.status === 'ready' ? { ...current, soundEnabled: enabled } : current));
+      await services?.settings.set(SOUND_KEY, enabled ? 'on' : 'off');
+    },
+    [services],
+  );
+
   if (state.status === 'loading') {
     return (
       <Screen>
@@ -215,12 +231,14 @@ export function AppDataProvider({ children }: PropsWithChildren) {
         ...state.services,
         profile: state.profile,
         hapticsEnabled: state.hapticsEnabled,
+        soundEnabled: state.soundEnabled,
         resumeCount,
         refreshProfile,
         reloadAll,
         changeThemePreference,
         changeAccent,
         changeHaptics,
+        changeSound,
       }}
     >
       {children}

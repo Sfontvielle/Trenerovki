@@ -8,7 +8,6 @@
     "scheme": "ironvant",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon",
       "bundleIdentifier": "app.ironvant.ios",
       "supportsTablet": false
     },

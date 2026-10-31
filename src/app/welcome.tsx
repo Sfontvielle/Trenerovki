@@ -1,22 +1,24 @@
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
-import { EnergyCore } from '@/components/energy-core';
+import { BrandMark } from '@/components/brand-mark';
 import { AppText, Button, Screen, useTheme } from '@/design-system';
+
+const MARK_SIZE = 160;
 
 export default function WelcomeScreen() {
   const { theme } = useTheme();
 
   return (
-    <Screen>
+    <Screen ambient>
       <View style={[styles.hero, { gap: theme.spacing.xl }]}>
-        <EnergyCore />
+        <BrandMark size={MARK_SIZE} wordmark />
         <View style={[styles.copy, { gap: theme.spacing.s }]}>
-          <AppText accessibilityRole="header" variant="display">
-            IRONVANT
-          </AppText>
           <AppText tone="secondary" style={styles.centered}>
             План под вашу цель, запись каждого подхода и прогресс в одном приложении.
+          </AppText>
+          <AppText variant="callout" tone="secondary" style={styles.centered}>
+            Coach считает подсказки по вашим записям и ничего не меняет без вашего согласия.
           </AppText>
         </View>
       </View>

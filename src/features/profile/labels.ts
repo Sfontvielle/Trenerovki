@@ -1,4 +1,4 @@
-import type { Equipment, Experience, Goal, Limitation, Sex } from '@/domains/profile/profile';
+import type { ActivityLevel, Baseline, Diet, Equipment, Experience, Goal, Limitation, NutritionMode, Sex } from '@/domains/profile/profile';
 
 export const sexLabels: Record<Sex, string> = {
   male: 'Мужчина',
@@ -45,6 +45,45 @@ export const equipmentHints: Record<Equipment, string> = {
   dumbbells: 'Скамья не обязательна, нужна устойчивая опора',
   bar: 'На площадке или с закреплённой низкой перекладиной',
   bodyweight: 'Без инвентаря',
+};
+
+export const activityLabels: Record<ActivityLevel, string> = {
+  sedentary: 'В основном сижу',
+  light: 'Немного двигаюсь',
+  moderate: 'Много хожу',
+  active: 'Физическая работа',
+};
+
+export const activityHints: Record<ActivityLevel, string> = {
+  sedentary: 'Офис, учёба, мало ходьбы',
+  light: 'Прогулки и домашние дела',
+  moderate: 'На ногах большую часть дня',
+  active: 'Тяжёлая работа или много спорта вне плана',
+};
+
+export const baselineLabels: Record<Baseline, string> = {
+  low: 'Пока ни одного или пару',
+  medium: 'Примерно до 15',
+  high: 'Больше 15',
+};
+
+export const sleepChoices = [
+  { hours: 5.5, label: 'Меньше 6 часов' },
+  { hours: 6.5, label: '6–7 часов' },
+  { hours: 7.5, label: '7–8 часов' },
+  { hours: 8.5, label: 'Больше 8 часов' },
+];
+
+export const nutritionModeLabels: Record<NutritionMode, string> = {
+  targets: 'Считать калории и БЖУ',
+  protein: 'Следить только за белком',
+  diary: 'Только дневник, без целей',
+};
+
+export const dietLabels: Record<Diet, string> = {
+  any: 'Без ограничений',
+  vegetarian: 'Вегетарианское',
+  vegan: 'Веганское',
 };
 
 export const limitationLabels: Record<Limitation, string> = {

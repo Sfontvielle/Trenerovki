@@ -34,6 +34,7 @@ export default function ProgressScreen() {
   return (
     <TabScreen title="Прогресс">
       <SessionBar />
+      <Button label="Подробная аналитика" variant="secondary" onPress={() => router.push('/analytics')} />
       <Button label="Вес тела" variant="secondary" onPress={() => router.push('/body-weight')} />
       <DataView state={state}>
         {({ summary, sessions, records }) =>

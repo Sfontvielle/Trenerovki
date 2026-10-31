@@ -58,6 +58,12 @@ const profile: Profile = {
   equipment: 'gym',
   limitations: [],
   trainingDays: [],
+  heightCm: null,
+  activityLevel: null,
+  usualSleepHours: null,
+  baseline: null,
+  nutritionMode: 'targets',
+  diet: 'any',
 };
 
 async function setup(changes: Partial<Profile> = {}) {

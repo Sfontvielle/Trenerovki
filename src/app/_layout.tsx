@@ -62,6 +62,15 @@ function RootStack() {
             options={{ ...withHeader, presentation: 'modal', title: 'Добавить продукт' }}
           />
           <Stack.Screen name="food/[entryId]" options={{ ...withHeader, title: 'Запись' }} />
+          <Stack.Screen
+            name="food/scan"
+            options={{ ...withHeader, presentation: 'modal', title: 'Штрихкод' }}
+          />
+          <Stack.Screen
+            name="food/recipe"
+            options={{ ...withHeader, presentation: 'modal', title: 'Блюдо из продуктов' }}
+          />
+          <Stack.Screen name="nutrition-targets" options={{ ...withHeader, title: 'Цели по питанию' }} />
           <Stack.Screen name="body-weight" options={{ ...withHeader, title: 'Вес тела' }} />
           <Stack.Screen name="exercises/index" options={{ ...withHeader, title: 'Упражнения' }} />
           <Stack.Screen name="exercises/[exerciseId]" options={{ ...withHeader, title: 'Упражнение' }} />
@@ -80,6 +89,8 @@ function RootStack() {
           />
           <Stack.Screen name="coach/history" options={{ ...withHeader, title: 'История решений' }} />
           <Stack.Screen name="coach/memory" options={{ ...withHeader, title: 'Память и предпочтения' }} />
+          <Stack.Screen name="analytics" options={{ ...withHeader, title: 'Аналитика' }} />
+          <Stack.Screen name="about" options={{ ...withHeader, title: 'О приложении' }} />
           <Stack.Screen name="design-system" options={{ ...withHeader, title: 'Дизайн-система' }} />
         </Stack.Protected>
       </Stack>

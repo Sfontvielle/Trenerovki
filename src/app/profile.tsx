@@ -3,16 +3,13 @@ import { useState } from 'react';
 
 import { useAppData } from '@/app-data/app-data';
 import { ChoiceGroup } from '@/components/choice-group';
+import { type AccentName, AppText, Button, Panel, Screen, type ThemePreference, accentNames, useTheme, TextField } from '@/design-system';
 import {
-  type AccentName,
-  AppText,
-  Button,
-  Panel,
-  Screen,
-  type ThemePreference,
-  accentNames,
-  useTheme,
-} from '@/design-system';
+  MIN_PASSWORD_LENGTH,
+  WrongPasswordError,
+  decryptBackup,
+  isEncryptedBackup,
+} from '@/domains/data-platform/backup-crypto';
 import {
   BackupError,
   type BackupProblem,
@@ -20,7 +17,7 @@ import {
   inspectBackup,
   restoreAllData,
 } from '@/domains/data-platform/data-transfer';
-import { pickBackup, shareBackup } from '@/features/profile/backup';
+import { pickBackup, shareBackup, shareWorkoutsCsv } from '@/features/profile/backup';
 import {
   equipmentLabels,
   experienceHints,
@@ -56,10 +53,12 @@ export default function ProfileScreen() {
   const {
     changeAccent,
     changeHaptics,
+    changeSound,
     changeThemePreference,
     database,
     engine,
     hapticsEnabled,
+    soundEnabled,
     profile,
     refreshProfile,
     reloadAll,
@@ -67,6 +66,9 @@ export default function ProfileScreen() {
   const { theme, preference } = useTheme();
   const [message, setMessage] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [backupPassword, setBackupPassword] = useState('');
+  const [lockedBackup, setLockedBackup] = useState<string | null>(null);
+  const [unlockPassword, setUnlockPassword] = useState('');
 
   const saveSetting = async (save: Promise<void>) => {
     setMessage(null);
@@ -81,13 +83,31 @@ export default function ProfileScreen() {
   const saveBackup = async () => {
     setMessage(null);
     setNotice(null);
+    if (backupPassword && backupPassword.length < MIN_PASSWORD_LENGTH) {
+      setMessage(`Пароль должен быть не короче ${MIN_PASSWORD_LENGTH} символов.`);
+      return;
+    }
     try {
-      if (await shareBackup(database)) {
+      if (await shareBackup(database, backupPassword || null)) {
         setNotice('Резервная копия сохранена.');
+        setBackupPassword('');
       }
     } catch (error) {
       console.error(error);
       setMessage(`Копия не создана. ${describeFailure(error)}`);
+    }
+  };
+
+  const exportCsv = async () => {
+    setMessage(null);
+    setNotice(null);
+    try {
+      if (await shareWorkoutsCsv(database)) {
+        setNotice('Таблица тренировок сохранена.');
+      }
+    } catch (error) {
+      console.error(error);
+      setMessage(`Таблица не создана. ${describeFailure(error)}`);
     }
   };
 
@@ -103,6 +123,45 @@ export default function ProfileScreen() {
       if (text === null) {
         return;
       }
+      if (isEncryptedBackup(text)) {
+        setLockedBackup(text);
+        return;
+      }
+      await replaceFromBackup(text);
+    } catch (error) {
+      console.error(error);
+      setMessage(
+        error instanceof BackupError
+          ? backupProblems[error.problem]
+          : `Данные не восстановлены. Текущие данные не изменились. ${describeFailure(error)}`,
+      );
+    }
+  };
+
+  const unlockBackup = async () => {
+    if (!lockedBackup) {
+      return;
+    }
+    setMessage(null);
+    try {
+      const text = await decryptBackup(lockedBackup, unlockPassword);
+      setLockedBackup(null);
+      setUnlockPassword('');
+      await replaceFromBackup(text);
+    } catch (error) {
+      console.error(error);
+      setMessage(
+        error instanceof WrongPasswordError
+          ? 'Пароль не подходит к этой копии. Текущие данные не изменились.'
+          : error instanceof BackupError
+            ? backupProblems[error.problem]
+            : `Данные не восстановлены. Текущие данные не изменились. ${describeFailure(error)}`,
+      );
+    }
+  };
+
+  const replaceFromBackup = async (text: string) => {
+    try {
       const summary = await inspectBackup(database, text);
       const last = summary.lastWorkoutAt ? ` Последняя тренировка: ${formatDate(summary.lastWorkoutAt)}.` : '';
       const approved = await confirm({
@@ -211,20 +270,48 @@ export default function ProfileScreen() {
           label="Тактильный отклик"
           onSelect={(value) => saveSetting(changeHaptics(value === 'on'))}
         />
+        <ChoiceGroup
+          choices={[
+            { value: 'on', label: 'Включён' },
+            { value: 'off', label: 'Выключен' },
+          ]}
+          isSelected={(value) => (value === 'on') === soundEnabled}
+          label="Звук окончания отдыха"
+          onSelect={(value) => saveSetting(changeSound(value === 'on'))}
+        />
       </Panel>
 
       <Panel>
         <AppText variant="heading">Ваши данные</AppText>
         <AppText variant="callout" tone="secondary">
-          IRONVANT хранит данные на этом iPhone и никуда их не отправляет. Они могут попасть в
+          IRONVANT хранит данные на этом iPhone. Наружу уходит только номер штрихкода, когда вы сканируете продукт: его получает открытая база Open Food Facts. Они могут попасть в
           резервную копию iPhone, если она включена.
         </AppText>
         <AppText variant="callout" tone="secondary">
-          Резервная копия — это незашифрованный файл с вашими ответами, планом, тренировками, питанием и
-          весом. Храните его в надёжном месте и не пересылайте: открыть его может любой, у кого есть файл.
+          Резервная копия — это файл с вашими ответами, планом, тренировками, питанием и весом. Без пароля его
+          может открыть любой, у кого есть файл. С паролем он зашифрован, но забытый пароль восстановить нельзя.
         </AppText>
+        <TextField
+          hint={`Необязательно. Не короче ${MIN_PASSWORD_LENGTH} символов`}
+          label="Пароль для копии"
+          onChangeText={setBackupPassword}
+          secureTextEntry
+          value={backupPassword}
+        />
         <Button label="Сохранить резервную копию" variant="secondary" onPress={saveBackup} />
         <Button label="Восстановить из копии" variant="secondary" onPress={restoreBackup} />
+        {lockedBackup ? (
+          <>
+            <TextField
+              label="Пароль от копии"
+              onChangeText={setUnlockPassword}
+              secureTextEntry
+              value={unlockPassword}
+            />
+            <Button label="Открыть копию" variant="secondary" onPress={unlockBackup} />
+          </>
+        ) : null}
+        <Button label="Экспорт тренировок в таблицу" variant="secondary" onPress={exportCsv} />
         <Button label="Удалить все данные" variant="secondary" onPress={deleteData} />
       </Panel>
 
@@ -239,6 +326,7 @@ export default function ProfileScreen() {
         </AppText>
       ) : null}
 
+      <Button label="О приложении" variant="secondary" onPress={() => router.push('/about')} />
       {__DEV__ ? (
         <Button
           label="Открыть дизайн-систему"

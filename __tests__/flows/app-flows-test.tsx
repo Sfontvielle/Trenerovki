@@ -10,15 +10,38 @@ import { completeOnboarding } from '@/domains/profile/complete-onboarding';
 import type { Profile } from '@/domains/profile/profile';
 import { getProfile } from '@/domains/profile/profile-repository';
 import { exportAllData } from '@/domains/data-platform/data-transfer';
-import { pickBackup, shareBackup } from '@/features/profile/backup';
+import { pickBackup, shareBackup, shareWorkoutsCsv } from '@/features/profile/backup';
+import { encryptBackup } from '@/domains/data-platform/backup-crypto';
 import { generatePlan } from '@/domains/program/generate-plan';
 import { getProgram } from '@/domains/program/program-repository';
 import { listCompletedSessions } from '@/domains/progress/progress-repository';
+import { dayKey, shiftDay } from '@/domains/nutrition/nutrition';
+import { getManualTarget, logFood } from '@/domains/nutrition/nutrition-repository';
 import { WorkoutEngine } from '@/domains/workout/workout-engine';
 import { createTestDatabase } from '../../test-support/test-database';
 
 jest.mock('@/domains/data-platform/expo-database', () => ({ openAppDatabase: jest.fn() }));
-jest.mock('@/features/profile/backup', () => ({ pickBackup: jest.fn(), shareBackup: jest.fn() }));
+jest.mock('expo-sensors', () => ({
+  Pedometer: {
+    isAvailableAsync: jest.fn(async () => false),
+    getPermissionsAsync: jest.fn(async () => ({ granted: false, canAskAgain: true })),
+    requestPermissionsAsync: jest.fn(async () => ({ granted: true })),
+    getStepCountAsync: jest.fn(async () => ({ steps: 0 })),
+  },
+}));
+jest.mock('expo-audio', () => ({
+  createAudioPlayer: jest.fn(() => ({ play: jest.fn() })),
+  setAudioModeAsync: jest.fn(async () => {}),
+}));
+jest.mock('expo-camera', () => ({
+  CameraView: () => null,
+  useCameraPermissions: () => [{ granted: true, canAskAgain: true }, jest.fn()],
+}));
+jest.mock('@/features/profile/backup', () => ({
+  pickBackup: jest.fn(),
+  shareBackup: jest.fn(),
+  shareWorkoutsCsv: jest.fn(),
+}));
 jest.mock('@/domains/data-platform/ids', () => {
   let next = 0;
   return { createId: () => `generated-${++next}` };
@@ -39,6 +62,12 @@ const profile: Profile = {
   equipment: 'gym',
   limitations: [],
   trainingDays: [],
+  heightCm: null,
+  activityLevel: null,
+  usualSleepHours: null,
+  baseline: null,
+  nutritionMode: 'targets',
+  diet: 'any',
 };
 
 let database: Database;
@@ -116,6 +145,7 @@ beforeEach(async () => {
   jest.mocked(openAppDatabase).mockResolvedValue(database);
   confirmButton = 1;
   jest.mocked(pickBackup).mockReset();
+  jest.mocked(shareBackup).mockReset();
   appStateListener = jest.spyOn(AppState, 'addEventListener');
   jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => {
     buttons?.[confirmButton]?.onPress?.();
@@ -149,12 +179,14 @@ describe('new user', () => {
 
     await press('Пропустить');
     await press('Пропустить');
+    await press('Пропустить');
 
     expect(screen.getByRole('button', { name: 'Продолжить', disabled: true })).toBeTruthy();
     await press('Стать сильнее', 'radio');
     await press('Продолжить');
     await press('Новичок', 'radio');
     await press('Продолжить');
+    await press('Пропустить');
     await press(/^3 раза/, 'radio');
     await press('Продолжить');
     await press('Пропустить');
@@ -163,6 +195,8 @@ describe('new user', () => {
     await press('Тренажёрный зал', 'radio');
     await press('Продолжить');
     await press('Колени', 'checkbox');
+    await press('Продолжить');
+    await press('Пропустить');
     await press('Показать план');
 
     expect(await screen.findByText('Ваш стартовый план', {}, { timeout: 4000 })).toBeTruthy();
@@ -202,11 +236,13 @@ describe('new user', () => {
     expect(screen.getByLabelText('Вес, кг').props.value).toBe('');
     await type('Вес, кг', '62,5');
     await press('Продолжить');
+    await press('Пропустить');
 
     await press('Стать сильнее', 'radio');
     await press('Продолжить');
     await press('Средний', 'radio');
     await press('Продолжить');
+    await press('Пропустить');
     await press(/^4 раза/, 'radio');
     await press('Продолжить');
     await press('Пн', 'checkbox');
@@ -219,6 +255,8 @@ describe('new user', () => {
     await press('Продолжить');
     await press('Гантели дома', 'radio');
     await press('Продолжить');
+    await press('Продолжить');
+    await press('Пропустить');
     await press('Показать план');
     await screen.findByText('Ваш стартовый план', {}, { timeout: 4000 });
     await press('Принять план');
@@ -408,7 +446,7 @@ describe('profile', () => {
 
     await press('Сохранить резервную копию');
 
-    expect(shareBackup).toHaveBeenCalledWith(database);
+    expect(shareBackup).toHaveBeenCalledWith(database, null);
     expect(await screen.findByText('Резервная копия сохранена.')).toBeTruthy();
   });
 
@@ -857,7 +895,7 @@ describe('changing the answers', () => {
     await press('Изменить ответы и план');
     await screen.findByLabelText('Как вас зовут');
     await type('Как вас зовут', 'Новое имя');
-    for (let step = 0; step < 10; step += 1) {
+    for (let step = 0; step < 14; step += 1) {
       await press(/^(Продолжить|Пропустить)$/);
     }
     await press('Показать план');
@@ -879,10 +917,12 @@ describe('changing the answers', () => {
     await press('Изменить ответы и план');
     await screen.findByLabelText('Как вас зовут');
     expect(screen.getByLabelText('Как вас зовут').props.value).toBe('Ислам');
-    for (let step = 0; step < 10; step += 1) {
+    for (let step = 0; step < 12; step += 1) {
       await press(/^(Продолжить|Пропустить)$/);
     }
     await press('Плечи', 'checkbox');
+    await press(/^(Продолжить|Пропустить)$/);
+    await press(/^(Продолжить|Пропустить)$/);
     await press('Показать план');
 
     expect(await screen.findByText('Ваш новый план', {}, { timeout: 4000 })).toBeTruthy();
@@ -1196,6 +1236,7 @@ describe('nutrition diary', () => {
 
   async function addOats() {
     await press('Добавить: Завтрак');
+    await screen.findByRole('button', { name: 'Новый продукт' });
     await press('Новый продукт');
     await type('Название', 'Овсянка');
     await type('Калории на 100 г', '366');
@@ -1535,6 +1576,280 @@ describe('coach and recovery', () => {
 
     expect(await screen.findByLabelText('Запись')).toBeTruthy();
     expect(await database.first('SELECT text FROM coach_memory')).toEqual({ text: 'Тренируюсь по утрам' });
+  });
+});
+
+describe('nutrition depth', () => {
+  async function openAddFood() {
+    await seedProfile();
+    await renderRouter('./src/app');
+    await screen.findByText('Следующая тренировка');
+    await testRouter.navigate('/nutrition');
+    await screen.findByRole('button', { name: 'Добавить: Завтрак' });
+    await press('Добавить: Завтрак');
+    await screen.findByLabelText('Найти продукт');
+  }
+
+  it('finds a typical food in the base and offers its portion', async () => {
+    await openAddFood();
+
+    await type('Найти продукт', 'яйцо');
+    await press(/^Яйцо куриное/);
+    await act(async () => {
+      await fireEvent.press(screen.getByText('1 штука, 55 г'));
+    });
+
+    expect(screen.getByLabelText('Вес порции, г').props.value).toBe('55');
+    expect(screen.getByText(/Типовые значения/)).toBeTruthy();
+
+    await press('Записать');
+
+    expect(await screen.findByText('55 г, 79 ккал')).toBeTruthy();
+    expect(await database.first('SELECT source FROM food')).toEqual({ source: 'catalog' });
+  });
+
+  it('hides meat from a vegetarian', async () => {
+    await completeOnboarding(database, { ...profile, diet: 'vegetarian' }, generatePlan(profile), createId, new Date());
+    await renderRouter('./src/app');
+    await screen.findByText('Следующая тренировка');
+    await testRouter.navigate('/nutrition');
+    await screen.findByRole('button', { name: 'Добавить: Завтрак' });
+    await press('Добавить: Завтрак');
+    await screen.findByLabelText('Найти продукт');
+
+    await type('Найти продукт', 'куриная');
+
+    expect(screen.queryByText('Куриная грудка')).toBeNull();
+    expect(screen.getByText(/Ничего не найдено/)).toBeTruthy();
+  });
+
+  it('remembers what a meal usually contains and prefills the portion', async () => {
+    await seedProfile();
+    const today = dayKey(new Date());
+    await logFood(database, {
+      entryId: 'e1',
+      foodId: 'f1',
+      name: 'Творог',
+      per100g: { kcal: 120, protein: 17, fat: 5, carbs: 3 },
+      grams: 200,
+      day: shiftDay(today, -1),
+      meal: 'breakfast',
+      now: new Date(),
+    });
+    await renderRouter('./src/app');
+    await screen.findByText('Следующая тренировка');
+    await testRouter.navigate('/nutrition');
+    await screen.findByRole('button', { name: 'Добавить: Завтрак' });
+    await press('Добавить: Завтрак');
+
+    expect(await screen.findByText('Обычно на завтрак')).toBeTruthy();
+    await press(/^Творог/);
+
+    expect(screen.getByLabelText('Вес порции, г').props.value).toBe('200');
+  });
+
+  it('copies the previous day on request', async () => {
+    await seedProfile();
+    const today = dayKey(new Date());
+    await logFood(database, {
+      entryId: 'e1',
+      foodId: 'f1',
+      name: 'Овсянка',
+      per100g: { kcal: 366, protein: 12, fat: 6, carbs: 62 },
+      grams: 50,
+      day: shiftDay(today, -1),
+      meal: 'breakfast',
+      now: new Date(),
+    });
+    await renderRouter('./src/app');
+    await screen.findByText('Следующая тренировка');
+    await testRouter.navigate('/nutrition');
+
+    await screen.findByRole('button', { name: 'Скопировать записи предыдущего дня' });
+    await press('Скопировать записи предыдущего дня');
+
+    expect(await screen.findByText('50 г, 183 ккал')).toBeTruthy();
+    expect(await database.all('SELECT day FROM food_entry WHERE day = ?', [today])).toHaveLength(1);
+  });
+
+  it('shows calculated targets once the body data is known', async () => {
+    await completeOnboarding(
+      database,
+      { ...profile, sex: 'male', heightCm: 180, activityLevel: 'moderate' },
+      generatePlan(profile),
+      createId,
+      new Date(),
+    );
+    await renderRouter('./src/app');
+    await screen.findByText('Следующая тренировка');
+    await testRouter.navigate('/nutrition');
+
+    expect(await screen.findByText(/^Цель: /)).toBeTruthy();
+
+    await press('Цели по питанию');
+    await screen.findByLabelText('Калории в день');
+    await type('Калории в день', '2000');
+    await press('Сохранить свои цели');
+
+    expect(await screen.findByText(/^Цель: 2\s?000 ккал/)).toBeTruthy();
+    expect(await getManualTarget(database)).toMatchObject({ kcal: 2000 });
+  });
+
+  it('asks for body data before calculating targets', async () => {
+    await seedProfile();
+    await renderRouter('./src/app', { initialUrl: '/nutrition-targets' });
+
+    expect(await screen.findByText(/Для расчёта нужны вес, рост и активность/)).toBeTruthy();
+  });
+
+  it('builds a dish from products and offers it later', async () => {
+    await openAddFood();
+    await press('Блюдо из продуктов');
+    await screen.findByLabelText('Название блюда');
+
+    await type('Название блюда', 'Каша');
+    await type('Найти продукт', 'овсяные');
+    await press(/^Овсяные хлопья, сухие/);
+    await type('Вес продукта, г', '100');
+    await press('Добавить в блюдо');
+    await type('Вес готового блюда, г', '300');
+    await press('Сохранить блюдо');
+
+    const dish = await database.first<{ kcal: number; source: string }>("SELECT kcal, source FROM food WHERE source = 'recipe'");
+    expect(dish?.kcal).toBeCloseTo(122, 0);
+    expect(await database.all('SELECT name FROM recipe_item')).toHaveLength(1);
+  });
+
+  it('prefills a scanned product and keeps its barcode', async () => {
+    await seedProfile();
+    await renderRouter('./src/app', {
+      initialUrl: `/food/add?day=${dayKey(new Date())}&meal=snack&barcode=3017620422003&name=Nutella&kcal=539&protein=6.3&fat=30.9&carbs=57.5`,
+    });
+
+    expect(await screen.findByText(/Open Food Facts/)).toBeTruthy();
+    expect(screen.getByLabelText('Название').props.value).toBe('Nutella');
+    await type('Вес порции, г', '20');
+    await press('Записать');
+
+    expect(await database.first('SELECT barcode, source FROM food')).toEqual({
+      barcode: '3017620422003',
+      source: 'barcode',
+    });
+  });
+});
+
+describe('library, analytics and protection', () => {
+  it('shows the exercise passport with muscles and alternatives', async () => {
+    await seedProfile();
+    await renderRouter('./src/app', { initialUrl: '/exercises/bench-press' });
+
+    expect(await screen.findByText(/^Основные мышцы: Грудные/)).toBeTruthy();
+    expect(screen.getByText(/^Помогают: /)).toBeTruthy();
+    expect(screen.getByText('Чем заменить')).toBeTruthy();
+    expect(screen.getByLabelText(/^Схема мышц/)).toBeTruthy();
+  });
+
+  it('remembers not to offer an exercise', async () => {
+    await seedProfile();
+    await renderRouter('./src/app', { initialUrl: '/exercises/burpee' });
+    await screen.findByRole('button', { name: 'Не предлагать это упражнение' });
+
+    await press('Не предлагать это упражнение');
+
+    expect(await screen.findByRole('button', { name: 'Снова предлагать это упражнение' })).toBeTruthy();
+    expect(await database.first('SELECT exercise_id FROM coach_memory')).toEqual({ exercise_id: 'burpee' });
+  });
+
+  it('filters the library by section', async () => {
+    await seedProfile();
+    await renderRouter('./src/app', { initialUrl: '/exercises' });
+    await screen.findByLabelText('Найти упражнение');
+
+    await act(async () => {
+      await fireEvent.press(screen.getByText('Кардио'));
+    });
+
+    expect(await screen.findByText('Ходьба')).toBeTruthy();
+    expect(screen.queryByText('Жим штанги лёжа')).toBeNull();
+  });
+
+  it('shows analytics with honest empty states', async () => {
+    await seedProfile();
+    await renderRouter('./src/app', { initialUrl: '/analytics' });
+
+    expect(await screen.findByText('Появится после первой завершённой тренировки.')).toBeTruthy();
+    expect(screen.getByText('Заполняйте дневник, и здесь появятся средние значения.')).toBeTruthy();
+    expect(screen.getByText('Отмечайте сон на Главной, и здесь появится динамика.')).toBeTruthy();
+  });
+
+  it('asks for a longer password and passes a good one on', async () => {
+    jest.mocked(shareBackup).mockResolvedValue(true);
+    await seedProfile();
+    await renderRouter('./src/app', { initialUrl: '/profile' });
+    await screen.findByText('Тема');
+
+    await type('Пароль для копии', 'коротко');
+    await press('Сохранить резервную копию');
+    expect(await screen.findByText(/Пароль должен быть не короче 8 символов/)).toBeTruthy();
+    expect(shareBackup).not.toHaveBeenCalled();
+
+    await type('Пароль для копии', 'достаточно длинный');
+    await press('Сохранить резервную копию');
+
+    expect(shareBackup).toHaveBeenCalledWith(database, 'достаточно длинный');
+  });
+
+  it('opens an encrypted backup with its password', async () => {
+    await seedProfile();
+    const plain = await exportAllData(database);
+    const locked = await encryptBackup(plain, 'верный пароль', (count) => new Uint8Array(count).fill(7), 10);
+    await database.run("UPDATE profile SET name = 'Другое имя'");
+    jest.mocked(pickBackup).mockResolvedValue(locked);
+    await renderRouter('./src/app', { initialUrl: '/profile' });
+    await screen.findByText('Другое имя');
+
+    await press('Восстановить из копии');
+    await screen.findByLabelText('Пароль от копии');
+    await type('Пароль от копии', 'неверный пароль');
+    await press('Открыть копию');
+    expect(await screen.findByText(/Пароль не подходит/)).toBeTruthy();
+    expect(screen.getByText('Другое имя')).toBeTruthy();
+
+    await type('Пароль от копии', 'верный пароль');
+    await press('Открыть копию');
+
+    expect(await screen.findByText('Ислам')).toBeTruthy();
+  });
+
+  it('exports workouts as a table and reports it', async () => {
+    jest.mocked(shareWorkoutsCsv).mockResolvedValue(true);
+    await seedProfile();
+    await renderRouter('./src/app', { initialUrl: '/profile' });
+    await screen.findByText('Тема');
+
+    await press('Экспорт тренировок в таблицу');
+
+    expect(await screen.findByText('Таблица тренировок сохранена.')).toBeTruthy();
+  });
+
+  it('turns the rest sound off', async () => {
+    await seedProfile();
+    await renderRouter('./src/app', { initialUrl: '/profile' });
+    await screen.findByText('Звук окончания отдыха');
+
+    await act(async () => {
+      await fireEvent.press(screen.getAllByText('Выключен').at(-1)!);
+    });
+
+    expect(await database.first("SELECT value FROM settings WHERE key = 'sound'")).toEqual({ value: 'off' });
+  });
+
+  it('states what the app is and what leaves the phone', async () => {
+    await seedProfile();
+    await renderRouter('./src/app', { initialUrl: '/about' });
+
+    expect(await screen.findByText(/не диагностирует, не лечит/)).toBeTruthy();
+    expect(screen.getByText(/Наружу уходит только номер отсканированного штрихкода/)).toBeTruthy();
   });
 });
 

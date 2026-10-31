@@ -268,6 +268,39 @@ export const migrations: Migration[] = [
       )`,
     ],
   },
+  {
+    version: 7,
+    name: 'body, lifestyle and nutrition details',
+    statements: [
+      'ALTER TABLE profile ADD COLUMN height_cm REAL',
+      'ALTER TABLE profile ADD COLUMN activity_level TEXT',
+      'ALTER TABLE profile ADD COLUMN usual_sleep_hours REAL',
+      'ALTER TABLE profile ADD COLUMN baseline TEXT',
+      "ALTER TABLE profile ADD COLUMN nutrition_mode TEXT NOT NULL DEFAULT 'targets'",
+      "ALTER TABLE profile ADD COLUMN diet TEXT NOT NULL DEFAULT 'any'",
+      "ALTER TABLE food ADD COLUMN source TEXT NOT NULL DEFAULT 'user'",
+      'ALTER TABLE food ADD COLUMN barcode TEXT',
+      'CREATE UNIQUE INDEX food_by_barcode ON food (barcode) WHERE barcode IS NOT NULL',
+      `CREATE TABLE nutrition_target (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        kcal REAL NOT NULL,
+        protein REAL NOT NULL,
+        fat REAL NOT NULL,
+        carbs REAL NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE TABLE recipe_item (
+        id TEXT PRIMARY KEY,
+        recipe_id TEXT NOT NULL REFERENCES food(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        grams REAL NOT NULL CHECK (grams > 0),
+        kcal REAL NOT NULL,
+        protein REAL NOT NULL,
+        fat REAL NOT NULL,
+        carbs REAL NOT NULL
+      )`,
+    ],
+  },
 ];
 
 type MigrationHooks = {

@@ -1,14 +1,13 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
 import { useAppData } from '@/app-data/app-data';
 import { useScreenData } from '@/app-data/use-screen-data';
-import { DataView } from '@/components/states';
-import { AppText, Button, Panel, Screen, TextField, useTheme } from '@/design-system';
+import { AppText, Button, Chip, Panel, Screen, TextField, useTheme } from '@/design-system';
 import { createId } from '@/domains/data-platform/ids';
 import {
-  type Food,
+  type FoodSource,
   type Meal,
   type Nutrients,
   areValidNutrients,
@@ -16,34 +15,53 @@ import {
   isValidGrams,
   mealLabels,
   portionOf,
+  shiftDay,
 } from '@/domains/nutrition/nutrition';
-import { listFoods, logFood } from '@/domains/nutrition/nutrition-repository';
+import { listUsualFoods, logFood } from '@/domains/nutrition/nutrition-repository';
+import { FoodRow, FoodSearch, type PickedFood } from '@/features/nutrition/food-search';
 import { formatEnergy, formatMacros } from '@/features/nutrition/format-nutrition';
 import { describeFailure } from '@/lib/describe-failure';
-import { normalizeSearch, parseDecimal } from '@/lib/format';
+import { formatInputNumber, parseDecimal } from '@/lib/format';
 
-type Mode = { type: 'search' } | { type: 'existing'; food: Food } | { type: 'new' };
+type Mode = { type: 'search' } | { type: 'existing'; food: PickedFood } | { type: 'new' };
+
+const USUAL_FOODS = 3;
+const USUAL_WINDOW_DAYS = 30;
+
+type AddParams = {
+  day: string;
+  meal: Meal;
+  barcode?: string;
+  name?: string;
+  kcal?: string;
+  protein?: string;
+  fat?: string;
+  carbs?: string;
+};
 
 export default function AddFoodScreen() {
-  const { day, meal } = useLocalSearchParams<{ day: string; meal: Meal }>();
+  const params = useLocalSearchParams<AddParams>();
+  const { day, meal, barcode } = params;
   const { database } = useAppData();
   const { theme } = useTheme();
   const { spacing } = theme;
-  const [mode, setMode] = useState<Mode>({ type: 'search' });
-  const [query, setQuery] = useState('');
-  const [name, setName] = useState('');
-  const [kcalText, setKcalText] = useState('');
-  const [proteinText, setProteinText] = useState('');
-  const [fatText, setFatText] = useState('');
-  const [carbsText, setCarbsText] = useState('');
+  const [mode, setMode] = useState<Mode>(barcode ? { type: 'new' } : { type: 'search' });
+  const [name, setName] = useState(params.name ?? '');
+  const [kcalText, setKcalText] = useState(formatInputNumber(params.kcal ? Number(params.kcal) : null));
+  const [proteinText, setProteinText] = useState(formatInputNumber(params.protein ? Number(params.protein) : null));
+  const [fatText, setFatText] = useState(formatInputNumber(params.fat ? Number(params.fat) : null));
+  const [carbsText, setCarbsText] = useState(formatInputNumber(params.carbs ? Number(params.carbs) : null));
   const [gramsText, setGramsText] = useState('');
   const [entryId] = useState(createId);
   const [newFoodId] = useState(createId);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(() => listFoods(database), [database]);
-  const state = useScreenData(load);
+  const load = useCallback(
+    () => listUsualFoods(database, meal, shiftDay(day, -USUAL_WINDOW_DAYS), USUAL_FOODS),
+    [database, day, meal],
+  );
+  const usual = useScreenData(load);
 
   const typed: Nutrients = {
     kcal: parseDecimal(kcalText) ?? Number.NaN,
@@ -56,6 +74,12 @@ export default function AddFoodScreen() {
   const ready = areValidNutrients(per100g) && isValidGrams(grams);
   const portion = ready ? portionOf(per100g, grams as number) : null;
   const creating = mode.type === 'new';
+  const source: FoodSource = mode.type === 'existing' ? mode.food.source : barcode ? 'barcode' : 'user';
+
+  const pick = (food: PickedFood, usualGrams?: number) => {
+    setMode({ type: 'existing', food });
+    setGramsText(usualGrams ? formatInputNumber(usualGrams) : '');
+  };
 
   const save = async () => {
     const foodName = mode.type === 'existing' ? mode.food.name : name;
@@ -84,6 +108,8 @@ export default function AddFoodScreen() {
         day,
         meal,
         now: new Date(),
+        source,
+        barcode: mode.type === 'new' ? (barcode ?? null) : null,
       });
       router.back();
     } catch (cause) {
@@ -101,41 +127,27 @@ export default function AddFoodScreen() {
 
       {mode.type === 'search' ? (
         <>
-          <Button label="Новый продукт" onPress={() => setMode({ type: 'new' })} />
-          <DataView state={state}>
-            {(foods) => {
-              if (foods.length === 0) {
-                return <AppText tone="secondary">Здесь появятся продукты, которые вы уже записывали.</AppText>;
-              }
-              const normalized = normalizeSearch(query);
-              const matches = foods.filter((food) => normalizeSearch(food.name).includes(normalized));
-
-              return (
-                <>
-                  <TextField label="Мои продукты" onChangeText={setQuery} value={query} />
-                  {matches.length === 0 ? (
-                    <AppText tone="secondary">Ничего не найдено. Добавьте новый продукт.</AppText>
-                  ) : null}
-                  <View style={{ gap: spacing.s }}>
-                    {matches.map((food) => (
-                      <Pressable
-                        key={food.id}
-                        accessibilityRole="button"
-                        onPress={() => setMode({ type: 'existing', food })}
-                      >
-                        <Panel>
-                          <AppText>{food.name}</AppText>
-                          <AppText variant="caption" tone="secondary">
-                            {`${formatEnergy(food.kcal)} на 100 г`}
-                          </AppText>
-                        </Panel>
-                      </Pressable>
-                    ))}
-                  </View>
-                </>
-              );
-            }}
-          </DataView>
+          {usual.status === 'ready' && usual.data.length > 0 ? (
+            <View style={{ gap: spacing.s }}>
+              <AppText variant="heading">{`Обычно на ${mealLabels[meal].toLowerCase()}`}</AppText>
+              {usual.data.map((food) => (
+                <FoodRow
+                  key={food.id}
+                  food={food}
+                  caption={`${formatInputNumber(food.grams)} г, ${formatEnergy(portionOf(food, food.grams).kcal)}`}
+                  onPick={(picked) => pick(picked, food.grams)}
+                />
+              ))}
+            </View>
+          ) : null}
+          <FoodSearch onPick={(food) => pick(food)} />
+          <Button label="Новый продукт" variant="secondary" onPress={() => setMode({ type: 'new' })} />
+          <Button
+            label="Сканировать штрихкод"
+            variant="secondary"
+            onPress={() => router.push({ pathname: '/food/scan', params: { day, meal } })}
+          />
+          <Button label="Блюдо из продуктов" variant="secondary" onPress={() => router.push('/food/recipe')} />
         </>
       ) : (
         <>
@@ -145,11 +157,21 @@ export default function AddFoodScreen() {
               <AppText variant="callout" tone="secondary">
                 {`На 100 г: ${formatEnergy(mode.food.kcal)}, ${formatMacros(mode.food)}`}
               </AppText>
+              {mode.food.source === 'catalog' ? (
+                <AppText variant="caption" tone="secondary">
+                  Типовые значения. У конкретного продукта они могут отличаться: сверяйте с упаковкой.
+                </AppText>
+              ) : null}
             </Panel>
           ) : null}
 
           {creating ? (
             <Panel>
+              {barcode ? (
+                <AppText variant="caption" tone="secondary">
+                  Значения из открытой базы Open Food Facts. Сверьте их с упаковкой перед записью.
+                </AppText>
+              ) : null}
               <TextField label="Название" onChangeText={setName} value={name} />
               <TextField keyboardType="decimal-pad" label="Калории на 100 г" onChangeText={setKcalText} value={kcalText} />
               <TextField keyboardType="decimal-pad" label="Белки на 100 г" onChangeText={setProteinText} value={proteinText} />
@@ -164,6 +186,15 @@ export default function AddFoodScreen() {
           ) : null}
 
           <TextField keyboardType="decimal-pad" label="Вес порции, г" onChangeText={setGramsText} value={gramsText} />
+          {mode.type === 'existing' && mode.food.portion ? (
+            <View style={{ flexDirection: 'row' }}>
+              <Chip
+                label={`${mode.food.portion.label}, ${mode.food.portion.grams} г`}
+                selected={grams === mode.food.portion.grams}
+                onPress={() => setGramsText(String(mode.type === 'existing' ? mode.food.portion?.grams : ''))}
+              />
+            </View>
+          ) : null}
 
           {portion ? (
             <Panel>

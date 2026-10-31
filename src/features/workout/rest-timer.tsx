@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { AppText, Button, Chip, Panel, useTheme } from '@/design-system';
 import { formatDuration } from '@/domains/workout/session-time';
 import { successFeedback } from '@/lib/haptics';
+import { playRestFinished } from '@/lib/sounds';
 
 const TICK_MS = 500;
 const durations = [45, 60, 75, 90, 120, 180];
@@ -33,6 +34,7 @@ export function RestTimer({ recommendedSeconds }: RestTimerProps) {
         setEndsAt(null);
         setFinished(true);
         successFeedback();
+        playRestFinished();
       }
     };
     const first = setTimeout(tick, 0);
