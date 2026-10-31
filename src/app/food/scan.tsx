@@ -82,7 +82,7 @@ export default function ScanBarcodeScreen() {
     <Button
       label={t('Ввести вручную')}
       variant="secondary"
-      onPress={() => openForm(barcode ? { barcode, name: '' } : { name: '', barcode: '' })}
+      onPress={() => (barcode ? openForm({ barcode, name: '' }) : router.back())}
     />
   );
 

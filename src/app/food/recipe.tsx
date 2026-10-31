@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useAppData } from '@/app-data/app-data';
 import { AppText, Button, Panel, Screen, TextField } from '@/design-system';
 import { createId } from '@/domains/data-platform/ids';
-import { isValidGrams, portionOf, sumNutrients } from '@/domains/nutrition/nutrition';
+import { areValidNutrients, isValidGrams, portionOf, sumNutrients } from '@/domains/nutrition/nutrition';
 import { type RecipeItem, saveRecipe } from '@/domains/nutrition/nutrition-repository';
 import { FoodSearch, type PickedFood } from '@/features/nutrition/food-search';
 import { formatEnergy, formatMacros } from '@/features/nutrition/format-nutrition';
@@ -49,6 +49,10 @@ export default function NewRecipeScreen() {
     }
     if (!isValidGrams(totalGrams)) {
       setError(t('Укажите вес готового блюда от 1 до 5000 г.'));
+      return;
+    }
+    if (!areValidNutrients(portionOf(totals, (100 * 100) / totalGrams))) {
+      setError(t('Проверьте вес готового блюда: для такого состава он слишком мал.'));
       return;
     }
     setSaving(true);

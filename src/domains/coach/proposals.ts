@@ -205,6 +205,7 @@ export function passesGuardrails({ change }: Pick<ProposalDraft, 'change'>, fact
     return (
       target !== null &&
       stillPlanned &&
+      !planEntries(facts.program).some((entry) => entry.exerciseId === change.toExerciseId) &&
       target.equipment.includes(facts.profile.equipment) &&
       !target.loads.some((area) => facts.profile.limitations.includes(area)) &&
       !facts.discomfort.includes(change.toExerciseId) &&

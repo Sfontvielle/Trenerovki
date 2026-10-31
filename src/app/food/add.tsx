@@ -112,7 +112,12 @@ export default function AddFoodScreen() {
         source,
         barcode: mode.type === 'new' ? (barcode ?? null) : null,
       });
-      router.back();
+      // After a scan the search form is still underneath this one.
+      if (barcode && router.canDismiss()) {
+        router.dismiss(2);
+      } else {
+        router.back();
+      }
     } catch (cause) {
       console.error(cause);
       setError(t('Запись не сохранена. {0}', { 0: describeFailure(cause) }));
@@ -168,7 +173,7 @@ export default function AddFoodScreen() {
 
           {creating ? (
             <Panel>
-              {barcode ? (
+              {barcode && params.kcal ? (
                 <AppText variant="caption" tone="secondary">
                   {t('Значения из открытой базы Open Food Facts. Сверьте их с упаковкой перед записью.')}
                 </AppText>

@@ -11,6 +11,7 @@ import {
   listPlanVersions,
   restorePlanVersion,
   undoProposal,
+  undoableProposals,
 } from '@/domains/coach/coach-repository';
 import { createId } from '@/domains/data-platform/ids';
 import { describeChange } from '@/features/coach/describe-change';
@@ -35,7 +36,7 @@ export default function CoachHistoryScreen() {
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => {
     const [decisions, versions] = await Promise.all([listDecidedProposals(database), listPlanVersions(database)]);
-    return { decisions, versions };
+    return { decisions, versions, undoable: undoableProposals(decisions) };
   }, [database]);
   const state = useScreenData(load);
 
@@ -83,7 +84,7 @@ export default function CoachHistoryScreen() {
   return (
     <Screen scroll belowHeader>
       <DataView state={state}>
-        {({ decisions, versions }) => (
+        {({ decisions, versions, undoable }) => (
           <>
             {error ? (
               <AppText accessibilityLiveRegion="polite" tone="danger">
@@ -104,7 +105,12 @@ export default function CoachHistoryScreen() {
                 <AppText variant="callout" tone="secondary">
                   {describeChange(proposal.change)}
                 </AppText>
-                {proposal.status === 'accepted' ? (
+                {proposal.status === 'accepted' && !undoable.some(({ id }) => id === proposal.id) ? (
+                  <AppText variant="caption" tone="secondary">
+                    {t('Сначала отмените более новое решение.')}
+                  </AppText>
+                ) : null}
+                {undoable.some(({ id }) => id === proposal.id) ? (
                   <Button
                     accessibilityLabel={t('Отменить решение: {0}', { 0: proposal.title })}
                     label={t('Отменить решение')}

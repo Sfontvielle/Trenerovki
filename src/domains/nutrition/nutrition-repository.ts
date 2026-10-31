@@ -69,11 +69,16 @@ export async function logFood(database: Database, input: LogFoodInput) {
   const portion = portionOf(per100g, grams);
 
   await database.transaction(async (tx) => {
+    // A product scanned before stays one food, however many times it is logged.
+    const known = barcode
+      ? await tx.first<{ id: string }>('SELECT id FROM food WHERE barcode = ?', [barcode])
+      : null;
+    const savedFoodId = known?.id ?? foodId;
     await tx.run(
       `INSERT INTO food (id, name, kcal, protein, fat, carbs, last_used_at, source, barcode)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (id) DO UPDATE SET last_used_at = excluded.last_used_at`,
-      [foodId, name.trim(), per100g.kcal, per100g.protein, per100g.fat, per100g.carbs, timestamp, source, barcode],
+      [savedFoodId, name.trim(), per100g.kcal, per100g.protein, per100g.fat, per100g.carbs, timestamp, source, barcode],
     );
     await tx.run(
       `INSERT INTO food_entry
@@ -84,7 +89,7 @@ export async function logFood(database: Database, input: LogFoodInput) {
         entryId,
         day,
         meal,
-        foodId,
+        savedFoodId,
         name.trim(),
         grams,
         portion.kcal,

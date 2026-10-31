@@ -95,11 +95,19 @@ export async function listOpenProposals(database: Database) {
   return rows.map(toProposal);
 }
 
-export async function listDecidedProposals(database: Database) {
+export async function listDecidedProposals(database: DatabaseExecutor) {
   const rows = await database.all<ProposalRow>(
     "SELECT * FROM coach_proposal WHERE status != 'open' ORDER BY decided_at DESC, rowid DESC",
   );
   return rows.map(toProposal);
+}
+
+// A plan snapshot already contains every earlier decision, so undoing one out
+// of order would bring back what was undone and drop what came after it.
+export function undoableProposals(decided: Proposal[]) {
+  const accepted = decided.filter(({ status }) => status === 'accepted');
+  const latestPlanChange = accepted.find(({ change }) => change.type !== 'deload');
+  return accepted.filter(({ id, change }) => change.type === 'deload' || id === latestPlanChange?.id);
 }
 
 export type PlanVersion = {
@@ -112,7 +120,9 @@ async function readPlanTables(tx: DatabaseExecutor) {
   return {
     days: await tx.all('SELECT * FROM program_day ORDER BY position'),
     exercises: await tx.all('SELECT * FROM program_exercise ORDER BY program_day_id, position'),
-    daysPerWeek: (await tx.first<{ days_per_week: number }>('SELECT days_per_week FROM profile'))?.days_per_week ?? null,
+    profile: await tx.first<{ days_per_week: number; training_days: string }>(
+      'SELECT days_per_week, training_days FROM profile',
+    ),
   };
 }
 
@@ -146,7 +156,11 @@ async function restoreVersion(tx: DatabaseExecutor, versionId: string) {
   if (!version) {
     throw new CoachError('not_found');
   }
-  const snapshot = JSON.parse(version.snapshot) as { days: Row[]; exercises: Row[]; daysPerWeek: number | null };
+  const snapshot = JSON.parse(version.snapshot) as {
+    days: Row[];
+    exercises: Row[];
+    profile: { days_per_week: number; training_days: string } | null;
+  };
   await tx.run('DELETE FROM program_day');
   for (const [table, rows] of [
     ['program_day', snapshot.days],
@@ -160,8 +174,11 @@ async function restoreVersion(tx: DatabaseExecutor, versionId: string) {
       );
     }
   }
-  if (snapshot.daysPerWeek !== null) {
-    await tx.run('UPDATE profile SET days_per_week = ?', [snapshot.daysPerWeek]);
+  if (snapshot.profile) {
+    await tx.run('UPDATE profile SET days_per_week = ?, training_days = ?', [
+      snapshot.profile.days_per_week,
+      snapshot.profile.training_days,
+    ]);
   }
 }
 
@@ -225,7 +242,8 @@ async function applyChange(tx: DatabaseExecutor, change: ProposalChange, createI
       if (!profile) {
         throw new CoachError('stale');
       }
-      await tx.run('UPDATE profile SET days_per_week = ?', [change.to]);
+      // The chosen weekdays no longer match the new count, so they are cleared.
+      await tx.run("UPDATE profile SET days_per_week = ?, training_days = '[]'", [change.to]);
       await replaceProgram(tx, generatePlan({ ...profile, daysPerWeek: change.to }), createId);
     }
   }
@@ -285,6 +303,10 @@ export async function undoProposal(database: Database, proposalId: string, now: 
     ]);
     if (!row?.plan_version_id) {
       throw new CoachError('not_found');
+    }
+    const undoable = undoableProposals(await listDecidedProposals(tx));
+    if (!undoable.some(({ id }) => id === proposalId)) {
+      throw new CoachError('stale');
     }
     if (toProposal(row).change.type === 'deload') {
       await setDeload(tx, null, now);

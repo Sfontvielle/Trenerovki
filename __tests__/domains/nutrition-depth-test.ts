@@ -134,7 +134,7 @@ describe('lookupProduct', () => {
   });
 
   it('sends only the barcode and reports what it found', async () => {
-    const fetcher = jest.fn(async () => ({ ok: true, json: async () => ({ status: 0 }) }));
+    const fetcher = jest.fn(async () => ({ ok: true, status: 200, json: async () => ({ status: 0 }) }));
 
     expect(await lookupProduct('4600000000000', fetcher)).toEqual({ status: 'not_found' });
 
@@ -144,7 +144,15 @@ describe('lookupProduct', () => {
 
   it('treats errors and refused requests as offline', async () => {
     expect(await lookupProduct('1', async () => { throw new Error('network'); })).toEqual({ status: 'offline' });
-    expect(await lookupProduct('1', async () => ({ ok: false, json: async () => ({}) }))).toEqual({ status: 'offline' });
+    expect(await lookupProduct('1', async () => ({ ok: false, status: 500, json: async () => ({}) }))).toEqual({
+      status: 'offline',
+    });
+  });
+
+  it('reads the 404 of an unknown barcode as not found, not as no connection', async () => {
+    const fetcher = async () => ({ ok: false, status: 404, json: async () => ({ status: 0 }) });
+
+    expect(await lookupProduct('4600000000017', fetcher)).toEqual({ status: 'not_found' });
   });
 });
 
@@ -212,6 +220,29 @@ describe('diary helpers', () => {
 
     expect((await findFoodByBarcode(database, '111'))?.name).toBe('Сок');
     expect(await findFoodByBarcode(database, '222')).toBeNull();
+  });
+
+  it('keeps one food when the same barcode is logged again', async () => {
+    const database = await setup();
+    const scan = (entryId: string, foodId: string) =>
+      logFood(database, {
+        entryId,
+        foodId,
+        name: 'Сок',
+        per100g: { kcal: 45, protein: 0, fat: 0, carbs: 11 },
+        grams: 200,
+        day: '2026-11-16',
+        meal: 'snack',
+        now: NOW,
+        source: 'barcode',
+        barcode: '111',
+      });
+
+    await scan('e1', 'f1');
+    await scan('e2', 'f2');
+
+    expect(await listFoods(database)).toHaveLength(1);
+    expect(await listDayEntries(database, '2026-11-16')).toHaveLength(2);
   });
 
   it('adds up each day for analytics', async () => {

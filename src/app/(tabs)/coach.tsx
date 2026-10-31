@@ -17,7 +17,7 @@ import {
   rejectProposal,
   syncProposals,
 } from '@/domains/coach/coach-repository';
-import { buildProposals } from '@/domains/coach/proposals';
+import { type CoachFacts, buildProposals } from '@/domains/coach/proposals';
 import { createId } from '@/domains/data-platform/ids';
 import { exerciseName, findAlternatives, findExercise } from '@/domains/exercises/catalog';
 import { buildInsights, getInsightData } from '@/domains/insights/local-insights';
@@ -31,11 +31,12 @@ import { t } from '@/lib/i18n';
 type ProposalCardProps = {
   proposal: Proposal;
   detailed: boolean;
+  facts: CoachFacts | null;
   onChanged: () => void;
 };
 
-function ProposalCard({ proposal, detailed, onChanged }: ProposalCardProps) {
-  const { database, profile } = useAppData();
+function ProposalCard({ proposal, detailed, facts: loadedFacts, onChanged }: ProposalCardProps) {
+  const { database, profile, reloadAll } = useAppData();
   const { theme } = useTheme();
   const { change } = proposal;
   const [chosen, setChosen] = useState(change.type === 'replace' ? change.toExerciseId : null);
@@ -43,13 +44,19 @@ function ProposalCard({ proposal, detailed, onChanged }: ProposalCardProps) {
   const [error, setError] = useState<string | null>(null);
 
   const options =
-    change.type === 'replace' && profile
+    change.type === 'replace' && profile && loadedFacts
       ? [
           change.toExerciseId,
           ...findAlternatives(change.fromExerciseId, {
             equipment: profile.equipment,
             limitations: profile.limitations,
-            excluded: [change.toExerciseId],
+            // The same exclusions the guardrails apply when the choice is accepted.
+            excluded: [
+              change.toExerciseId,
+              ...loadedFacts.program.flatMap((day) => day.exercises.map(({ exerciseId }) => exerciseId)),
+              ...loadedFacts.avoided,
+              ...loadedFacts.discomfort,
+            ],
             count: 3,
           }).map(({ id }) => id),
         ]
@@ -69,6 +76,7 @@ function ProposalCard({ proposal, detailed, onChanged }: ProposalCardProps) {
           ? { ...change, toExerciseId: chosen, target: targetFor(chosen, profile.goal, profile.experience) }
           : change;
       await acceptProposal(database, proposal.id, { facts, now, createId, change: finalChange });
+      await reloadAll();
       onChanged();
     } catch (cause) {
       console.error(cause);
@@ -154,11 +162,12 @@ export default function CoachScreen() {
         !discomfort[index] &&
         !findExercise(exerciseId)?.loads.some((area) => limitations?.includes(area)),
     );
-    if (profile) {
-      const facts = await readCoachFacts(database, profile, now);
+    const facts = profile ? await readCoachFacts(database, profile, now) : null;
+    if (facts) {
       await syncProposals(database, buildProposals(facts), now, createId);
     }
     return {
+      facts,
       insights: buildInsights({ ...data, plateauExercises }),
       proposals: await listOpenProposals(database),
     };
@@ -172,7 +181,7 @@ export default function CoachScreen() {
         {t('Это не чат и не ИИ. Подсказки считаются на этом iPhone по вашим записям. План меняете только вы.')}
       </AppText>
       <DataView state={state}>
-        {({ insights, proposals }) => (
+        {({ facts, insights, proposals }) => (
           <>
             {proposals.length > 0 ? (
               <AppText accessibilityRole="header" variant="heading">
@@ -180,7 +189,13 @@ export default function CoachScreen() {
               </AppText>
             ) : null}
             {proposals.map((proposal) => (
-              <ProposalCard key={proposal.id} proposal={proposal} detailed={detailed} onChanged={state.reload} />
+              <ProposalCard
+                key={proposal.id}
+                proposal={proposal}
+                detailed={detailed}
+                facts={facts}
+                onChanged={state.reload}
+              />
             ))}
 
             <AppText accessibilityRole="header" variant="heading">

@@ -51,7 +51,10 @@ export function parseOpenFoodFacts(response: OpenFoodFactsResponse, barcode: str
   return { status: 'found', product: { ...(values as Nutrients), name, barcode } };
 }
 
-export type ProductFetcher = (url: string, init: RequestInit) => Promise<{ ok: boolean; json: () => Promise<unknown> }>;
+export type ProductFetcher = (
+  url: string,
+  init: RequestInit,
+) => Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }>;
 
 // Only the barcode number leaves the phone. Open Food Facts needs no account.
 export async function lookupProduct(barcode: string, fetcher: ProductFetcher = fetch): Promise<LookupResult> {
@@ -61,6 +64,10 @@ export async function lookupProduct(barcode: string, fetcher: ProductFetcher = f
   const timer = setTimeout(() => controller.abort(), LOOKUP_TIMEOUT_MS);
   try {
     const response = await fetcher(url, { headers: { 'User-Agent': 'IRONVANT/1.0' }, signal: controller.signal });
+    // The base answers 404 for a valid barcode it does not know.
+    if (response.status === 404) {
+      return { status: 'not_found' };
+    }
     if (!response.ok) {
       return { status: 'offline' };
     }

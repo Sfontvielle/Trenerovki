@@ -34,6 +34,7 @@ export default function NutritionScreen() {
 
   const mode = profile?.nutritionMode ?? 'targets';
   const [copyError, setCopyError] = useState<string | null>(null);
+  const [copying, setCopying] = useState(false);
 
   const load = useCallback(async () => {
     const [entries, manual, previous] = await Promise.all([
@@ -51,12 +52,15 @@ export default function NutritionScreen() {
 
   const copyPrevious = async () => {
     setCopyError(null);
+    setCopying(true);
     try {
       await copyDay(database, shiftDay(day, -1), day, createId, new Date());
       state.reload();
     } catch (cause) {
       console.error(cause);
       setCopyError(t('Записи не скопированы. {0}', { 0: describeFailure(cause) }));
+    } finally {
+      setCopying(false);
     }
   };
 
@@ -128,7 +132,12 @@ export default function NutritionScreen() {
               </Panel>
 
               {canCopy ? (
-                <Button label={t('Скопировать записи предыдущего дня')} variant="secondary" onPress={copyPrevious} />
+                <Button
+                  label={t('Скопировать записи предыдущего дня')}
+                  variant="secondary"
+                  loading={copying}
+                  onPress={copyPrevious}
+                />
               ) : null}
               {copyError ? (
                 <AppText accessibilityLiveRegion="polite" tone="danger">

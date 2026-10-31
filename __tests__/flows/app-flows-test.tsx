@@ -30,7 +30,7 @@ jest.mock('expo-sensors', () => ({
   },
 }));
 jest.mock('expo-audio', () => ({
-  createAudioPlayer: jest.fn(() => ({ play: jest.fn() })),
+  createAudioPlayer: jest.fn(() => ({ play: jest.fn(), seekTo: jest.fn(async () => {}) })),
   setAudioModeAsync: jest.fn(async () => {}),
 }));
 jest.mock('expo-camera', () => ({
@@ -41,6 +41,7 @@ jest.mock('@/features/profile/backup', () => ({
   pickBackup: jest.fn(),
   shareBackup: jest.fn(),
   shareWorkoutsCsv: jest.fn(),
+  shareLatestSnapshot: jest.fn(),
 }));
 jest.mock('@/domains/data-platform/ids', () => {
   let next = 0;

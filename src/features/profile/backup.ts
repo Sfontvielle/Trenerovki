@@ -8,6 +8,7 @@ import type { Database } from '@/domains/data-platform/database';
 import { exportAllData } from '@/domains/data-platform/data-transfer';
 import { dayKey } from '@/domains/nutrition/nutrition';
 import { exportWorkoutsCsv } from '@/domains/progress/workout-csv';
+import { latestMigrationSnapshot } from '@/features/profile/migration-snapshot';
 
 async function shareFile(name: string, content: string) {
   const file = new File(Paths.cache, name);
@@ -30,6 +31,15 @@ export async function shareBackup(database: Database, password: string | null) {
   const plain = await exportAllData(database);
   const content = password ? await encryptBackup(plain, password, getRandomBytes) : plain;
   return shareFile(`ironvant-backup-${dayKey(new Date())}.json`, content);
+}
+
+export async function shareLatestSnapshot() {
+  const snapshot = latestMigrationSnapshot();
+  if (!snapshot) {
+    return false;
+  }
+  const { action } = await Share.share({ url: snapshot.uri });
+  return action === Share.sharedAction;
 }
 
 export async function shareWorkoutsCsv(database: Database) {

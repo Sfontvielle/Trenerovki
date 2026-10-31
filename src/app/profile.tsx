@@ -17,7 +17,8 @@ import {
   inspectBackup,
   restoreAllData,
 } from '@/domains/data-platform/data-transfer';
-import { pickBackup, shareBackup, shareWorkoutsCsv } from '@/features/profile/backup';
+import { pickBackup, shareBackup, shareLatestSnapshot, shareWorkoutsCsv } from '@/features/profile/backup';
+import { deleteMigrationSnapshots, latestMigrationSnapshot } from '@/features/profile/migration-snapshot';
 import {
   equipmentLabels,
   experienceHints,
@@ -70,6 +71,8 @@ export default function ProfileScreen() {
   const [backupPassword, setBackupPassword] = useState('');
   const [lockedBackup, setLockedBackup] = useState<string | null>(null);
   const [unlockPassword, setUnlockPassword] = useState('');
+  const [encrypting, setEncrypting] = useState(false);
+  const [snapshotAvailable, setSnapshotAvailable] = useState(() => latestMigrationSnapshot() !== null);
 
   const saveSetting = async (save: Promise<void>) => {
     setMessage(null);
@@ -88,10 +91,26 @@ export default function ProfileScreen() {
       setMessage(t('Пароль должен быть не короче {0} символов.', { 0: MIN_PASSWORD_LENGTH }));
       return;
     }
+    setEncrypting(true);
     try {
       if (await shareBackup(database, backupPassword || null)) {
         setNotice(t('Резервная копия сохранена.'));
         setBackupPassword('');
+      }
+    } catch (error) {
+      console.error(error);
+      setMessage(t('Копия не создана. {0}', { 0: describeFailure(error) }));
+    } finally {
+      setEncrypting(false);
+    }
+  };
+
+  const saveSnapshot = async () => {
+    setMessage(null);
+    setNotice(null);
+    try {
+      if (await shareLatestSnapshot()) {
+        setNotice(t('Копия сохранена.'));
       }
     } catch (error) {
       console.error(error);
@@ -144,12 +163,15 @@ export default function ProfileScreen() {
       return;
     }
     setMessage(null);
+    setEncrypting(true);
     try {
       const text = await decryptBackup(lockedBackup, unlockPassword);
+      setEncrypting(false);
       setLockedBackup(null);
       setUnlockPassword('');
       await replaceFromBackup(text);
     } catch (error) {
+      setEncrypting(false);
       console.error(error);
       setMessage(
         error instanceof WrongPasswordError
@@ -208,6 +230,8 @@ export default function ProfileScreen() {
     setMessage(null);
     try {
       await deleteAllData(database);
+      deleteMigrationSnapshots();
+      setSnapshotAvailable(false);
     } catch (error) {
       console.error(error);
       setMessage(t('Данные не удалены. {0}', { 0: describeFailure(error) }));
@@ -297,7 +321,7 @@ export default function ProfileScreen() {
           secureTextEntry
           value={backupPassword}
         />
-        <Button label={t('Сохранить резервную копию')} variant="secondary" onPress={saveBackup} />
+        <Button label={t('Сохранить резервную копию')} variant="secondary" loading={encrypting} onPress={saveBackup} />
         <Button label={t('Восстановить из копии')} variant="secondary" onPress={restoreBackup} />
         {lockedBackup ? (
           <>
@@ -307,8 +331,11 @@ export default function ProfileScreen() {
               secureTextEntry
               value={unlockPassword}
             />
-            <Button label={t('Открыть копию')} variant="secondary" onPress={unlockBackup} />
+            <Button label={t('Открыть копию')} variant="secondary" loading={encrypting} onPress={unlockBackup} />
           </>
+        ) : null}
+        {snapshotAvailable ? (
+          <Button label={t('Копия перед последним обновлением')} variant="secondary" onPress={saveSnapshot} />
         ) : null}
         <Button label={t('Экспорт тренировок в таблицу')} variant="secondary" onPress={exportCsv} />
         <Button label={t('Удалить все данные')} variant="secondary" onPress={deleteData} />

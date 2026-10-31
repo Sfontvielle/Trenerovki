@@ -15,6 +15,7 @@ import {
   listPlanVersions,
   rejectProposal,
   restorePlanVersion,
+  undoableProposals,
   syncProposals,
   undoProposal,
   updateMemory,
@@ -273,6 +274,27 @@ describe('buildProposals', () => {
     expect(passesGuardrails({ change }, facts(limited, program))).toBe(false);
   });
 
+  it('refuses a replacement that is already in the plan', async () => {
+    const context = await setup();
+    const program = await getProgram(context.database);
+    const [entry, other] = program[0].exercises;
+
+    expect(
+      passesGuardrails(
+        {
+          change: {
+            type: 'replace',
+            programExerciseId: entry.id,
+            fromExerciseId: entry.exerciseId,
+            toExerciseId: other.exerciseId,
+            target: { repsMin: 8, repsMax: 12, targetDurationSec: null },
+          },
+        },
+        facts(context, program),
+      ),
+    ).toBe(false);
+  });
+
   it('rejects stale changes in the guardrails', async () => {
     const context = await setup();
     const program = await getProgram(context.database);
@@ -395,6 +417,53 @@ describe('decisions', () => {
 
     expect(await getProgram(context.database)).toHaveLength(4);
     expect((await getProfile(context.database))?.daysPerWeek).toBe(4);
+  });
+
+  it('undoes plan decisions only from the newest one back', async () => {
+    const context = await setup();
+    const [day] = await getProgram(context.database);
+    const first = await proposal(context, { discomfort: [day.exercises[0].exerciseId] });
+    await acceptProposal(context.database, first.open[0].id, { facts: first.current, now: NOW, createId });
+    const later = new Date(NOW.getTime() + 1000);
+    const [changed] = await getProgram(context.database);
+    const program = await getProgram(context.database);
+    const second = facts(context, program, { discomfort: [changed.exercises[1].exerciseId] });
+    await syncProposals(context.database, buildProposals(second), later, createId);
+    const [next] = await listOpenProposals(context.database);
+    await acceptProposal(context.database, next.id, { facts: second, now: later, createId });
+
+    const decided = await listDecidedProposals(context.database);
+
+    expect(undoableProposals(decided).map(({ id }) => id)).toEqual([next.id]);
+    await expect(undoProposal(context.database, first.open[0].id, later)).rejects.toBeInstanceOf(CoachError);
+
+    await undoProposal(context.database, next.id, later);
+    await undoProposal(context.database, first.open[0].id, later);
+
+    expect((await getProgram(context.database))[0].exercises[0].exerciseId).toBe(day.exercises[0].exerciseId);
+  });
+
+  it('keeps a lighter week undoable whatever came after it', async () => {
+    const context = await setup();
+    const { current, open } = await proposal(context, { lowReadinessDays: 3 });
+    const deload = open.find(({ kind }) => kind === 'deload');
+    await acceptProposal(context.database, deload!.id, { facts: current, now: NOW, createId });
+
+    const decided = await listDecidedProposals(context.database);
+
+    expect(undoableProposals(decided).map(({ id }) => id)).toEqual([deload!.id]);
+  });
+
+  it('clears chosen weekdays with fewer days and brings them back on undo', async () => {
+    const context = await setup({ daysPerWeek: 4, trainingDays: [1, 2, 4, 6] });
+    const { current, open } = await proposal(context, { workoutsByWeek: [1, 2, 1, 0, 0, 0] });
+    const fewer = open.find(({ kind }) => kind === 'fewer_days');
+
+    await acceptProposal(context.database, fewer!.id, { facts: current, now: NOW, createId });
+    expect((await getProfile(context.database))?.trainingDays).toEqual([]);
+
+    await undoProposal(context.database, fewer!.id, NOW);
+    expect((await getProfile(context.database))?.trainingDays).toEqual([1, 2, 4, 6]);
   });
 
   it('stays quiet after a rejection and returns after a deferral', async () => {
