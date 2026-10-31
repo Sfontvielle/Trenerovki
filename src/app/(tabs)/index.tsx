@@ -122,7 +122,11 @@ export default function HomeScreen() {
             <Panel>
               <AppText variant="heading">{t('Вес тела')}</AppText>
               <AppText tone="secondary">
-                {latestWeight ? formatWeight(latestWeight.weightKg) : t('Пока не записан')}
+                {latestWeight
+                  ? formatWeight(latestWeight.weightKg)
+                  : profile?.weightKg
+                    ? t('{0}, из анкеты', { 0: formatWeight(profile.weightKg) })
+                    : t('Пока не записан')}
               </AppText>
               <Button label={t('Записать вес')} variant="secondary" onPress={() => router.push('/body-weight')} />
             </Panel>

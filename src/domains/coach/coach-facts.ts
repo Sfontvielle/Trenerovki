@@ -60,9 +60,16 @@ async function recentlyPainful(database: Database, now: Date) {
   return rows.map(({ exercise_id }) => exercise_id);
 }
 
+async function weeksSinceFirstWorkout(database: Database, now: Date) {
+  const row = await database.first<{ first: string | null }>(
+    "SELECT MIN(finished_at) AS first FROM workout_session WHERE state = 'completed'",
+  );
+  return row?.first ? Math.floor((now.getTime() - Date.parse(row.first)) / WEEK_MS) : 0;
+}
+
 export async function readCoachFacts(database: Database, profile: Profile, now: Date): Promise<CoachFacts> {
   const today = dayKey(now);
-  const [program, discomfort, plateaus, avoided, weeks, weeklySetsByGroup, deloadUntil, checkins] = await Promise.all([
+  const [program, discomfort, plateaus, avoided, weeks, weeklySetsByGroup, deloadUntil, checkins, weeksOfHistory] = await Promise.all([
     getProgram(database),
     recentlyPainful(database, now),
     findPlateaus(database, new Date(now.getTime() - PLATEAU_WINDOW_MS)),
@@ -71,6 +78,7 @@ export async function readCoachFacts(database: Database, profile: Profile, now: 
     setsByGroup(database, now),
     getDeloadUntil(database),
     listCheckins(database, READINESS_DAYS),
+    weeksSinceFirstWorkout(database, now),
   ]);
 
   const lowReadinessDays = checkins.filter((checkin) => assessReadiness(checkin, 0)?.level === 'low').length;
@@ -83,6 +91,7 @@ export async function readCoachFacts(database: Database, profile: Profile, now: 
     plateaus,
     avoided,
     workoutsByWeek: weeks,
+    weeksOfHistory,
     lowReadinessDays,
     weeklySetsByGroup,
     deloadUntil,

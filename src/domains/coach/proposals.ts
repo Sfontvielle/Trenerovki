@@ -36,6 +36,8 @@ export type CoachFacts = {
   avoided: string[];
   // Completed workouts in each of the last full weeks, newest first.
   workoutsByWeek: number[];
+  // Whole weeks since the first finished workout: a newcomer has no pattern yet.
+  weeksOfHistory: number;
   lowReadinessDays: number;
   weeklySetsByGroup: Partial<Record<MuscleGroup, number>>;
   deloadUntil: string | null;
@@ -176,6 +178,7 @@ export function buildProposals(facts: CoachFacts): ProposalDraft[] {
   const lower = allowedDaysPerWeek.filter((days) => days < facts.profile.daysPerWeek).at(-1);
   if (
     lower !== undefined &&
+    facts.weeksOfHistory >= MISSED_WEEKS &&
     missed.length === MISSED_WEEKS &&
     missed.every((count) => count <= facts.profile.daysPerWeek - 2)
   ) {

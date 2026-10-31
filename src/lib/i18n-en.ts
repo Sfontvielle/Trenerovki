@@ -25,6 +25,7 @@ export const english: Record<string, string> = {
   "Питание сегодня": "Nutrition today",
   "Пока ничего не записано": "Nothing logged yet",
   "Вес тела": "Body weight",
+  "{0}, из анкеты": "{0}, from the questionnaire",
   "Пока не записан": "Not logged yet",
   "Записать вес": "Log weight",
   "Записи не скопированы. {0}": "Entries were not copied. {0}",

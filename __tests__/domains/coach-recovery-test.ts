@@ -152,6 +152,7 @@ function facts(context: Awaited<ReturnType<typeof setup>>, program: CoachFacts['
     plateaus: [],
     avoided: [],
     workoutsByWeek: [3, 3, 3, 3, 0, 0],
+    weeksOfHistory: 6,
     lowReadinessDays: 0,
     weeklySetsByGroup: {},
     deloadUntil: null,
@@ -214,6 +215,34 @@ describe('buildProposals', () => {
     const drafts = buildProposals(facts(context, program, { workoutsByWeek: [1, 2, 1, 0, 0, 0] }));
 
     expect(drafts.find(({ kind }) => kind === 'fewer_days')?.change).toEqual({ type: 'days', from: 4, to: 3 });
+  });
+
+  it('does not read a pattern into the first weeks of a newcomer', async () => {
+    const context = await setup();
+    const program = await getProgram(context.database);
+
+    const drafts = buildProposals(facts(context, program, { workoutsByWeek: [1, 0, 0, 0, 0, 0], weeksOfHistory: 0 }));
+
+    expect(drafts.map(({ kind }) => kind)).not.toContain('fewer_days');
+  });
+
+  it('counts whole weeks since the first finished workout', async () => {
+    const context = await setup();
+    const engine = new WorkoutEngine({ database: context.database, createId, now: () => NOW });
+    const sessionId = await engine.startSession({
+      operationId: randomUUID(),
+      title: 'Т',
+      programDayId: null,
+      exercises: [{ exerciseId: 'push-up', plannedSets: 1, repsMin: 8, repsMax: 12 }],
+    });
+    const session = await engine.getSession(sessionId);
+    await engine.logSet(session!.exercises[0].id, { weightKg: null, reps: 10, rir: 2 }, randomUUID());
+    await engine.completeSession(sessionId, randomUUID());
+
+    const later = new Date(NOW.getTime() + 3 * WEEK_MS + 1);
+
+    expect((await readCoachFacts(context.database, context.profile, NOW)).weeksOfHistory).toBe(0);
+    expect((await readCoachFacts(context.database, context.profile, later)).weeksOfHistory).toBe(3);
   });
 
   it('adds a set for an undertrained group but not during a lighter week', async () => {
