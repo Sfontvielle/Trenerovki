@@ -4,7 +4,7 @@ import { View } from 'react-native';
 
 import { useAppData } from '@/app-data/app-data';
 import { useScreenData } from '@/app-data/use-screen-data';
-import { AppText, Button, Chip, Panel, Screen, TextField, useTheme } from '@/design-system';
+import { AppText, Button, Chip, ListGroup, ListRow, Panel, Screen, TextField, useTheme } from '@/design-system';
 import { createId } from '@/domains/data-platform/ids';
 import {
   type FoodSource,
@@ -148,13 +148,26 @@ export default function AddFoodScreen() {
             </View>
           ) : null}
           <FoodSearch onPick={(food) => pick(food)} />
-          <Button label={t('Новый продукт')} variant="secondary" onPress={() => setMode({ type: 'new' })} />
-          <Button
-            label={t('Сканировать штрихкод')}
-            variant="secondary"
-            onPress={() => router.push({ pathname: '/food/scan', params: { day, meal } })}
-          />
-          <Button label={t('Блюдо из продуктов')} variant="secondary" onPress={() => router.push('/food/recipe')} />
+          <ListGroup>
+            <ListRow
+              accessibilityLabel={t('Сканировать штрихкод')}
+              icon={{ name: 'barcode.viewfinder', glyph: '▥', color: theme.colors.accent }}
+              onPress={() => router.push({ pathname: '/food/scan', params: { day, meal } })}
+              title={t('Сканировать штрихкод')}
+            />
+            <ListRow
+              accessibilityLabel={t('Новый продукт')}
+              icon={{ name: 'plus', glyph: '+', color: theme.colors.accent }}
+              onPress={() => setMode({ type: 'new' })}
+              title={t('Новый продукт')}
+            />
+            <ListRow
+              accessibilityLabel={t('Блюдо из продуктов')}
+              icon={{ name: 'fork.knife', glyph: '≡', color: theme.colors.accent }}
+              onPress={() => router.push('/food/recipe')}
+              title={t('Блюдо из продуктов')}
+            />
+          </ListGroup>
         </>
       ) : (
         <>
@@ -220,7 +233,7 @@ export default function AddFoodScreen() {
           <Button label={t('Записать')} loading={saving} onPress={save} />
           <Button
             label={t('Другой продукт')}
-            variant="secondary"
+            variant="plain"
             disabled={saving}
             onPress={() => {
               setError(null);
