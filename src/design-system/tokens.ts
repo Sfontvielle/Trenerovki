@@ -152,6 +152,8 @@ export const typography = {
   scoreLarge: { fontFamily: numeralFont, fontSize: 52, lineHeight: 54, fontVariant: ['tabular-nums'] },
   scoreMedium: { fontFamily: numeralFont, fontSize: 32, lineHeight: 34, fontVariant: ['tabular-nums'] },
   scoreSmall: { fontFamily: numeralFont, fontSize: 25, lineHeight: 28, fontVariant: ['tabular-nums'] },
+  // No line height: on iOS it pushes the text off centre in a one-line field.
+  scoreInput: { fontFamily: numeralFont, fontSize: 25, fontVariant: ['tabular-nums'] },
 } as const satisfies Record<string, TextStyle>;
 
 export type TypographyVariant = keyof typeof typography;

@@ -13,7 +13,7 @@ import { formatDuration, sessionDurationMs } from '@/domains/workout/session-tim
 import type { WorkoutSession, WorkoutSet } from '@/domains/workout/types';
 import { RestBar } from '@/features/workout/rest-bar';
 import { restTimer } from '@/features/workout/rest-store';
-import { ExerciseBlock, SetKeyboardBar } from '@/features/workout/set-table';
+import { ExerciseBlock } from '@/features/workout/set-table';
 import { confirm } from '@/lib/confirm';
 import { describeFailure } from '@/lib/describe-failure';
 import { pluralize } from '@/lib/format';
@@ -263,7 +263,6 @@ function OpenSession({ session, history, deload, onChanged }: SessionOverviewPro
         </AppText>
       ) : null}
       <Button label={t('Отменить тренировку')} variant="danger" disabled={busy} onPress={cancel} />
-      <SetKeyboardBar />
     </Screen>
   );
 }

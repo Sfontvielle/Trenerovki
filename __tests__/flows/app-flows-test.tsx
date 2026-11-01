@@ -1345,6 +1345,17 @@ describe('set table', () => {
     expect(screen.getByLabelText('Подход 1, вес').props.value).toBe('72,5');
   });
 
+  it('leaves a set logged from the grey values in the row after undoing it', async () => {
+    await openTable([bench], { weightKg: 60, reps: 10 });
+
+    await press('Записать подход 1');
+    await press('Отменить подход 1');
+    await screen.findByRole('button', { name: 'Записать подход 1' });
+
+    expect(screen.getByLabelText('Подход 1, вес').props.value).toBe('60');
+    expect(screen.getByLabelText('Подход 1, повторы').props.value).toBe('10');
+  });
+
   it('skips the rest after a warm-up set', async () => {
     await openTable([bench], { weightKg: 60, reps: 10 });
 
@@ -1411,6 +1422,19 @@ describe('set table', () => {
     });
   });
 
+  it('writes nothing when a field is left unchanged', async () => {
+    await openTable([bench], { weightKg: 60, reps: 10 });
+    await press('Записать подход 1');
+    await screen.findByRole('button', { name: 'Отменить подход 1' });
+    const updateSet = jest.spyOn(WorkoutEngine.prototype, 'updateSet');
+
+    await act(async () => {
+      await fireEvent(screen.getByLabelText('Подход 1, повторы'), 'endEditing');
+    });
+
+    expect(updateSet).not.toHaveBeenCalled();
+  });
+
   it('refuses an impossible change and keeps the record', async () => {
     await openTable([bench], { weightKg: 60, reps: 10 });
     await press('Записать подход 1');
@@ -1439,6 +1463,28 @@ describe('set table', () => {
 
     await waitFor(() => {
       expect(screen.getByLabelText('Подход 1, вес').props.value).toBe('61');
+    });
+  });
+
+  it('drops an edit made here once the set changes on the exercise screen', async () => {
+    await openTable([bench], { weightKg: 60, reps: 10 });
+    await press('Записать подход 1');
+    await screen.findByRole('button', { name: 'Отменить подход 1' });
+    await type('Подход 1, вес', '61');
+    await act(async () => {
+      await fireEvent(screen.getByLabelText('Подход 1, вес'), 'endEditing');
+    });
+
+    await openExerciseByName(0);
+    await screen.findByText(/^1. 61 кг/);
+    await press('Изменить');
+    await type('Вес, кг', '63');
+    await press('Сохранить изменения');
+    await screen.findByText(/^1\. 63 кг/);
+    await testRouter.back();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Подход 1, вес').props.value).toBe('63');
     });
   });
 

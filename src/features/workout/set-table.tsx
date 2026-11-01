@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { InputAccessoryView, Keyboard, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { useAppData } from '@/app-data/app-data';
 import { AppText, Button, Icon, useTheme } from '@/design-system';
@@ -15,8 +15,6 @@ import { describeFailure } from '@/lib/describe-failure';
 import { formatInputNumber, formatNumber } from '@/lib/format';
 import { successFeedback } from '@/lib/haptics';
 import { t } from '@/lib/i18n';
-
-const KEYBOARD_BAR_ID = 'set-keyboard-bar';
 
 const kindMarks: Record<SetKind, string> = {
   working: '',
@@ -62,7 +60,6 @@ function Cell({ label, value, placeholder, suggested, decimal = false, disabled,
     <TextInput
       accessibilityLabel={label}
       editable={!disabled}
-      inputAccessoryViewID={KEYBOARD_BAR_ID}
       keyboardAppearance={theme.mode}
       keyboardType={decimal ? 'decimal-pad' : 'number-pad'}
       maxFontSizeMultiplier={theme.maxFontScale}
@@ -74,7 +71,7 @@ function Cell({ label, value, placeholder, suggested, decimal = false, disabled,
       selectTextOnFocus
       selectionColor={colors.accent}
       style={[
-        typography.scoreSmall,
+        typography.scoreInput,
         styles.cell,
         { backgroundColor: colors.background, borderRadius: radii.chip, color: colors.textPrimary, height: sizes.setCell },
       ]}
@@ -283,22 +280,6 @@ function SetRow({
         <Icon color={done ? colors.onAccent : colors.textSecondary} glyph="✓" name="checkmark" />
       </Pressable>
     </View>
-  );
-}
-
-// The number pad has no return key, so this bar is the way to close it.
-export function SetKeyboardBar() {
-  const { theme } = useTheme();
-
-  if (Platform.OS !== 'ios') {
-    return null;
-  }
-  return (
-    <InputAccessoryView nativeID={KEYBOARD_BAR_ID}>
-      <View style={{ alignItems: 'flex-end', backgroundColor: theme.colors.surfaceRaised, paddingHorizontal: theme.spacing.s }}>
-        <Button label={t('Готово')} variant="plain" onPress={Keyboard.dismiss} />
-      </View>
-    </InputAccessoryView>
   );
 }
 

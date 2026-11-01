@@ -1,3 +1,4 @@
+import type { Profile } from '@/domains/profile/profile';
 import { migrate } from '@/domains/data-platform/migrations';
 import { foodCatalog } from '@/domains/nutrition/food-catalog';
 import { areValidNutrients, energyLooksWrong } from '@/domains/nutrition/nutrition';
@@ -12,7 +13,7 @@ import {
   saveRecipe,
 } from '@/domains/nutrition/nutrition-repository';
 import { lookupProduct, parseOpenFoodFacts } from '@/domains/nutrition/product-lookup';
-import { estimateTargets } from '@/domains/nutrition/targets';
+import { dayTarget, estimateTargets } from '@/domains/nutrition/targets';
 import { generatePlan } from '@/domains/program/generate-plan';
 import { createTestDatabase } from '../../test-support/test-database';
 
@@ -100,6 +101,32 @@ describe('estimateTargets', () => {
     expect(estimateTargets({ ...body, heightCm: null })).toBeNull();
     expect(estimateTargets({ ...body, weightKg: null })).toBeNull();
     expect(estimateTargets({ ...body, activityLevel: null })).toBeNull();
+  });
+});
+
+describe('dayTarget', () => {
+  const account = {
+    sex: 'male',
+    age: 30,
+    weightKg: 80,
+    heightCm: 180,
+    activityLevel: 'moderate',
+    goal: 'maintenance',
+    nutritionMode: 'targets',
+  } as Profile;
+  const manual = { kcal: 2000, protein: 150, fat: 70, carbs: 200 };
+
+  it('prefers the target set by hand', () => {
+    expect(dayTarget(account, manual)).toEqual(manual);
+  });
+
+  it('falls back to the estimate', () => {
+    expect(dayTarget(account, null)).toEqual(estimateTargets(account));
+  });
+
+  it('measures nothing in a plain diary or without a profile', () => {
+    expect(dayTarget({ ...account, nutritionMode: 'diary' }, manual)).toBeNull();
+    expect(dayTarget(null, manual)).toBeNull();
   });
 });
 

@@ -49,15 +49,11 @@ describe('estimateMuscleLoad', () => {
   });
 
   it('keeps the strongest mark when work overlaps', () => {
-    const load = estimateMuscleLoad(
-      [
-        { exerciseId: 'bench-press', finishedAt: hoursAgo(60), sets: 4 },
-        { exerciseId: 'bench-press', finishedAt: hoursAgo(12), sets: 4 },
-      ],
-      NOW,
-    );
+    const older = { exerciseId: 'bench-press', finishedAt: hoursAgo(60), sets: 4 };
+    const newer = { exerciseId: 'bench-press', finishedAt: hoursAgo(12), sets: 4 };
 
-    expect(load.chest).toBeCloseTo(60 / 72);
+    expect(estimateMuscleLoad([older, newer], NOW).chest).toBeCloseTo(60 / 72);
+    expect(estimateMuscleLoad([newer, older], NOW).chest).toBeCloseTo(60 / 72);
   });
 
   it('skips unknown exercises and dates ahead of the clock', () => {
