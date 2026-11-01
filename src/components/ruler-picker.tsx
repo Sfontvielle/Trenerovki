@@ -107,7 +107,7 @@ export function RulerPicker({ label, unit, value, start, min, max, step, onChang
           placeholder="—"
           placeholderTextColor={colors.textSecondary}
           selectionColor={colors.accent}
-          style={[typography.display, styles.valueInput, { color: colors.textPrimary }]}
+          style={[typography.scoreLarge, styles.valueInput, { color: colors.textPrimary }]}
           value={draft ?? formatInputNumber(value)}
         />
         <AppText variant="heading" tone="secondary">

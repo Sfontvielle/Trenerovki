@@ -13,7 +13,7 @@ import { formatDuration, sessionDurationMs } from '@/domains/workout/session-tim
 import type { WorkoutSession, WorkoutSet } from '@/domains/workout/types';
 import { RestBar } from '@/features/workout/rest-bar';
 import { restTimer } from '@/features/workout/rest-store';
-import { ExerciseBlock } from '@/features/workout/set-table';
+import { ExerciseBlock, SetKeyboardBar } from '@/features/workout/set-table';
 import { confirm } from '@/lib/confirm';
 import { describeFailure } from '@/lib/describe-failure';
 import { pluralize } from '@/lib/format';
@@ -178,6 +178,7 @@ export default function WorkoutScreen() {
 function OpenSession({ session, history, deload, onChanged }: SessionOverviewProps) {
   const { theme } = useTheme();
   const { busy, error, paused, setCount, togglePause, finish, cancel } = useSessionActions({ session, onChanged });
+  const plannedSetsDone = session.exercises.every(({ plannedSets, sets }) => sets.length >= (plannedSets ?? 1));
 
   return (
     <Screen
@@ -186,7 +187,13 @@ function OpenSession({ session, history, deload, onChanged }: SessionOverviewPro
       footer={
         <>
           <RestBar />
-          <Button label={t('Завершить тренировку')} disabled={setCount === 0} loading={busy} onPress={finish} />
+          <Button
+            label={t('Завершить тренировку')}
+            variant={plannedSetsDone ? 'primary' : 'secondary'}
+            disabled={setCount === 0}
+            loading={busy}
+            onPress={finish}
+          />
         </>
       }
     >
@@ -197,24 +204,25 @@ function OpenSession({ session, history, deload, onChanged }: SessionOverviewPro
           </AppText>
           <SessionClock session={session} />
         </View>
-        <IconButton
-          disabled={busy}
-          glyph={paused ? '▶' : 'Ⅱ'}
-          label={paused ? t('Продолжить') : t('Пауза')}
-          name={paused ? 'play.fill' : 'pause.fill'}
-          onPress={togglePause}
-        />
+        {paused ? null : (
+          <IconButton disabled={busy} glyph="Ⅱ" label={t('Пауза')} name="pause.fill" onPress={togglePause} />
+        )}
       </View>
 
-      {session.recoveryRequired ? (
+      {paused ? (
         <Panel>
-          <AppText variant="heading">{t('Тренировка была прервана')}</AppText>
-          <AppText tone="secondary">
-            {t('Все записанные подходы сохранены. Время после последнего действия не считается. Проверьте их и выберите: продолжить, завершить или отменить тренировку.')}
-          </AppText>
+          {session.recoveryRequired ? (
+            <>
+              <AppText variant="heading">{t('Тренировка была прервана')}</AppText>
+              <AppText tone="secondary">
+                {t('Все записанные подходы сохранены. Время после последнего действия не считается. Проверьте их и выберите: продолжить, завершить или отменить тренировку.')}
+              </AppText>
+            </>
+          ) : (
+            <AppText tone="secondary">{t('Тренировка на паузе. Продолжите её, чтобы записывать подходы.')}</AppText>
+          )}
+          <Button label={t('Продолжить')} disabled={busy} onPress={togglePause} />
         </Panel>
-      ) : paused ? (
-        <AppText tone="secondary">{t('Тренировка на паузе. Продолжите её, чтобы записывать подходы.')}</AppText>
       ) : null}
 
       {session.exercises.length === 0 ? (
@@ -255,6 +263,7 @@ function OpenSession({ session, history, deload, onChanged }: SessionOverviewPro
         </AppText>
       ) : null}
       <Button label={t('Отменить тренировку')} variant="danger" disabled={busy} onPress={cancel} />
+      <SetKeyboardBar />
     </Screen>
   );
 }

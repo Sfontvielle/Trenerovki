@@ -1,12 +1,11 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useCallback } from 'react';
-import { View } from 'react-native';
 
 import { useAppData } from '@/app-data/app-data';
 import { useScreenData } from '@/app-data/use-screen-data';
 import { DataView } from '@/components/states';
 import { TrendBars } from '@/components/trend-bars';
-import { AppText, Panel, Screen, useTheme } from '@/design-system';
+import { AppText, ListGroup, ListRow, Panel, Screen } from '@/design-system';
 import { exerciseName } from '@/domains/exercises/catalog';
 import { type ExerciseTrendPoint, getExerciseTrend } from '@/domains/progress/progress-repository';
 import { formatSeconds } from '@/features/workout/set-labels';
@@ -49,7 +48,6 @@ function toChart(trend: ExerciseTrendPoint[]) {
 export default function ExerciseProgressScreen() {
   const { exerciseId } = useLocalSearchParams<{ exerciseId: string }>();
   const { database } = useAppData();
-  const { theme } = useTheme();
   const load = useCallback(() => getExerciseTrend(database, exerciseId), [database, exerciseId]);
   const state = useScreenData(load);
 
@@ -70,13 +68,11 @@ export default function ExerciseProgressScreen() {
                 <AppText variant="heading">{chart.title}</AppText>
                 <TrendBars bars={chart.points} />
               </Panel>
-              <View style={{ gap: theme.spacing.xs }}>
+              <ListGroup>
                 {[...chart.points].reverse().map((point) => (
-                  <AppText key={point.key} variant="callout" tone="secondary">
-                    {point.label}
-                  </AppText>
+                  <ListRow key={point.key} title={point.label} />
                 ))}
-              </View>
+              </ListGroup>
             </>
           );
         }}

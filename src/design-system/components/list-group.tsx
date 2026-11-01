@@ -30,14 +30,10 @@ export function ListGroup({ title, footer, action, children }: ListGroupProps) {
       {rows.length > 0 ? (
         <View style={{ backgroundColor: colors.surface, borderRadius: radii.panel, overflow: 'hidden' }}>
           {rows.map((row, index) => (
-            <View
-              key={(isValidElement(row) && row.key) || index}
-              style={
-                index > 0
-                  ? { borderTopColor: colors.hairline, borderTopWidth: sizes.hairline, marginLeft: spacing.l }
-                  : undefined
-              }
-            >
+            <View key={(isValidElement(row) && row.key) || index}>
+              {index > 0 ? (
+                <View style={{ backgroundColor: colors.hairline, height: sizes.hairline, marginLeft: spacing.l }} />
+              ) : null}
               {row}
             </View>
           ))}
@@ -82,6 +78,7 @@ export function ListRow({
     <View
       style={[
         styles.row,
+        styles.text,
         { gap: spacing.m, minHeight: sizes.rowMinHeight, paddingLeft: spacing.l, paddingRight: spacing.m, paddingVertical: spacing.s },
       ]}
     >
@@ -96,29 +93,32 @@ export function ListRow({
         ) : null}
       </View>
       {value ? (
-        <AppText variant="callout" tone="secondary">
+        <AppText variant="callout" tone="secondary" style={styles.value}>
           {value}
         </AppText>
       ) : null}
-      {trailing}
       {onPress && !trailing ? (
         <Icon glyph="›" name="chevron.right" size={sizes.chevron} color={theme.colors.textSecondary} />
       ) : null}
     </View>
   );
 
-  if (!onPress) {
-    return content;
-  }
   return (
-    <Pressable
-      accessibilityLabel={accessibilityLabel}
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => ({ backgroundColor: pressed ? theme.colors.surfaceRaised : 'transparent' })}
-    >
-      {content}
-    </Pressable>
+    <View style={styles.row}>
+      {onPress ? (
+        <Pressable
+          accessibilityLabel={accessibilityLabel}
+          accessibilityRole="button"
+          onPress={onPress}
+          style={({ pressed }) => [styles.text, { backgroundColor: pressed ? theme.colors.surfaceRaised : 'transparent' }]}
+        >
+          {content}
+        </Pressable>
+      ) : (
+        content
+      )}
+      {trailing ? <View style={{ paddingRight: spacing.m }}>{trailing}</View> : null}
+    </View>
   );
 }
 
@@ -155,5 +155,9 @@ const styles = StyleSheet.create({
   },
   text: {
     flex: 1,
+  },
+  value: {
+    flexShrink: 1,
+    textAlign: 'right',
   },
 });

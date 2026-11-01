@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 
 import { AppText, Button, Panel } from '@/design-system';
 import type { WorkoutSession } from '@/domains/workout/types';
+import { RestBar } from '@/features/workout/rest-bar';
 import { t } from '@/lib/i18n';
 
 type OpenSessionBannerProps = {
@@ -17,6 +18,7 @@ export function OpenSessionBanner({ session }: OpenSessionBannerProps) {
       <AppText tone="secondary">
         {t('{0}. Записанные подходы сохранены.', { 0: session.title })}
       </AppText>
+      <RestBar />
       <Button label={t('Продолжить тренировку')} onPress={() => router.push('/workout')} />
     </Panel>
   );
