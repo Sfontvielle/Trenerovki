@@ -33,6 +33,15 @@ const KCAL_PER_GRAM_PROTEIN = 4;
 const KCAL_PER_GRAM_FAT = 9;
 const KCAL_PER_GRAM_CARBS = 4;
 
+// What the diary measures against: the hand-set target wins over the estimate,
+// and a plain diary measures nothing.
+export function dayTarget(profile: Profile | null, manual: Nutrients | null) {
+  if (!profile || profile.nutritionMode === 'diary') {
+    return null;
+  }
+  return manual ?? estimateTargets(profile);
+}
+
 type TargetProfile = Pick<Profile, 'sex' | 'age' | 'weightKg' | 'heightCm' | 'activityLevel' | 'goal'>;
 
 // Mifflin-St Jeor resting energy with an activity factor. When sex is not

@@ -1,112 +1,148 @@
 import { router } from 'expo-router';
-import { useCallback } from 'react';
-import { Pressable, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { View } from 'react-native';
 
 import { useAppData } from '@/app-data/app-data';
 import { useScreenData } from '@/app-data/use-screen-data';
+import { MonthCalendar } from '@/components/month-calendar';
+import { Stat } from '@/components/stat';
 import { DataView } from '@/components/states';
 import { TabScreen } from '@/components/tab-screen';
-import { AppText, Button, Panel, useTheme } from '@/design-system';
+import { AppText, Button, ListGroup, ListRow, Panel, Segmented, useTheme } from '@/design-system';
 import { exerciseName } from '@/domains/exercises/catalog';
-import {
-  getExerciseRecords,
-  getSummary,
-  listCompletedSessions,
-} from '@/domains/progress/progress-repository';
+import { dayKey } from '@/domains/nutrition/nutrition';
+import { getExerciseRecords, getSummary, listCompletedSessions } from '@/domains/progress/progress-repository';
 import { formatDuration, sessionDurationMs } from '@/domains/workout/session-time';
 import { SessionBar } from '@/features/workout/session-bar';
 import { formatDate, formatNumber, formatWeight, pluralize } from '@/lib/format';
 import { t } from '@/lib/i18n';
 
+type Section = 'overview' | 'history' | 'records';
+
 export default function ProgressScreen() {
   const { database } = useAppData();
   const { theme } = useTheme();
+  const { colors, spacing } = theme;
+  const [section, setSection] = useState<Section>('overview');
 
   const load = useCallback(async () => {
+    const now = new Date();
     const [summary, sessions, records] = await Promise.all([
-      getSummary(database, new Date()),
+      getSummary(database, now),
       listCompletedSessions(database),
       getExerciseRecords(database),
     ]);
-    return { summary, sessions, records };
+    return { now, summary, sessions, records };
   }, [database]);
   const state = useScreenData(load);
 
   return (
     <TabScreen title={t('Прогресс')}>
       <SessionBar />
-      <Button label={t('Подробная аналитика')} variant="secondary" onPress={() => router.push('/analytics')} />
-      <Button label={t('Вес тела')} variant="secondary" onPress={() => router.push('/body-weight')} />
       <DataView state={state}>
-        {({ summary, sessions, records }) =>
+        {({ now, summary, sessions, records }) =>
           sessions.length === 0 ? (
-            <Panel>
-              <AppText variant="heading">{t('Пока нет завершённых тренировок')}</AppText>
-              <AppText tone="secondary">{t('После первой тренировки здесь появятся история и рекорды.')}</AppText>
-              <Button
-                label={t('Перейти к тренировкам')}
-                variant="secondary"
-                onPress={() => router.navigate('/workouts')}
-              />
-            </Panel>
-          ) : (
             <>
               <Panel>
-                <AppText variant="display">{formatNumber(summary.completedWorkouts)}</AppText>
-                <AppText tone="secondary">
-                  {t('{0} всего, {1} за 7 дней', { 0: pluralize(summary.completedWorkouts, [t('тренировка'), t('тренировки'), t('тренировок')]), 1: summary.workoutsLastWeek })}
-                </AppText>
-                {summary.totalVolumeKg > 0 ? (
-                  <AppText variant="callout" tone="secondary">
-                    {t('Общий объём: {0} кг', { 0: formatNumber(summary.totalVolumeKg) })}
-                  </AppText>
-                ) : null}
+                <AppText variant="heading">{t('Пока нет завершённых тренировок')}</AppText>
+                <AppText tone="secondary">{t('После первой тренировки здесь появятся история и рекорды.')}</AppText>
+                <Button
+                  label={t('Перейти к тренировкам')}
+                  variant="secondary"
+                  onPress={() => router.navigate('/workouts')}
+                />
               </Panel>
+              <ListGroup>
+                <ListRow
+                  icon={{ name: 'scalemass', glyph: '⚖', color: colors.accent }}
+                  onPress={() => router.push('/body-weight')}
+                  title={t('Вес тела')}
+                />
+              </ListGroup>
+            </>
+          ) : (
+            <>
+              <Segmented
+                label={t('Разделы прогресса')}
+                onChange={setSection}
+                options={[
+                  { value: 'overview', label: t('Обзор') },
+                  { value: 'history', label: t('История') },
+                  { value: 'records', label: t('Рекорды') },
+                ]}
+                value={section}
+              />
 
-              {records.length > 0 ? (
-                <View style={{ gap: theme.spacing.s }}>
-                  <AppText accessibilityRole="header" variant="heading">
-                    {t('Рекорды')}
-                  </AppText>
-                  {records.map((record) => (
-                    <Pressable
-                      key={record.exerciseId}
-                      accessibilityRole="button"
-                      onPress={() => router.push(`/exercise-progress/${record.exerciseId}`)}
-                    >
-                      <Panel>
-                        <AppText>{exerciseName(record.exerciseId)}</AppText>
-                        <AppText variant="callout" tone="secondary">
-                          {`${formatWeight(record.bestWeightKg)} × ${record.repsAtBest}`}
-                        </AppText>
-                      </Panel>
-                    </Pressable>
-                  ))}
-                </View>
+              {section === 'overview' ? (
+                <>
+                  <View style={{ flexDirection: 'row', gap: spacing.m }}>
+                    <Stat
+                      label={pluralize(summary.completedWorkouts, [t('тренировка'), t('тренировки'), t('тренировок')])}
+                      size="large"
+                      value={formatNumber(summary.completedWorkouts)}
+                    />
+                    <Stat label={t('за 7 дней')} size="large" value={formatNumber(summary.workoutsLastWeek)} />
+                    {summary.totalVolumeKg > 0 ? (
+                      <Stat label={t('Объём, кг')} size="large" value={formatNumber(summary.totalVolumeKg)} />
+                    ) : null}
+                  </View>
+
+                  <MonthCalendar
+                    now={now}
+                    trainedDays={sessions.map(({ finishedAt }) => dayKey(new Date(finishedAt)))}
+                  />
+
+                  <ListGroup>
+                    <ListRow
+                      icon={{ name: 'chart.bar', glyph: '▮', color: colors.accent }}
+                      onPress={() => router.push('/analytics')}
+                      title={t('Подробная аналитика')}
+                    />
+                    <ListRow
+                      icon={{ name: 'scalemass', glyph: '⚖', color: colors.accent }}
+                      onPress={() => router.push('/body-weight')}
+                      title={t('Вес тела')}
+                    />
+                  </ListGroup>
+                </>
               ) : null}
 
-              <View style={{ gap: theme.spacing.s }}>
-                <AppText accessibilityRole="header" variant="heading">
-                  {t('История')}
-                </AppText>
-                {sessions.map((session) => (
-                  <Pressable
-                    key={session.id}
-                    accessibilityRole="button"
-                    onPress={() => router.push(`/history/${session.id}`)}
-                  >
-                    <Panel>
-                      <AppText>{session.title}</AppText>
-                      <AppText variant="callout" tone="secondary">
-                        {`${formatDate(session.startedAt)}, ${formatDuration(sessionDurationMs(session, new Date()))}`}
-                      </AppText>
-                      <AppText variant="callout" tone="secondary">
-                        {`${session.setCount} ${pluralize(session.setCount, [t('подход'), t('подхода'), t('подходов')])}${session.volumeKg > 0 ? t(', {0} кг', { 0: formatNumber(session.volumeKg) }) : ''}`}
-                      </AppText>
-                    </Panel>
-                  </Pressable>
-                ))}
-              </View>
+              {section === 'history' ? (
+                <ListGroup>
+                  {sessions.map((session) => (
+                    <ListRow
+                      key={session.id}
+                      onPress={() => router.push(`/history/${session.id}`)}
+                      subtitle={[
+                        formatDate(session.startedAt),
+                        formatDuration(sessionDurationMs(session, now)),
+                        `${session.setCount} ${pluralize(session.setCount, [t('подход'), t('подхода'), t('подходов')])}`,
+                        session.volumeKg > 0 ? t('{0} кг', { 0: formatNumber(session.volumeKg) }) : null,
+                      ]
+                        .filter(Boolean)
+                        .join(', ')}
+                      title={session.title}
+                    />
+                  ))}
+                </ListGroup>
+              ) : null}
+
+              {section === 'records' ? (
+                records.length > 0 ? (
+                  <ListGroup>
+                    {records.map((record) => (
+                      <ListRow
+                        key={record.exerciseId}
+                        onPress={() => router.push(`/exercise-progress/${record.exerciseId}`)}
+                        subtitle={`${formatWeight(record.bestWeightKg)} × ${record.repsAtBest}`}
+                        title={exerciseName(record.exerciseId)}
+                      />
+                    ))}
+                  </ListGroup>
+                ) : (
+                  <AppText tone="secondary">{t('Рекорды появятся после подходов с весом.')}</AppText>
+                )
+              ) : null}
             </>
           )
         }

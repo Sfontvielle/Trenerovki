@@ -5,7 +5,7 @@ import { View } from 'react-native';
 import { useAppData } from '@/app-data/app-data';
 import { useScreenData } from '@/app-data/use-screen-data';
 import { DataView } from '@/components/states';
-import { AppText, Button, Panel, Screen, useTheme } from '@/design-system';
+import { AppText, Button, ListGroup, Screen, useTheme } from '@/design-system';
 import { exerciseName } from '@/domains/exercises/catalog';
 import { createId } from '@/domains/data-platform/ids';
 import {
@@ -70,6 +70,7 @@ export default function EditPlanDayScreen() {
               <AppText accessibilityRole="header" variant="title">
                 {day.name}
               </AppText>
+              <ListGroup>
               {day.exercises.map((exercise, index) => {
                 const name = exerciseName(exercise.exerciseId);
                 const next = day.exercises[index + 1];
@@ -78,62 +79,59 @@ export default function EditPlanDayScreen() {
                   ({ groupId }) => groupId && groupId === exercise.groupId,
                 ).length;
                 return (
-                  <Panel key={exercise.id}>
-                    <AppText variant="heading">{name}</AppText>
+                  <View key={exercise.id} style={{ gap: theme.spacing.xs, padding: theme.spacing.m }}>
+                    <AppText>{name}</AppText>
                     <AppText variant="callout" tone="secondary">
-                      {describeTarget({
-                        sets: exercise.targetSets,
-                        repsMin: exercise.repsMin,
-                        repsMax: exercise.repsMax,
-                        durationSec: exercise.targetDurationSec,
-                      })}
+                      {[
+                        describeTarget({
+                          sets: exercise.targetSets,
+                          repsMin: exercise.repsMin,
+                          repsMax: exercise.repsMax,
+                          durationSec: exercise.targetDurationSec,
+                        }),
+                        groupSize > 1 ? groupLabel(groupSize) : null,
+                      ]
+                        .filter(Boolean)
+                        .join(', ')}
                     </AppText>
-                    {groupSize > 1 ? (
-                      <AppText variant="caption" tone="accent">
-                        {groupLabel(groupSize)}
-                      </AppText>
-                    ) : null}
-                    <View style={{ flexDirection: 'row', gap: theme.spacing.s }}>
-                      <View style={{ flex: 1 }}>
-                        <Button
-                          accessibilityLabel={t('Заменить: {0}', { 0: name })}
-                          label={t('Заменить')}
-                          variant="secondary"
-                          onPress={() =>
-                            router.push({
-                              pathname: '/plan/pick',
-                              params: { dayId, replaceId: exercise.id },
-                            })
-                          }
-                        />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Button
-                          accessibilityLabel={t('Убрать: {0}', { 0: name })}
-                          disabled={day.exercises.length === 1}
-                          label={t('Убрать')}
-                          variant="secondary"
-                          onPress={() => remove(exercise.id, name)}
-                        />
-                      </View>
-                    </View>
-                    {next ? (
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
                       <Button
-                        accessibilityLabel={`${linked ? t('Разъединить') : t('Объединить со следующим')}: ${name}`}
-                        label={linked ? t('Разъединить') : t('Объединить со следующим')}
-                        variant="secondary"
+                        accessibilityLabel={t('Заменить: {0}', { 0: name })}
+                        label={t('Заменить')}
+                        variant="plain"
                         onPress={() =>
-                          changeLink(() =>
-                            linked
-                              ? unlinkProgramExercise(database, exercise.id)
-                              : linkProgramExerciseWithNext(database, exercise.id, createId),
-                          )
+                          router.push({
+                            pathname: '/plan/pick',
+                            params: { dayId, replaceId: exercise.id },
+                          })
                         }
                       />
-                    ) : null}
-                  </Panel>
+                      {next ? (
+                        <Button
+                          accessibilityLabel={`${linked ? t('Разъединить') : t('Объединить со следующим')}: ${name}`}
+                          label={linked ? t('Разъединить') : t('В суперсет')}
+                          variant="plain"
+                          onPress={() =>
+                            changeLink(() =>
+                              linked
+                                ? unlinkProgramExercise(database, exercise.id)
+                                : linkProgramExerciseWithNext(database, exercise.id, createId),
+                            )
+                          }
+                        />
+                      ) : null}
+                      <Button
+                        accessibilityLabel={t('Убрать: {0}', { 0: name })}
+                        disabled={day.exercises.length === 1}
+                        label={t('Убрать')}
+                        variant="danger"
+                        onPress={() => remove(exercise.id, name)}
+                      />
+                    </View>
+                  </View>
                 );
               })}
+              </ListGroup>
               {error ? (
                 <AppText accessibilityLiveRegion="polite" tone="danger">
                   {error}

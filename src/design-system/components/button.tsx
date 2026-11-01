@@ -62,7 +62,7 @@ export function Button({
           gap: spacing.s,
           justifyContent: 'center',
           minHeight: textOnly ? sizes.minTouch : sizes.control,
-          paddingHorizontal: spacing.xl,
+          paddingHorizontal: textOnly ? spacing.s : spacing.xl,
           paddingVertical: textOnly ? spacing.s : spacing.m,
         }}
       >

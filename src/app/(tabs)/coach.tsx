@@ -1,12 +1,12 @@
 import { router } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { useAppData } from '@/app-data/app-data';
 import { useScreenData } from '@/app-data/use-screen-data';
 import { DataView } from '@/components/states';
 import { TabScreen } from '@/components/tab-screen';
-import { AppText, Button, Chip, Panel, useTheme } from '@/design-system';
+import { AppText, Button, Chip, IconButton, ListGroup, ListRow, Panel, useTheme } from '@/design-system';
 import { readCoachFacts } from '@/domains/coach/coach-facts';
 import {
   CoachError,
@@ -128,28 +128,43 @@ function ProposalCard({ proposal, detailed, facts: loadedFacts, onChanged }: Pro
           {error}
         </AppText>
       ) : null}
-      <Button accessibilityLabel={t('Принять: {0}', { 0: proposal.title })} label={t('Принять')} loading={busy} onPress={accept} />
-      <Button
-        accessibilityLabel={t('Отложить на неделю: {0}', { 0: proposal.title })}
-        label={t('Отложить на неделю')}
-        variant="secondary"
-        disabled={busy}
-        onPress={() => decide(() => deferProposal(database, proposal.id, new Date()))}
-      />
-      <Button
-        accessibilityLabel={t('Отклонить: {0}', { 0: proposal.title })}
-        label={t('Отклонить')}
-        variant="secondary"
-        disabled={busy}
-        onPress={() => decide(() => rejectProposal(database, proposal.id, new Date()))}
-      />
+      <View style={[styles.actions, { gap: theme.spacing.s }]}>
+        <View style={styles.accept}>
+          <Button accessibilityLabel={t('Принять: {0}', { 0: proposal.title })} label={t('Принять')} loading={busy} onPress={accept} />
+        </View>
+        <IconButton
+          disabled={busy}
+          glyph="◷"
+          label={t('Отложить на неделю: {0}', { 0: proposal.title })}
+          name="clock"
+          onPress={() => decide(() => deferProposal(database, proposal.id, new Date()))}
+        />
+        <IconButton
+          disabled={busy}
+          glyph="×"
+          label={t('Отклонить: {0}', { 0: proposal.title })}
+          name="xmark"
+          onPress={() => decide(() => rejectProposal(database, proposal.id, new Date()))}
+        />
+      </View>
     </Panel>
   );
 }
 
+const styles = StyleSheet.create({
+  accept: {
+    flex: 1,
+  },
+  actions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+  },
+});
+
 export default function CoachScreen() {
   const { database, engine, profile } = useAppData();
   const { detailed } = useCoachStyle();
+  const { theme } = useTheme();
   const plannedPerWeek = profile?.daysPerWeek ?? 0;
   const limitations = profile?.limitations;
 
@@ -179,9 +194,6 @@ export default function CoachScreen() {
   return (
     <TabScreen title="Coach">
       <SessionBar />
-      <AppText tone="secondary">
-        {t('Это не чат и не ИИ. Подсказки считаются на этом iPhone по вашим записям. План меняете только вы.')}
-      </AppText>
       <DataView state={state}>
         {({ facts, insights, proposals }) => (
           <>
@@ -200,18 +212,32 @@ export default function CoachScreen() {
               />
             ))}
 
-            <AppText accessibilityRole="header" variant="heading">
-              {t('Отчёт за неделю')}
-            </AppText>
-            {insights.map((insight) => (
-              <Panel key={insight.id}>
-                <AppText variant="heading">{insight.title}</AppText>
-                {detailed || insight.id === 'no-data' ? <AppText tone="secondary">{insight.body}</AppText> : null}
-              </Panel>
-            ))}
+            <ListGroup title={t('Отчёт за неделю')}>
+              {insights.map((insight) => (
+                <ListRow
+                  key={insight.id}
+                  subtitle={detailed || insight.id === 'no-data' ? insight.body : undefined}
+                  title={insight.title}
+                />
+              ))}
+            </ListGroup>
 
-            <Button label={t('История решений')} variant="secondary" onPress={() => router.push('/coach/history')} />
-            <Button label={t('Память и предпочтения')} variant="secondary" onPress={() => router.push('/coach/memory')} />
+            <ListGroup
+              footer={t('Это не чат и не ИИ. Подсказки считаются на этом iPhone по вашим записям. План меняете только вы.')}
+            >
+              <ListRow
+                accessibilityLabel={t('История решений')}
+                icon={{ name: 'clock.arrow.circlepath', glyph: '◷', color: theme.colors.accent }}
+                onPress={() => router.push('/coach/history')}
+                title={t('История решений')}
+              />
+              <ListRow
+                accessibilityLabel={t('Память и предпочтения')}
+                icon={{ name: 'brain', glyph: '◉', color: theme.colors.accent }}
+                onPress={() => router.push('/coach/memory')}
+                title={t('Память и предпочтения')}
+              />
+            </ListGroup>
           </>
         )}
       </DataView>

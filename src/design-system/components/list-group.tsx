@@ -1,5 +1,5 @@
 import { Children, type PropsWithChildren, type ReactNode, isValidElement } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { useTheme } from '../theme-provider';
 import { AppText } from './app-text';
@@ -8,10 +8,11 @@ import { Icon, type IconName } from './icon';
 type ListGroupProps = PropsWithChildren<{
   title?: string;
   footer?: string;
+  action?: ReactNode;
 }>;
 
 // The iOS inset group: rows share one surface, divided by hairlines.
-export function ListGroup({ title, footer, children }: ListGroupProps) {
+export function ListGroup({ title, footer, action, children }: ListGroupProps) {
   const { theme } = useTheme();
   const { colors, radii, sizes, spacing } = theme;
   const rows = Children.toArray(children).filter((child) => isValidElement(child));
@@ -19,9 +20,12 @@ export function ListGroup({ title, footer, children }: ListGroupProps) {
   return (
     <View style={{ gap: spacing.s }}>
       {title ? (
-        <AppText accessibilityRole="header" variant="heading" style={{ paddingHorizontal: spacing.xs }}>
-          {title}
-        </AppText>
+        <View style={[styles.row, { gap: spacing.s, paddingHorizontal: spacing.xs }]}>
+          <AppText accessibilityRole="header" variant="heading" style={styles.text}>
+            {title}
+          </AppText>
+          {action}
+        </View>
       ) : null}
       {rows.length > 0 ? (
         <View style={{ backgroundColor: colors.surface, borderRadius: radii.panel, overflow: 'hidden' }}>
@@ -115,6 +119,32 @@ export function ListRow({
     >
       {content}
     </Pressable>
+  );
+}
+
+type ListSwitchProps = {
+  title: string;
+  subtitle?: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+};
+
+export function ListSwitch({ title, subtitle, value, onChange }: ListSwitchProps) {
+  const { theme } = useTheme();
+
+  return (
+    <ListRow
+      subtitle={subtitle}
+      title={title}
+      trailing={
+        <Switch
+          accessibilityLabel={title}
+          onValueChange={onChange}
+          trackColor={{ true: theme.colors.accent }}
+          value={value}
+        />
+      }
+    />
   );
 }
 

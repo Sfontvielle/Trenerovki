@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
+import { View } from 'react-native';
 
-import { AppText, Button, Panel } from '@/design-system';
+import { AppText, Button, ListGroup, ListRow, useTheme } from '@/design-system';
 import type { Checkin, Readiness, ReadinessLevel } from '@/domains/recovery/recovery';
 import type { StepsState } from '@/features/recovery/use-steps';
 import { formatNumber } from '@/lib/format';
@@ -20,33 +21,31 @@ const readinessAdvice: Record<ReadinessLevel, string> = {
   low: t('Подумайте о более лёгкой тренировке или дне отдыха.'),
 };
 
-type StepsCardProps = {
+type StepsNoteProps = {
   state: StepsState;
   onRequestAccess: () => void;
 };
 
-export function StepsCard({ state, onRequestAccess }: StepsCardProps) {
-  return (
-    <Panel>
-      <AppText variant="heading">{t('Шаги')}</AppText>
-      {state.status === 'ready' ? (
-        <AppText tone="secondary">{t('Сегодня: {0}', { 0: formatNumber(state.today) })}</AppText>
-      ) : null}
-      {state.status === 'loading' ? <AppText tone="secondary">{t('Читаем данные iPhone…')}</AppText> : null}
-      {state.status === 'unavailable' ? (
-        <AppText tone="secondary">{t('Шаги недоступны на этом устройстве.')}</AppText>
-      ) : null}
-      {state.status === 'denied' ? (
-        <AppText tone="secondary">{t('Доступ к движению выключен. Его можно включить в настройках iPhone.')}</AppText>
-      ) : null}
-      {state.status === 'needs_permission' ? (
-        <>
-          <AppText tone="secondary">{t('Шаги считает сам iPhone. Данные остаются на устройстве.')}</AppText>
-          <Button label={t('Разрешить доступ к шагам')} variant="secondary" onPress={onRequestAccess} />
-        </>
-      ) : null}
-    </Panel>
-  );
+// Explains an empty step count. A working one needs no words.
+export function StepsNote({ state, onRequestAccess }: StepsNoteProps) {
+  if (state.status === 'needs_permission') {
+    return (
+      <View>
+        <AppText variant="caption" tone="secondary">
+          {t('Шаги считает сам iPhone. Данные остаются на устройстве.')}
+        </AppText>
+        <Button label={t('Разрешить доступ к шагам')} variant="plain" onPress={onRequestAccess} />
+      </View>
+    );
+  }
+  if (state.status === 'denied') {
+    return (
+      <AppText variant="caption" tone="secondary">
+        {t('Доступ к движению выключен. Его можно включить в настройках iPhone.')}
+      </AppText>
+    );
+  }
+  return null;
 }
 
 type RecoveryCardProps = {
@@ -55,44 +54,45 @@ type RecoveryCardProps = {
 };
 
 export function RecoveryCard({ checkin, readiness }: RecoveryCardProps) {
+  const { theme } = useTheme();
+  const slept = checkin?.sleepHours ?? null;
+  const notes = [
+    readiness?.reasons.length ? t('Причины: {0}.', { 0: readiness.reasons.join(', ') }) : null,
+    readiness ? t('Ориентир по вашим отметкам ({0}). Это не оценка здоровья.', { 0: readiness.sources.join(', ') }) : null,
+    !readiness && checkin ? t('Для оценки готовности укажите сон и энергию или мышечную боль.') : null,
+    !readiness && !checkin ? t('Сегодня отметок нет. Оценка появится после отметки сна и самочувствия.') : null,
+  ].filter((note) => note !== null);
+
   return (
-    <Panel>
-      <AppText variant="heading">{t('Сон и восстановление')}</AppText>
-      {checkin?.sleepHours !== null && checkin?.sleepHours !== undefined ? (
-        <AppText tone="secondary">{t('Сон: {0} ч', { 0: formatNumber(checkin.sleepHours) })}</AppText>
-      ) : null}
-      {readiness ? (
-        <>
-          <AppText tone="secondary">{t('Готовность: {0}', { 0: readinessLabels[readiness.level].toLowerCase() })}</AppText>
-          <AppText variant="callout" tone="secondary">
-            {readinessAdvice[readiness.level]}
-          </AppText>
-          {checkin?.soreness === SEVERE_SORENESS ? (
-            <AppText variant="callout" tone="warning">
-              {t('Если сильная мышечная боль не проходит несколько дней, появились отёк или тёмная моча, обратитесь к врачу.')}
-            </AppText>
-          ) : null}
-          {readiness.reasons.length > 0 ? (
-            <AppText variant="callout" tone="secondary">
-              {t('Причины: {0}.', { 0: readiness.reasons.join(', ') })}
-            </AppText>
-          ) : null}
-          <AppText variant="caption" tone="secondary">
-            {t('Ориентир по вашим отметкам ({0}). Это не оценка здоровья.', { 0: readiness.sources.join(', ') })}
-          </AppText>
-        </>
-      ) : (
-        <AppText tone="secondary">
-          {checkin
-            ? t('Для оценки готовности укажите сон и энергию или мышечную боль.')
-            : t('Сегодня отметок нет. Оценка появится после отметки сна и самочувствия.')}
+    <View style={{ gap: theme.spacing.s }}>
+      <ListGroup title={t('Сон и восстановление')} footer={notes.join(' ')}>
+        {readiness ? (
+          <ListRow
+            icon={{ name: 'bolt.heart', glyph: '♥', color: theme.colors.accent }}
+            subtitle={readinessAdvice[readiness.level]}
+            title={t('Готовность')}
+            value={readinessLabels[readiness.level]}
+          />
+        ) : null}
+        {slept !== null ? (
+          <ListRow
+            icon={{ name: 'moon.zzz', glyph: '☾', color: theme.colors.accent }}
+            title={t('Сон')}
+            value={t('{0} ч', { 0: formatNumber(slept) })}
+          />
+        ) : null}
+        <ListRow
+          accessibilityLabel={checkin ? t('Изменить отметку') : t('Отметить сон и самочувствие')}
+          onPress={() => router.push('/check-in')}
+          title={checkin ? t('Изменить отметку') : t('Отметить сон и самочувствие')}
+          tone="accent"
+        />
+      </ListGroup>
+      {readiness && checkin?.soreness === SEVERE_SORENESS ? (
+        <AppText variant="callout" tone="warning">
+          {t('Если сильная мышечная боль не проходит несколько дней, появились отёк или тёмная моча, обратитесь к врачу.')}
         </AppText>
-      )}
-      <Button
-        label={checkin ? t('Изменить отметку') : t('Отметить сон и самочувствие')}
-        variant="secondary"
-        onPress={() => router.push('/check-in')}
-      />
-    </Panel>
+      ) : null}
+    </View>
   );
 }

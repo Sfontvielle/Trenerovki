@@ -5,18 +5,18 @@ import { useAppData } from '@/app-data/app-data';
 import { useScreenData } from '@/app-data/use-screen-data';
 import { DataView } from '@/components/states';
 import { TabScreen } from '@/components/tab-screen';
-import { AppText, Button, Panel } from '@/design-system';
+import { AppText, IconButton, ListGroup, ListRow, useTheme } from '@/design-system';
 import { getDeloadUntil, isDeloadActive } from '@/domains/coach/coach-repository';
-import { exerciseName } from '@/domains/exercises/catalog';
 import { dayKey } from '@/domains/nutrition/nutrition';
 import { getProgram } from '@/domains/program/program-repository';
+import { describeDay } from '@/features/workout/describe-day';
 import { OpenSessionBanner } from '@/features/workout/open-session-banner';
-import { describeTarget } from '@/features/workout/set-labels';
 import { useStartWorkout } from '@/features/workout/use-start-workout';
 import { t } from '@/lib/i18n';
 
 export default function WorkoutsScreen() {
   const { database, engine } = useAppData();
+  const { theme } = useTheme();
   const { start, starting, error } = useStartWorkout();
 
   const load = useCallback(async () => {
@@ -46,45 +46,47 @@ export default function WorkoutsScreen() {
               </AppText>
             ) : null}
 
-            {program.map((day) => (
-              <Panel key={day.id}>
-                <AppText variant="heading">{day.name}</AppText>
-                {day.exercises.map((exercise) => (
-                  <AppText key={exercise.id} variant="callout" tone="secondary">
-                    {`${exerciseName(exercise.exerciseId)}: ${describeTarget({ sets: exercise.targetSets, repsMin: exercise.repsMin, repsMax: exercise.repsMax, durationSec: exercise.targetDurationSec })}`}
-                  </AppText>
-                ))}
-                {openSession ? null : (
-                  <Button
-                    label={t('Начать: {0}', { 0: day.name })}
-                    variant="secondary"
-                    disabled={starting}
-                    onPress={() => start(day.name, day)}
-                  />
-                )}
-                <Button
+            <ListGroup title={t('Моя программа')}>
+              {program.map((day) => (
+                <ListRow
+                  key={day.id}
                   accessibilityLabel={t('Изменить упражнения: {0}', { 0: day.name })}
-                  label={t('Изменить упражнения')}
-                  variant="secondary"
                   onPress={() => router.push(`/plan/${day.id}`)}
+                  subtitle={describeDay(day)}
+                  title={day.name}
+                  trailing={
+                    openSession ? undefined : (
+                      <IconButton
+                        disabled={starting}
+                        glyph="▶"
+                        label={t('Начать: {0}', { 0: day.name })}
+                        name="play.fill"
+                        color={theme.colors.accent}
+                        onPress={() => start(day.name, day)}
+                      />
+                    )
+                  }
                 />
-              </Panel>
-            ))}
+              ))}
+            </ListGroup>
 
-            <Button
-              label={t('Библиотека упражнений')}
-              variant="secondary"
-              onPress={() => router.push('/exercises')}
-            />
-
-            {openSession ? null : (
-              <Button
-                label={t('Свободная тренировка')}
-                variant="secondary"
-                disabled={starting}
-                onPress={() => start(t('Свободная тренировка'), null)}
+            <ListGroup>
+              {openSession ? null : (
+                <ListRow
+                  accessibilityLabel={t('Свободная тренировка')}
+                  icon={{ name: 'bolt', glyph: '+', color: theme.colors.accent }}
+                  onPress={() => start(t('Свободная тренировка'), null)}
+                  subtitle={t('Без плана: упражнения выбираете по ходу')}
+                  title={t('Свободная тренировка')}
+                />
+              )}
+              <ListRow
+                accessibilityLabel={t('Библиотека упражнений')}
+                icon={{ name: 'books.vertical', glyph: '≡', color: theme.colors.accent }}
+                onPress={() => router.push('/exercises')}
+                title={t('Библиотека упражнений')}
               />
-            )}
+            </ListGroup>
           </>
         )}
       </DataView>

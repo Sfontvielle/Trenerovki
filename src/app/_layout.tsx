@@ -51,6 +51,7 @@ function RootStack() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="profile" options={{ presentation: 'modal' }} />
           <Stack.Screen name="edit-profile" />
+          <Stack.Screen name="data" options={{ ...withHeader, presentation: 'modal', title: t('Ваши данные') }} />
           <Stack.Screen name="workout/index" options={{ ...withHeader, title: t('Тренировка') }} />
           <Stack.Screen name="workout/[sessionExerciseId]" options={{ ...withHeader, title: t('Упражнение') }} />
           <Stack.Screen

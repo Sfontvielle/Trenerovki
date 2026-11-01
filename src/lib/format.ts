@@ -28,6 +28,11 @@ export function formatDate(iso: string) {
   });
 }
 
+export function formatMonth(date: Date) {
+  const month = date.toLocaleDateString(locale, { month: 'long', year: 'numeric' });
+  return month.charAt(0).toUpperCase() + month.slice(1);
+}
+
 export function normalizeSearch(text: string) {
   return text.trim().toLocaleLowerCase(locale).replaceAll('ё', 'е');
 }

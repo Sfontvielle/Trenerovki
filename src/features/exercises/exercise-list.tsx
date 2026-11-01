@@ -1,11 +1,10 @@
 import { useCallback, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
 import { useAppData } from '@/app-data/app-data';
 import { useScreenData } from '@/app-data/use-screen-data';
-import { ChoiceGroup } from '@/components/choice-group';
 import { DataView } from '@/components/states';
-import { AppText, Panel, TextField, useTheme } from '@/design-system';
+import { AppText, Chip, ListGroup, ListRow, TextField, useTheme } from '@/design-system';
 import {
   type ExerciseCategory,
   type MuscleGroup,
@@ -24,46 +23,48 @@ type ExerciseListProps = {
 const muscleGroups = Object.keys(muscleGroupLabels) as MuscleGroup[];
 const categories = Object.keys(categoryLabels) as ExerciseCategory[];
 
+type Filter =
+  | { kind: 'all' | 'mine' }
+  | { kind: 'category'; value: ExerciseCategory }
+  | { kind: 'muscle'; value: MuscleGroup };
+
 export function ExerciseList({ onPick }: ExerciseListProps) {
   const { database, profile } = useAppData();
   const { theme } = useTheme();
   const [query, setQuery] = useState('');
-  const [muscle, setMuscle] = useState<MuscleGroup | null>(null);
-  const [category, setCategory] = useState<ExerciseCategory | null>(null);
-  const [onlyAvailable, setOnlyAvailable] = useState(false);
+  const [filter, setFilter] = useState<Filter>({ kind: 'all' });
   const load = useCallback(() => listCustomExercises(database), [database]);
   const state = useScreenData(load);
 
   return (
     <>
       <TextField label={t('Найти упражнение')} onChangeText={setQuery} value={query} />
-      <ChoiceGroup
-        choices={[
-          { value: null, label: t('Все') },
-          ...categories.map((value) => ({ value, label: categoryLabels[value] })),
-        ]}
-        isSelected={(value) => category === value}
-        label={t('Раздел')}
-        onSelect={setCategory}
-      />
-      <ChoiceGroup
-        choices={[
-          { value: null, label: t('Все') },
-          ...muscleGroups.map((value) => ({ value, label: muscleGroupLabels[value] })),
-        ]}
-        isSelected={(value) => muscle === value}
-        label={t('Группа мышц')}
-        onSelect={setMuscle}
-      />
-      <ChoiceGroup
-        choices={[
-          { value: 'all', label: t('Все условия') },
-          { value: 'mine', label: t('Только мои условия') },
-        ]}
-        isSelected={(value) => (value === 'mine') === onlyAvailable}
-        label={t('Условия')}
-        onSelect={(value) => setOnlyAvailable(value === 'mine')}
-      />
+      <ScrollView
+        accessibilityLabel={t('Фильтры')}
+        accessibilityRole="radiogroup"
+        contentContainerStyle={{ gap: theme.spacing.s }}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+      >
+        <Chip label={t('Все')} selected={filter.kind === 'all'} onPress={() => setFilter({ kind: 'all' })} />
+        <Chip label={t('Подходят мне')} selected={filter.kind === 'mine'} onPress={() => setFilter({ kind: 'mine' })} />
+        {categories.map((value) => (
+          <Chip
+            key={value}
+            label={categoryLabels[value]}
+            selected={filter.kind === 'category' && filter.value === value}
+            onPress={() => setFilter({ kind: 'category', value })}
+          />
+        ))}
+        {muscleGroups.map((value) => (
+          <Chip
+            key={value}
+            label={muscleGroupLabels[value]}
+            selected={filter.kind === 'muscle' && filter.value === value}
+            onPress={() => setFilter({ kind: 'muscle', value })}
+          />
+        ))}
+      </ScrollView>
       <DataView state={state}>
         {(custom) => {
           const normalized = normalizeSearch(query);
@@ -78,9 +79,9 @@ export function ExerciseList({ onPick }: ExerciseListProps) {
           ].filter(
             (exercise) =>
               normalizeSearch(exercise.name).includes(normalized) &&
-              (muscle === null || exercise.muscleGroup === muscle) &&
-              (category === null || exercise.category === category) &&
-              (!onlyAvailable || exercise.own || (profile && exercise.equipment.includes(profile.equipment))),
+              (filter.kind !== 'muscle' || exercise.muscleGroup === filter.value) &&
+              (filter.kind !== 'category' || exercise.category === filter.value) &&
+              (filter.kind !== 'mine' || exercise.own || (profile && exercise.equipment.includes(profile.equipment))),
           );
 
           if (rows.length === 0) {
@@ -88,34 +89,31 @@ export function ExerciseList({ onPick }: ExerciseListProps) {
           }
 
           return (
-            <View style={{ gap: theme.spacing.s }}>
+            <ListGroup>
               {rows.map((exercise) => {
                 const restricted = exercise.loads.some((area) =>
                   profile?.limitations.some((limitation) => limitation === area),
                 );
                 return (
-                  <Pressable
-                    key={exercise.id}
-                    accessibilityRole="button"
-                    onPress={() => onPick(exercise.id)}
-                  >
-                    <Panel>
-                      <AppText>{exercise.name}</AppText>
-                      <AppText variant="caption" tone="secondary">
-                        {exercise.own
+                  <View key={exercise.id}>
+                    <ListRow
+                      onPress={() => onPick(exercise.id)}
+                      subtitle={
+                        exercise.own
                           ? t('{0}, своё упражнение', { 0: muscleGroupLabels[exercise.muscleGroup] })
-                          : muscleGroupLabels[exercise.muscleGroup]}
+                          : muscleGroupLabels[exercise.muscleGroup]
+                      }
+                      title={exercise.name}
+                    />
+                    {restricted ? (
+                      <AppText variant="caption" tone="warning" style={{ paddingBottom: theme.spacing.s, paddingHorizontal: theme.spacing.l }}>
+                        {t('Нагружает зону из ваших ограничений')}
                       </AppText>
-                      {restricted ? (
-                        <AppText variant="caption" tone="warning">
-                          {t('Нагружает зону из ваших ограничений')}
-                        </AppText>
-                      ) : null}
-                    </Panel>
-                  </Pressable>
+                    ) : null}
+                  </View>
                 );
               })}
-            </View>
+            </ListGroup>
           );
         }}
       </DataView>

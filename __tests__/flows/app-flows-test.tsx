@@ -107,7 +107,7 @@ async function returnToApp() {
   });
 }
 
-async function press(name: string | RegExp, role: 'button' | 'radio' | 'checkbox' = 'button') {
+async function press(name: string | RegExp, role: 'button' | 'radio' | 'checkbox' | 'tab' = 'button') {
   await act(async () => {
     await fireEvent.press(screen.getAllByRole(role, { name })[0]);
   });
@@ -355,7 +355,7 @@ describe('workout', () => {
 
     await press('Готово');
     await testRouter.navigate('/progress');
-    expect(await screen.findByText('Рекорды')).toBeTruthy();
+    await press('Рекорды', 'tab');
     expect(screen.getByText('62,5 кг × 10')).toBeTruthy();
   });
 
@@ -457,8 +457,8 @@ describe('profile', () => {
   it('saves a backup file', async () => {
     jest.mocked(shareBackup).mockResolvedValueOnce(true);
     await seedProfile();
-    await renderRouter('./src/app', { initialUrl: '/profile' });
-    await screen.findByText('Тема');
+    await renderRouter('./src/app', { initialUrl: '/data' });
+    await screen.findByText('Резервная копия');
 
     await press('Сохранить резервную копию');
 
@@ -471,13 +471,13 @@ describe('profile', () => {
     const backup = await exportAllData(database);
     await database.run("UPDATE profile SET name = 'Другое имя'");
     jest.mocked(pickBackup).mockResolvedValueOnce(backup);
-    await renderRouter('./src/app', { initialUrl: '/profile' });
-    await screen.findByText('Другое имя');
+    await renderRouter('./src/app', { initialUrl: '/data' });
+    await screen.findByText('Резервная копия');
 
     await press('Восстановить из копии');
 
     expect(await screen.findByText('Данные восстановлены из копии.')).toBeTruthy();
-    expect(screen.getByText('Ислам')).toBeTruthy();
+    expect(await getProfile(database)).toMatchObject({ name: 'Ислам' });
   });
 
   it('shows what is in the backup before replacing anything', async () => {
@@ -485,8 +485,9 @@ describe('profile', () => {
     const backup = await exportAllData(database);
     await database.run("UPDATE profile SET name = 'Другое имя'");
     jest.mocked(pickBackup).mockResolvedValueOnce(backup);
-    await renderRouter('./src/app', { initialUrl: '/profile' });
-    await screen.findByText('Другое имя');
+    await renderRouter('./src/app', { initialUrl: '/data' });
+    await screen.findByText('Резервная копия');
+
     confirmButton = 0;
 
     await press('Восстановить из копии');
@@ -496,7 +497,6 @@ describe('profile', () => {
       expect.stringContaining('тренировок 0'),
       expect.any(Array),
     );
-    expect(screen.getByText('Другое имя')).toBeTruthy();
     expect(await getProfile(database)).toMatchObject({ name: 'Другое имя' });
   });
 
@@ -505,8 +505,8 @@ describe('profile', () => {
     const backup = await exportAllData(database);
     await database.run("UPDATE workout_session SET state = 'cancelled'");
     jest.mocked(pickBackup).mockResolvedValueOnce(backup);
-    await renderRouter('./src/app', { initialUrl: '/profile' });
-    await screen.findByText('Тема');
+    await renderRouter('./src/app', { initialUrl: '/data' });
+    await screen.findByText('Резервная копия');
 
     await press('Восстановить из копии');
     await screen.findByText('Данные восстановлены из копии.');
@@ -517,8 +517,8 @@ describe('profile', () => {
 
   it('refuses to restore during an open workout', async () => {
     await seedOpenWorkout();
-    await renderRouter('./src/app', { initialUrl: '/profile' });
-    await screen.findByText('Тема');
+    await renderRouter('./src/app', { initialUrl: '/data' });
+    await screen.findByText('Резервная копия');
 
     await press('Восстановить из копии');
 
@@ -529,8 +529,8 @@ describe('profile', () => {
   it('explains a wrong file and leaves the data alone', async () => {
     await seedProfile();
     jest.mocked(pickBackup).mockResolvedValueOnce('not a backup');
-    await renderRouter('./src/app', { initialUrl: '/profile' });
-    await screen.findByText('Тема');
+    await renderRouter('./src/app', { initialUrl: '/data' });
+    await screen.findByText('Резервная копия');
 
     await press('Восстановить из копии');
 
@@ -541,8 +541,8 @@ describe('profile', () => {
   it('does nothing when the file picker is cancelled', async () => {
     await seedProfile();
     jest.mocked(pickBackup).mockResolvedValueOnce(null);
-    await renderRouter('./src/app', { initialUrl: '/profile' });
-    await screen.findByText('Тема');
+    await renderRouter('./src/app', { initialUrl: '/data' });
+    await screen.findByText('Резервная копия');
 
     await press('Восстановить из копии');
 
@@ -555,15 +555,17 @@ describe('profile', () => {
     await renderRouter('./src/app', { initialUrl: '/profile' });
     await screen.findByText('Тема');
 
-    await press('Выключен', 'radio');
+    await act(async () => {
+      await fireEvent(screen.getByLabelText('Тактильный отклик'), 'valueChange', false);
+    });
 
     expect(await new SettingsRepository(database).get('haptics')).toBe('off');
   });
 
   it('deletes everything after confirmation and returns to the welcome screen', async () => {
     await seedOpenWorkout();
-    await renderRouter('./src/app', { initialUrl: '/profile' });
-    await screen.findByText('Тема');
+    await renderRouter('./src/app', { initialUrl: '/data' });
+    await screen.findByText('Резервная копия');
 
     await press('Удалить все данные');
 
@@ -590,7 +592,7 @@ describe('navigation', () => {
     await renderRouter('./src/app');
     await screen.findByText('Следующая тренировка');
     await testRouter.navigate('/progress');
-    await screen.findByText('История');
+    await press('История', 'tab');
 
     await press(/Всё тело/);
     expect(await screen.findByText('Готово')).toBeTruthy();
@@ -800,7 +802,7 @@ describe('progress screens', () => {
     await renderRouter('./src/app');
     await screen.findByText('Следующая тренировка');
     await testRouter.navigate('/progress');
-    await screen.findByText('Рекорды');
+    await press('Рекорды', 'tab');
 
     await press(/60 кг × 10/);
 
@@ -866,14 +868,14 @@ describe('recovery through the interface', () => {
 describe('declined confirmations', () => {
   it('keeps everything when deleting all data is declined', async () => {
     await seedProfile();
-    await renderRouter('./src/app', { initialUrl: '/profile' });
-    await screen.findByText('Тема');
+    await renderRouter('./src/app', { initialUrl: '/data' });
+    await screen.findByText('Резервная копия');
     confirmButton = 0;
 
     await press('Удалить все данные');
 
     expect(await getProfile(database)).not.toBeNull();
-    expect(screen).toHavePathname('/profile');
+    expect(screen).toHavePathname('/data');
   });
 
   it('keeps the workout when cancelling is declined', async () => {
@@ -1514,6 +1516,91 @@ describe('set table', () => {
   });
 });
 
+describe('home and progress overview', () => {
+  async function finishFirstExercise() {
+    const engine = await seedOpenWorkout();
+    const open = await engine.getOpenSession();
+    await engine.completeSession(open!.id, createId());
+  }
+
+  it('shows the plan for today and an empty week to a new user', async () => {
+    await seedProfile();
+    await renderRouter('./src/app');
+
+    expect(await screen.findByRole('button', { name: 'Начать тренировку' })).toBeTruthy();
+    expect(screen.getByText(/^\d+ упражнени/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Калории: 0 ккал' })).toBeTruthy();
+    expect(screen.getByLabelText('Тренировок на этой неделе: 0')).toBeTruthy();
+    expect(screen.queryByText('Недавняя нагрузка')).toBeNull();
+  });
+
+  it('marks the finished workout on the week and shows what was trained', async () => {
+    await finishFirstExercise();
+    await database.run('UPDATE workout_set SET position = position');
+    const engine = new WorkoutEngine({ database, createId, now: () => new Date() });
+    const [day] = await getProgram(database);
+    const sessionId = await engine.startSession({
+      operationId: createId(),
+      title: day.name,
+      programDayId: day.id,
+      exercises: [{ exerciseId: 'bench-press', plannedSets: 4, repsMin: 8, repsMax: 12 }],
+    });
+    const session = await engine.getSession(sessionId);
+    for (let set = 0; set < 4; set += 1) {
+      await engine.logSet(session!.exercises[0].id, { weightKg: 60, reps: 10, rir: 2 }, createId());
+    }
+    await engine.completeSession(sessionId, createId());
+    await renderRouter('./src/app');
+
+    expect(await screen.findByText('Недавняя нагрузка')).toBeTruthy();
+    expect(screen.getByLabelText(/^Недавно нагружены: .*грудные/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Тренировок на этой неделе: [12]$/)).toBeTruthy();
+  });
+
+  it('opens the body weight screen from its row', async () => {
+    await seedProfile();
+    await renderRouter('./src/app');
+    await screen.findByRole('button', { name: 'Начать тренировку' });
+
+    await press('Вес тела');
+
+    expect(screen).toHavePathname('/body-weight');
+  });
+
+  it('switches the progress sections', async () => {
+    await finishFirstExercise();
+    await renderRouter('./src/app', { initialUrl: '/progress' });
+
+    expect(await screen.findByLabelText('Дней с тренировками: 1')).toBeTruthy();
+    expect(screen.queryByText('60 кг × 10')).toBeNull();
+
+    await press('Рекорды', 'tab');
+    expect(screen.getByText('60 кг × 10')).toBeTruthy();
+    expect(screen.queryByLabelText('Дней с тренировками: 1')).toBeNull();
+
+    await press('История', 'tab');
+    expect(screen.getByText(/1 подход, 600 кг/)).toBeTruthy();
+  });
+});
+
+describe('profile settings', () => {
+  it('stores the automatic rest choice and opens the data screen', async () => {
+    await seedProfile();
+    await renderRouter('./src/app', { initialUrl: '/profile' });
+    await screen.findByText('Отдых сам после подхода');
+
+    await act(async () => {
+      await fireEvent(screen.getByLabelText('Отдых сам после подхода'), 'valueChange', false);
+    });
+
+    expect(await database.first("SELECT value FROM settings WHERE key = 'rest_auto'")).toEqual({ value: 'off' });
+
+    await press('Ваши данные');
+
+    expect(screen).toHavePathname('/data');
+  });
+});
+
 describe('nutrition diary', () => {
   async function openDiary() {
     await seedProfile();
@@ -1546,8 +1633,7 @@ describe('nutrition diary', () => {
     expect(await database.all('SELECT grams FROM food_entry')).toEqual([{ grams: 50 }]);
 
     await testRouter.navigate('/');
-    expect(await screen.findByText('Питание сегодня')).toBeTruthy();
-    expect(screen.getAllByText('183 ккал').length).toBeGreaterThan(0);
+    expect(await screen.findByRole('button', { name: 'Калории: 183 ккал' })).toBeTruthy();
   });
 
   it('reuses a saved food', async () => {
@@ -1636,8 +1722,9 @@ describe('nutrition diary', () => {
     moveClock(1);
     await returnToApp();
 
-    expect(await screen.findByText('0 ккал')).toBeTruthy();
-    expect(screen.queryByText('50 г, 183 ккал')).toBeNull();
+    await waitFor(() => {
+      expect(screen.queryByText('50 г, 183 ккал')).toBeNull();
+    });
     expect(screen.getByText('Сегодня')).toBeTruthy();
 
     await press('Предыдущий день');
@@ -1974,14 +2061,14 @@ describe('nutrition depth', () => {
     await screen.findByText('Следующая тренировка');
     await testRouter.navigate('/nutrition');
 
-    expect(await screen.findByText(/^Цель: /)).toBeTruthy();
+    expect(await screen.findByText(/^ккал осталось/)).toBeTruthy();
 
     await press('Цели по питанию');
     await screen.findByLabelText('Калории в день');
     await type('Калории в день', '2000');
     await press('Сохранить свои цели');
 
-    expect(await screen.findByText(/^Цель: 2\s?000 ккал/)).toBeTruthy();
+    expect(await screen.findByText(/^2\s?000$/)).toBeTruthy();
     expect(await getManualTarget(database)).toMatchObject({ kcal: 2000 });
   });
 
@@ -2075,8 +2162,8 @@ describe('library, analytics and protection', () => {
   it('asks for a longer password and passes a good one on', async () => {
     jest.mocked(shareBackup).mockResolvedValue(true);
     await seedProfile();
-    await renderRouter('./src/app', { initialUrl: '/profile' });
-    await screen.findByText('Тема');
+    await renderRouter('./src/app', { initialUrl: '/data' });
+    await screen.findByText('Резервная копия');
 
     await type('Пароль для копии', 'коротко');
     await press('Сохранить резервную копию');
@@ -2101,27 +2188,28 @@ describe('library, analytics and protection', () => {
     const locked = await encryptBackup(plain, 'верный пароль', (count) => new Uint8Array(count).fill(7), 10);
     await database.run("UPDATE profile SET name = 'Другое имя'");
     jest.mocked(pickBackup).mockResolvedValue(locked);
-    await renderRouter('./src/app', { initialUrl: '/profile' });
-    await screen.findByText('Другое имя');
+    await renderRouter('./src/app', { initialUrl: '/data' });
+    await screen.findByText('Резервная копия');
 
     await press('Восстановить из копии');
     await screen.findByLabelText('Пароль от копии');
     await type('Пароль от копии', 'неверный пароль');
     await press('Открыть копию');
     expect(await screen.findByText(/Пароль не подходит или файл копии повреждён/)).toBeTruthy();
-    expect(screen.getByText('Другое имя')).toBeTruthy();
+    expect(await getProfile(database)).toMatchObject({ name: 'Другое имя' });
 
     await type('Пароль от копии', 'верный пароль');
     await press('Открыть копию');
 
-    expect(await screen.findByText('Ислам')).toBeTruthy();
+    expect(await screen.findByText('Данные восстановлены из копии.')).toBeTruthy();
+    expect(await getProfile(database)).toMatchObject({ name: 'Ислам' });
   });
 
   it('exports workouts as a table and reports it', async () => {
     jest.mocked(shareWorkoutsCsv).mockResolvedValue(true);
     await seedProfile();
-    await renderRouter('./src/app', { initialUrl: '/profile' });
-    await screen.findByText('Тема');
+    await renderRouter('./src/app', { initialUrl: '/data' });
+    await screen.findByText('Резервная копия');
 
     await press('Экспорт тренировок в таблицу');
 
@@ -2134,7 +2222,7 @@ describe('library, analytics and protection', () => {
     await screen.findByText('Звук окончания отдыха');
 
     await act(async () => {
-      await fireEvent.press(screen.getAllByText('Выключен').at(-1)!);
+      await fireEvent(screen.getByLabelText('Звук окончания отдыха'), 'valueChange', false);
     });
 
     expect(await database.first("SELECT value FROM settings WHERE key = 'sound'")).toEqual({ value: 'off' });

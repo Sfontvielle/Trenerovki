@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 
 import { AppText, useTheme } from '@/design-system';
@@ -14,10 +14,11 @@ type GaugeProps = {
   unit?: string;
   label: string;
   color?: string;
+  onPress?: () => void;
 };
 
 // An open arc, so it never reads as Apple's closed Activity rings.
-export function Gauge({ ratio, value, unit, label, color }: GaugeProps) {
+export function Gauge({ ratio, value, unit, label, color, onPress }: GaugeProps) {
   const { theme } = useTheme();
   const { colors, sizes, spacing } = theme;
   const side = sizes.gauge;
@@ -26,12 +27,9 @@ export function Gauge({ ratio, value, unit, label, color }: GaugeProps) {
   const track = length * OPEN_ARC;
   const filled = track * Math.min(1, Math.max(0, ratio ?? 0));
 
-  return (
-    <View
-      accessibilityLabel={`${label}: ${value}${unit ? ` ${unit}` : ''}`}
-      accessible
-      style={[styles.column, { gap: spacing.xs }]}
-    >
+  const description = `${label}: ${value}${unit ? ` ${unit}` : ''}`;
+  const figure = (
+    <>
       <View style={{ height: side, width: side }}>
         <Svg height={side} width={side}>
           <Circle
@@ -75,6 +73,19 @@ export function Gauge({ ratio, value, unit, label, color }: GaugeProps) {
       <AppText variant="caption" tone="secondary" numberOfLines={1}>
         {label}
       </AppText>
+    </>
+  );
+
+  if (onPress) {
+    return (
+      <Pressable accessibilityLabel={description} accessibilityRole="button" onPress={onPress} style={[styles.column, { gap: spacing.xs }]}>
+        {figure}
+      </Pressable>
+    );
+  }
+  return (
+    <View accessibilityLabel={description} accessible style={[styles.column, { gap: spacing.xs }]}>
+      {figure}
     </View>
   );
 }

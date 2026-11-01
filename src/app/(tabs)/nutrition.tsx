@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { useAppData } from '@/app-data/app-data';
 import { useScreenData } from '@/app-data/use-screen-data';
@@ -8,30 +8,91 @@ import { useToday } from '@/app-data/use-today';
 import { ProgressLine } from '@/components/progress-line';
 import { DataView } from '@/components/states';
 import { TabScreen } from '@/components/tab-screen';
-import { AppText, Button, Panel, useTheme } from '@/design-system';
-import {
-  mealLabels,
-  meals,
-  shiftDay,
-  sumNutrients,
-} from '@/domains/nutrition/nutrition';
-import { copyDay, getManualTarget, listDayEntries } from '@/domains/nutrition/nutrition-repository';
-import { estimateTargets } from '@/domains/nutrition/targets';
+import { AppText, Button, IconButton, ListGroup, ListRow, Panel, useTheme } from '@/design-system';
 import { createId } from '@/domains/data-platform/ids';
-import { formatDayLabel, formatEnergy, formatMacros } from '@/features/nutrition/format-nutrition';
+import { type Nutrients, mealLabels, meals, shiftDay, sumNutrients } from '@/domains/nutrition/nutrition';
+import { copyDay, getManualTarget, listDayEntries } from '@/domains/nutrition/nutrition-repository';
+import { dayTarget } from '@/domains/nutrition/targets';
+import { formatDayLabel, formatEnergy } from '@/features/nutrition/format-nutrition';
 import { SessionBar } from '@/features/workout/session-bar';
 import { describeFailure } from '@/lib/describe-failure';
 import { formatNumber } from '@/lib/format';
 import { t } from '@/lib/i18n';
 
+type MacroProps = {
+  label: string;
+  eaten: number;
+  target: number | null;
+};
+
+function Macro({ label, eaten, target }: MacroProps) {
+  const { theme } = useTheme();
+  const value = target
+    ? t('{0} из {1} г', { 0: Math.round(eaten), 1: Math.round(target) })
+    : t('{0} г', { 0: Math.round(eaten) });
+
+  return (
+    <View accessibilityLabel={`${label}: ${value}`} accessible style={[styles.macro, { gap: theme.spacing.xs }]}>
+      <AppText variant="caption" tone="secondary">
+        {label}
+      </AppText>
+      <AppText variant="scoreSmall">{value}</AppText>
+      {target ? <ProgressLine label={label} ratio={eaten / target} /> : null}
+    </View>
+  );
+}
+
+type DaySummaryProps = {
+  totals: Nutrients;
+  target: Nutrients | null;
+  mode: 'targets' | 'protein' | 'diary';
+};
+
+function DaySummary({ totals, target, mode }: DaySummaryProps) {
+  const { theme } = useTheme();
+  const measured = mode === 'targets' ? target : null;
+  const remaining = measured ? measured.kcal - totals.kcal : null;
+
+  return (
+    <Panel>
+      {remaining !== null && measured ? (
+        <>
+          <View>
+            <AppText variant="scoreHero" tone={remaining < 0 ? 'warning' : 'primary'}>
+              {formatNumber(Math.abs(Math.round(remaining)))}
+            </AppText>
+            <AppText variant="callout" tone="secondary">
+              {remaining < 0
+                ? t('ккал сверх цели, съедено {0}', { 0: formatEnergy(totals.kcal) })
+                : t('ккал осталось, съедено {0}', { 0: formatEnergy(totals.kcal) })}
+            </AppText>
+          </View>
+          <ProgressLine label={t('Калории за день')} ratio={totals.kcal / measured.kcal} />
+        </>
+      ) : (
+        <View>
+          <AppText variant="scoreHero">{formatNumber(Math.round(totals.kcal))}</AppText>
+          <AppText variant="callout" tone="secondary">
+            {t('ккал за день')}
+          </AppText>
+        </View>
+      )}
+      <View style={[styles.macros, { gap: theme.spacing.m }]}>
+        <Macro eaten={totals.protein} label={t('Белок')} target={target?.protein ?? null} />
+        <Macro eaten={totals.fat} label={t('Жиры')} target={measured?.fat ?? null} />
+        <Macro eaten={totals.carbs} label={t('Углеводы')} target={measured?.carbs ?? null} />
+      </View>
+    </Panel>
+  );
+}
+
 export default function NutritionScreen() {
   const { database, profile } = useAppData();
   const { theme } = useTheme();
-  const { colors, radii, sizes, spacing } = theme;
+  const { spacing } = theme;
   const today = useToday();
   const [pickedDay, setPickedDay] = useState<string | null>(null);
   const day = pickedDay ?? today;
-
   const mode = profile?.nutritionMode ?? 'targets';
   const [copyError, setCopyError] = useState<string | null>(null);
   const [copying, setCopying] = useState(false);
@@ -44,10 +105,10 @@ export default function NutritionScreen() {
     ]);
     return {
       entries,
-      target: mode === 'diary' ? null : (manual ?? (profile ? estimateTargets(profile) : null)),
+      target: dayTarget(profile, manual),
       canCopy: entries.length === 0 && previous.length > 0,
     };
-  }, [database, day, mode, profile]);
+  }, [database, day, profile]);
   const state = useScreenData(load);
 
   const copyPrevious = async () => {
@@ -64,142 +125,95 @@ export default function NutritionScreen() {
     }
   };
 
-  const dayButton = (label: string, name: string, target: string, disabled: boolean) => (
-    <Pressable
-      accessibilityLabel={name}
-      accessibilityRole="button"
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      onPress={() => setPickedDay(target === today ? null : target)}
-      style={[
-        styles.dayButton,
-        {
-          backgroundColor: colors.surface,
-          borderRadius: radii.full,
-          height: sizes.minTouch,
-          opacity: disabled ? 0.4 : 1,
-          width: sizes.minTouch,
-        },
-      ]}
-    >
-      <AppText variant="heading">{label}</AppText>
-    </Pressable>
-  );
+  const openDay = (target: string) => setPickedDay(target === today ? null : target);
 
   return (
     <TabScreen title={t('Питание')}>
       <SessionBar />
       <View style={[styles.dayRow, { gap: spacing.m }]}>
-        {dayButton('‹', t('Предыдущий день'), shiftDay(day, -1), false)}
+        <IconButton glyph="‹" label={t('Предыдущий день')} name="chevron.left" onPress={() => openDay(shiftDay(day, -1))} />
         <AppText accessibilityLiveRegion="polite" variant="heading" style={styles.dayLabel}>
           {formatDayLabel(day, today)}
         </AppText>
-        {dayButton('›', t('Следующий день'), shiftDay(day, 1), day >= today)}
+        <IconButton
+          disabled={day >= today}
+          glyph="›"
+          label={t('Следующий день')}
+          name="chevron.right"
+          onPress={() => openDay(shiftDay(day, 1))}
+        />
       </View>
 
       <DataView state={state}>
-        {({ entries, target, canCopy }) => {
-          const totals = sumNutrients(entries);
+        {({ entries, target, canCopy }) => (
+          <>
+            <DaySummary mode={mode} target={target} totals={sumNutrients(entries)} />
 
-          return (
-            <>
-              <Panel>
-                <AppText variant="display">{formatEnergy(totals.kcal)}</AppText>
-                <AppText tone="secondary">{formatMacros(totals)}</AppText>
-                {target && mode === 'targets' ? (
-                  <>
-                    <ProgressLine label={t('Калории за день')} ratio={totals.kcal / target.kcal} />
-                    <AppText variant="callout" tone="secondary">
-                      {t('Цель: {0}, {1}', { 0: formatEnergy(target.kcal), 1: formatMacros(target) })}
-                    </AppText>
-                  </>
-                ) : null}
-                {target && mode === 'protein' ? (
-                  <>
-                    <ProgressLine label={t('Белок за день')} ratio={totals.protein / target.protein} />
-                    <AppText variant="callout" tone="secondary">
-                      {t('Белок: {0} из {1} г', { 0: Math.round(totals.protein), 1: Math.round(target.protein) })}
-                    </AppText>
-                  </>
-                ) : null}
-                {mode === 'diary' ? null : (
-                  <Button
-                    label={t('Цели по питанию')}
-                    variant="secondary"
-                    onPress={() => router.push('/nutrition-targets')}
-                  />
-                )}
-              </Panel>
+            {canCopy ? (
+              <Button
+                label={t('Скопировать записи предыдущего дня')}
+                variant="secondary"
+                loading={copying}
+                onPress={copyPrevious}
+              />
+            ) : null}
+            {copyError ? (
+              <AppText accessibilityLiveRegion="polite" tone="danger">
+                {copyError}
+              </AppText>
+            ) : null}
 
-              {canCopy ? (
-                <Button
-                  label={t('Скопировать записи предыдущего дня')}
-                  variant="secondary"
-                  loading={copying}
-                  onPress={copyPrevious}
-                />
-              ) : null}
-              {copyError ? (
-                <AppText accessibilityLiveRegion="polite" tone="danger">
-                  {copyError}
-                </AppText>
-              ) : null}
+            {meals.map((meal) => {
+              const mealEntries = entries.filter((entry) => entry.meal === meal);
 
-              {meals.map((meal) => {
-                const mealEntries = entries.filter((entry) => entry.meal === meal);
-                const mealTotal = sumNutrients(mealEntries);
-
-                return (
-                  <Panel key={meal}>
-                    <View style={styles.mealHeader}>
-                      <AppText variant="heading">{mealLabels[meal]}</AppText>
+              return (
+                <ListGroup
+                  key={meal}
+                  title={mealLabels[meal]}
+                  action={
+                    <>
                       {mealEntries.length > 0 ? (
                         <AppText variant="callout" tone="secondary">
-                          {formatEnergy(mealTotal.kcal)}
+                          {formatEnergy(sumNutrients(mealEntries).kcal)}
                         </AppText>
                       ) : null}
-                    </View>
-                    {mealEntries.map((entry) => (
-                      <Pressable
-                        key={entry.id}
-                        accessibilityRole="button"
-                        onPress={() => router.push(`/food/${entry.id}`)}
-                        style={[styles.entry, { minHeight: sizes.minTouch }]}
-                      >
-                        <AppText>{entry.name}</AppText>
-                        <AppText variant="callout" tone="secondary">
-                          {t('{0} г, {1}', { 0: formatNumber(entry.grams), 1: formatEnergy(entry.kcal) })}
-                        </AppText>
-                      </Pressable>
-                    ))}
-                    <Button
-                      accessibilityLabel={t('Добавить: {0}', { 0: mealLabels[meal] })}
-                      label={t('Добавить')}
-                      variant="secondary"
-                      onPress={() =>
-                        router.push({ pathname: '/food/add', params: { day, meal } })
-                      }
+                      <IconButton
+                        color={theme.colors.accent}
+                        glyph="+"
+                        label={t('Добавить: {0}', { 0: mealLabels[meal] })}
+                        name="plus"
+                        onPress={() => router.push({ pathname: '/food/add', params: { day, meal } })}
+                      />
+                    </>
+                  }
+                >
+                  {mealEntries.map((entry) => (
+                    <ListRow
+                      key={entry.id}
+                      onPress={() => router.push(`/food/${entry.id}`)}
+                      subtitle={t('{0} г, {1}', { 0: formatNumber(entry.grams), 1: formatEnergy(entry.kcal) })}
+                      title={entry.name}
                     />
-                  </Panel>
-                );
-              })}
+                  ))}
+                </ListGroup>
+              );
+            })}
 
-              <AppText variant="caption" tone="secondary">
-                {t('Значения в базе типовые, а данные штрихкодов взяты из открытой базы Open Food Facts. Сверяйте их с упаковкой.')}
-              </AppText>
-            </>
-          );
-        }}
+            {mode === 'diary' ? null : (
+              <Button label={t('Цели по питанию')} variant="plain" onPress={() => router.push('/nutrition-targets')} />
+            )}
+
+            <AppText variant="caption" tone="secondary">
+              {t('Значения в базе типовые, а данные штрихкодов взяты из открытой базы Open Food Facts. Сверяйте их с упаковкой.')}
+            </AppText>
+          </>
+        )}
       </DataView>
     </TabScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  dayButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   dayLabel: {
     flex: 1,
     textAlign: 'center',
@@ -208,12 +222,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
   },
-  entry: {
-    justifyContent: 'center',
+  macro: {
+    flex: 1,
   },
-  mealHeader: {
-    alignItems: 'baseline',
+  macros: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
   },
 });

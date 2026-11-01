@@ -40,30 +40,35 @@ const backRegions: Region[] = [
 const FIGURE_WIDTH = 100;
 const FIGURE_HEIGHT = 200;
 const SECONDARY_OPACITY = 0.45;
+const LOWEST_VISIBLE_LEVEL = 0.2;
 
 type MuscleMapProps = {
-  primary: Muscle[];
-  secondary: Muscle[];
+  primary?: Muscle[];
+  secondary?: Muscle[];
+  // Shades each muscle by its own value from 0 to 1 instead of the two marks above.
+  levels?: Partial<Record<Muscle, number>>;
+  height?: number;
   summary: string;
 };
 
-export function MuscleMap({ primary, secondary, summary }: MuscleMapProps) {
+export function MuscleMap({ primary = [], secondary = [], levels, height, summary }: MuscleMapProps) {
   const { theme } = useTheme();
   const { colors, spacing } = theme;
 
   const figure = (title: string, regions: Region[]) => (
     <View style={{ alignItems: 'center', flex: 1, gap: spacing.xs }}>
-      <Svg height={FIGURE_HEIGHT * 1.1} viewBox={`0 0 ${FIGURE_WIDTH} ${FIGURE_HEIGHT}`} width="100%">
+      <Svg height={height ?? FIGURE_HEIGHT * 1.1} viewBox={`0 0 ${FIGURE_WIDTH} ${FIGURE_HEIGHT}`} width="100%">
         <Circle cx={50} cy={16} fill={colors.border} r={11} />
         {regions.map(({ muscle, d }) => {
           const main = primary.includes(muscle);
           const helping = secondary.includes(muscle);
+          const level = levels?.[muscle] ?? (main ? 1 : helping ? SECONDARY_OPACITY : 0);
           return (
             <Path
               key={muscle}
               d={d}
-              fill={main || helping ? colors.accent : colors.border}
-              opacity={helping && !main ? SECONDARY_OPACITY : 1}
+              fill={level > 0 ? colors.accent : colors.border}
+              opacity={level > 0 ? Math.max(level, LOWEST_VISIBLE_LEVEL) : 1}
             />
           );
         })}
