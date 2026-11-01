@@ -61,7 +61,7 @@ export function suggestNextSet(
   const heaviest = Math.max(...sets.map((set) => set.weightKg ?? 0));
   const sameWeight = sets.every((set) => (set.weightKg ?? 0) === heaviest);
   const lowestReps = Math.min(...sets.map((set) => set.reps as number));
-  const leftReserve = sets.every((set) => set.rir !== null && set.rir >= 1);
+  const leftReserve = sets.every((set) => set.rir === null || set.rir >= 1);
 
   if (heaviest > 0 && missedRange(latest, repsMin) && missedRange(before, repsMin)) {
     const lowered = Math.min(roundWeight(heaviest * REDUCTION), heaviest - LIGHT_WEIGHT_STEP_KG);

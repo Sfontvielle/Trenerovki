@@ -1,9 +1,11 @@
+import { SofiaSansExtraCondensed_700Bold } from '@expo-google-fonts/sofia-sans-extra-condensed';
+import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, type ErrorBoundaryProps, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
 import { AppDataProvider, useAppData } from '@/app-data/app-data';
 import { ErrorState } from '@/components/states';
-import { DesignSystemProvider, Screen, useTheme } from '@/design-system';
+import { DesignSystemProvider, Screen, useTheme, numeralFont } from '@/design-system';
 import { t } from '@/lib/i18n';
 
 function RootStack() {
@@ -112,6 +114,13 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts({ [numeralFont]: SofiaSansExtraCondensed_700Bold });
+
+  // A failed font falls back to the system one rather than blocking the app.
+  if (!fontsLoaded && !fontError) {
+    return null;
+  }
+
   return (
     <DesignSystemProvider>
       <AppDataProvider>

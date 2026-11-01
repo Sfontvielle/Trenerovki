@@ -25,6 +25,12 @@ export type ExerciseRecord = {
   lastPerformedAt: string;
 };
 
+export type SessionRecord = {
+  exerciseId: string;
+  weightKg: number;
+  previousKg: number;
+};
+
 export type ExerciseTrendPoint = {
   sessionId: string;
   finishedAt: string;
@@ -136,6 +142,32 @@ export async function getExerciseRecords(database: Database): Promise<ExerciseRe
 
   return [...records.values()].sort((first, second) =>
     second.lastPerformedAt.localeCompare(first.lastPerformedAt),
+  );
+}
+
+// A first attempt sets no record: there has to be an earlier result to beat.
+export async function getSessionRecords(database: Database, sessionId: string): Promise<SessionRecord[]> {
+  const rows = await database.all<{ exercise_id: string; weight: number; previous: number | null }>(
+    `SELECT session_exercise.exercise_id, MAX(workout_set.weight_kg) AS weight,
+            (SELECT MAX(earlier_set.weight_kg)
+             FROM workout_set AS earlier_set
+             JOIN session_exercise AS earlier_exercise ON earlier_exercise.id = earlier_set.session_exercise_id
+             JOIN workout_session AS earlier_session ON earlier_session.id = earlier_exercise.session_id
+             WHERE earlier_session.state = 'completed'
+               AND earlier_session.finished_at < workout_session.finished_at
+               AND earlier_exercise.exercise_id = session_exercise.exercise_id
+               AND earlier_set.kind != 'warmup') AS previous
+     FROM workout_set
+     JOIN session_exercise ON session_exercise.id = workout_set.session_exercise_id
+     JOIN workout_session ON workout_session.id = session_exercise.session_id
+     WHERE workout_session.id = ? AND workout_session.state = 'completed'
+       AND workout_set.kind != 'warmup' AND workout_set.weight_kg IS NOT NULL
+     GROUP BY session_exercise.exercise_id`,
+    [sessionId],
+  );
+
+  return rows.flatMap(({ exercise_id, weight, previous }) =>
+    previous !== null && weight > previous ? [{ exerciseId: exercise_id, weightKg: weight, previousKg: previous }] : [],
   );
 }
 

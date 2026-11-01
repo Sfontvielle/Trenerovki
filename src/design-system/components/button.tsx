@@ -8,7 +8,7 @@ type ButtonProps = {
   label: string;
   accessibilityLabel?: string;
   onPress: () => void;
-  variant?: 'primary' | 'secondary';
+  variant?: 'primary' | 'secondary' | 'plain' | 'danger';
   disabled?: boolean;
   loading?: boolean;
 };
@@ -25,9 +25,15 @@ export function Button({
   const { colors, motion, radii, shadows, sizes, spacing } = theme;
   const [scale] = useState(() => new Animated.Value(1));
   const filled = variant === 'primary' && !disabled;
+  const textOnly = variant === 'plain' || variant === 'danger';
   const inactive = disabled || loading;
   const secondaryForeground = disabled ? colors.textSecondary : colors.textPrimary;
-  const foreground = filled ? colors.onAccent : secondaryForeground;
+  const textOnlyForeground = variant === 'danger' ? colors.danger : colors.accent;
+  const foreground = filled
+    ? colors.onAccent
+    : textOnly && !disabled
+      ? textOnlyForeground
+      : secondaryForeground;
 
   const animateTo = (toValue: number) => {
     Animated.timing(scale, {
@@ -49,15 +55,15 @@ export function Button({
         onPressOut={() => animateTo(1)}
         style={{
           alignItems: 'center',
-          backgroundColor: filled ? colors.accent : colors.surfaceRaised,
+          backgroundColor: filled ? colors.accent : textOnly ? 'transparent' : colors.surfaceRaised,
           borderRadius: radii.control,
           boxShadow: filled && !loading ? shadows.glow : undefined,
           flexDirection: 'row',
           gap: spacing.s,
           justifyContent: 'center',
-          minHeight: sizes.control,
+          minHeight: textOnly ? sizes.minTouch : sizes.control,
           paddingHorizontal: spacing.xl,
-          paddingVertical: spacing.m,
+          paddingVertical: textOnly ? spacing.s : spacing.m,
         }}
       >
         {loading ? <ActivityIndicator color={foreground} /> : null}

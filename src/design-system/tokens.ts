@@ -10,6 +10,7 @@ type BaseColors = {
   surface: string;
   surfaceRaised: string;
   border: string;
+  hairline: string;
   textPrimary: string;
   textSecondary: string;
 };
@@ -34,6 +35,7 @@ export const baseColors: Record<ColorMode, BaseColors> = {
     surface: '#172238',
     surfaceRaised: '#202D47',
     border: '#2C3A58',
+    hairline: '#26324D',
     textPrimary: '#F2F5FA',
     textSecondary: '#A8B4C8',
   },
@@ -42,6 +44,7 @@ export const baseColors: Record<ColorMode, BaseColors> = {
     surface: '#FFFFFF',
     surfaceRaised: '#E9EDF4',
     border: '#D5DCE7',
+    hairline: '#E3E8EF',
     textPrimary: '#0E1526',
     textSecondary: '#4C5870',
   },
@@ -111,6 +114,19 @@ export const sizes = {
   coreInner: 88,
   coreOuter: 168,
   scannerHeight: 260,
+  hairline: 0.5,
+  icon: 20,
+  chevron: 13,
+  glyphScale: 0.9,
+  rowMinHeight: 52,
+  segment: 36,
+  gauge: 92,
+  setCell: 40,
+  setNumber: 26,
+  setCheck: 44,
+  groupRail: 3,
+  weekDot: 34,
+  thumbnail: 44,
   chartHeight: 160,
   chartBar: 24,
   choiceMinHeight: 76,
@@ -122,6 +138,8 @@ export const sizes = {
 
 export const maxFontScale = 1.6;
 
+export const numeralFont = 'SofiaSansExtraCondensed_700Bold';
+
 export const typography = {
   display: { fontSize: 34, lineHeight: 41, fontWeight: '700', letterSpacing: -0.4 },
   title: { fontSize: 28, lineHeight: 34, fontWeight: '700', letterSpacing: -0.3 },
@@ -130,6 +148,10 @@ export const typography = {
   callout: { fontSize: 15, lineHeight: 20, fontWeight: '400' },
   caption: { fontSize: 13, lineHeight: 18, fontWeight: '400' },
   button: { fontSize: 17, lineHeight: 22, fontWeight: '600' },
+  scoreHero: { fontFamily: numeralFont, fontSize: 88, lineHeight: 90, fontVariant: ['tabular-nums'] },
+  scoreLarge: { fontFamily: numeralFont, fontSize: 52, lineHeight: 54, fontVariant: ['tabular-nums'] },
+  scoreMedium: { fontFamily: numeralFont, fontSize: 32, lineHeight: 34, fontVariant: ['tabular-nums'] },
+  scoreSmall: { fontFamily: numeralFont, fontSize: 25, lineHeight: 28, fontVariant: ['tabular-nums'] },
 } as const satisfies Record<string, TextStyle>;
 
 export type TypographyVariant = keyof typeof typography;

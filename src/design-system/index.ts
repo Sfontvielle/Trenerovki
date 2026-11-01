@@ -1,9 +1,12 @@
 export { AppText } from './components/app-text';
 export { Button } from './components/button';
 export { Chip } from './components/chip';
+export { Icon, IconButton, type IconName } from './components/icon';
+export { ListGroup, ListRow } from './components/list-group';
 export { Panel } from './components/panel';
 export { Screen } from './components/screen';
+export { Segmented } from './components/segmented';
 export { TextField } from './components/text-field';
 export type { ThemePreference } from './theme';
 export { DesignSystemProvider, useTheme } from './theme-provider';
-export { type AccentName, type TypographyVariant, accentColors, accentNames } from './tokens';
+export { type AccentName, type TypographyVariant, accentColors, accentNames, numeralFont } from './tokens';

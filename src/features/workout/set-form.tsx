@@ -101,7 +101,7 @@ export function SetFields({ form, tracking, onChange }: SetFieldsProps) {
             value={form.repsText}
           />
           <TextField
-            hint={t('Сколько повторов вы могли бы ещё сделать. Необязательно, но без этого приложение не предложит прибавку')}
+            hint={t('Сколько повторов вы могли бы ещё сделать. Необязательно')}
             keyboardType="number-pad"
             label={t('Запас повторов')}
             onChangeText={(rirText) => onChange({ rirText })}

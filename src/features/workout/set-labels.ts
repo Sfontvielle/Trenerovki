@@ -1,3 +1,4 @@
+import type { Suggestion } from '@/domains/workout/progression';
 import type { SetKind, WorkoutSet } from '@/domains/workout/types';
 import { formatNumber, formatRepRange, formatWeight } from '@/lib/format';
 import { t } from '@/lib/i18n';
@@ -49,6 +50,22 @@ export function describeTarget({ sets, repsMin, repsMax, durationSec }: Target) 
     return null;
   }
   return sets === null ? amount : `${sets} × ${amount}`;
+}
+
+export function describeSuggestionShort({ kind, weightKg, reps, durationSec }: Suggestion) {
+  const weight = weightKg === null ? '' : formatWeight(weightKg);
+  switch (kind) {
+    case 'add_weight':
+      return t('Можно прибавить: {0} × {1}', { 0: weight, 1: reps });
+    case 'add_rep':
+      return t('Цель на сегодня: {0} повторов', { 0: reps });
+    case 'add_time':
+      return t('Цель на сегодня: {0}', { 0: formatSeconds(durationSec as number) });
+    case 'reduce_weight':
+      return t('Лучше снизить до {0}', { 0: weight });
+    default:
+      return t('Пока оставьте тот же вес');
+  }
 }
 
 export function groupLabel(size: number) {

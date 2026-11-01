@@ -1,4 +1,4 @@
-import type { PropsWithChildren } from 'react';
+import type { PropsWithChildren, ReactNode } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { type Edge, SafeAreaView } from 'react-native-safe-area-context';
 
@@ -13,6 +13,8 @@ type ScreenProps = PropsWithChildren<{
   belowHeader?: boolean;
   fill?: boolean;
   ambient?: boolean;
+  // Stays above the safe area while the content scrolls behind it.
+  footer?: ReactNode;
 }>;
 
 export function Screen({
@@ -20,6 +22,7 @@ export function Screen({
   belowHeader = false,
   fill = false,
   ambient = false,
+  footer,
   children,
 }: ScreenProps) {
   const { theme } = useTheme();
@@ -35,6 +38,7 @@ export function Screen({
         <ScrollView
           automaticallyAdjustKeyboardInsets
           contentContainerStyle={[content, fill && styles.grow]}
+          style={styles.fill}
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
         >
@@ -43,6 +47,11 @@ export function Screen({
       ) : (
         <View style={[styles.fill, content]}>{children}</View>
       )}
+      {footer ? (
+        <View style={{ gap: theme.spacing.s, paddingBottom: theme.spacing.s, paddingHorizontal: theme.spacing.l }}>
+          {footer}
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }

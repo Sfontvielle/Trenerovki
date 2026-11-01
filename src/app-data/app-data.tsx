@@ -14,6 +14,7 @@ import { listCustomExercises } from '@/domains/exercises/custom-exercise-reposit
 import type { Profile } from '@/domains/profile/profile';
 import { getProfile } from '@/domains/profile/profile-repository';
 import { WorkoutEngine } from '@/domains/workout/workout-engine';
+import { setAutoRestEnabled } from '@/features/workout/rest-store';
 import { setHapticsEnabled } from '@/lib/haptics';
 import { setSoundEnabled } from '@/lib/sounds';
 import { t } from '@/lib/i18n';
@@ -22,6 +23,7 @@ const THEME_KEY = 'theme_preference';
 const ACCENT_KEY = 'accent';
 const HAPTICS_KEY = 'haptics';
 const SOUND_KEY = 'sound';
+const AUTO_REST_KEY = 'rest_auto';
 const ALLOWED_IDLE_MS = 3 * 60 * 60 * 1000;
 
 type Services = {
@@ -34,6 +36,7 @@ type AppDataValue = Services & {
   profile: Profile | null;
   hapticsEnabled: boolean;
   soundEnabled: boolean;
+  autoRestEnabled: boolean;
   resumeCount: number;
   refreshProfile: () => Promise<void>;
   reloadAll: () => Promise<void>;
@@ -41,12 +44,20 @@ type AppDataValue = Services & {
   changeAccent: (accent: AccentName) => Promise<void>;
   changeHaptics: (enabled: boolean) => Promise<void>;
   changeSound: (enabled: boolean) => Promise<void>;
+  changeAutoRest: (enabled: boolean) => Promise<void>;
 };
 
 type LoadState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'ready'; services: Services; profile: Profile | null; hapticsEnabled: boolean; soundEnabled: boolean };
+  | {
+      status: 'ready';
+      services: Services;
+      profile: Profile | null;
+      hapticsEnabled: boolean;
+      soundEnabled: boolean;
+      autoRestEnabled: boolean;
+    };
 
 const AppDataContext = createContext<AppDataValue | null>(null);
 
@@ -70,16 +81,23 @@ async function openServices() {
 
 async function readAppearance(settings: SettingsRepository) {
   try {
-    const [preference, accent, haptics, sound] = await Promise.all([
+    const [preference, accent, haptics, sound, autoRest] = await Promise.all([
       settings.get(THEME_KEY),
       settings.get(ACCENT_KEY),
       settings.get(HAPTICS_KEY),
       settings.get(SOUND_KEY),
+      settings.get(AUTO_REST_KEY),
     ]);
-    return { preference, accent, hapticsEnabled: haptics !== 'off', soundEnabled: sound !== 'off' };
+    return {
+      preference,
+      accent,
+      hapticsEnabled: haptics !== 'off',
+      soundEnabled: sound !== 'off',
+      autoRestEnabled: autoRest !== 'off',
+    };
   } catch (error) {
     console.error(error);
-    return { preference: null, accent: null, hapticsEnabled: true, soundEnabled: true };
+    return { preference: null, accent: null, hapticsEnabled: true, soundEnabled: true, autoRestEnabled: true };
   }
 }
 
@@ -93,12 +111,13 @@ export function AppDataProvider({ children }: PropsWithChildren) {
     async (services: Services) => {
       const profile = await getProfile(services.database);
       registerCustomExercises(await listCustomExercises(services.database));
-      const { preference, accent, hapticsEnabled, soundEnabled } = await readAppearance(services.settings);
+      const { preference, accent, hapticsEnabled, soundEnabled, autoRestEnabled } = await readAppearance(services.settings);
       setPreference(isThemePreference(preference) ? preference : 'system');
       setAccent(isAccent(accent) ? accent : 'cyan');
       setHapticsEnabled(hapticsEnabled);
       setSoundEnabled(soundEnabled);
-      return { status: 'ready' as const, services, profile, hapticsEnabled, soundEnabled };
+      setAutoRestEnabled(autoRestEnabled);
+      return { status: 'ready' as const, services, profile, hapticsEnabled, soundEnabled, autoRestEnabled };
     },
     [setAccent, setPreference],
   );
@@ -139,6 +158,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
   const services = ready?.services ?? null;
   const hapticsEnabled = ready?.hapticsEnabled ?? true;
   const soundEnabled = ready?.soundEnabled ?? true;
+  const autoRestEnabled = ready?.autoRestEnabled ?? true;
 
   useEffect(() => {
     if (!services) {
@@ -161,8 +181,8 @@ export function AppDataProvider({ children }: PropsWithChildren) {
       return;
     }
     const profile = await getProfile(services.database);
-    setState({ status: 'ready', services, profile, hapticsEnabled, soundEnabled });
-  }, [hapticsEnabled, services, soundEnabled]);
+    setState({ status: 'ready', services, profile, hapticsEnabled, soundEnabled, autoRestEnabled });
+  }, [autoRestEnabled, hapticsEnabled, services, soundEnabled]);
 
   const reloadAll = useCallback(async () => {
     if (services) {
@@ -204,6 +224,15 @@ export function AppDataProvider({ children }: PropsWithChildren) {
     [services],
   );
 
+  const changeAutoRest = useCallback(
+    async (enabled: boolean) => {
+      setAutoRestEnabled(enabled);
+      setState((current) => (current.status === 'ready' ? { ...current, autoRestEnabled: enabled } : current));
+      await services?.settings.set(AUTO_REST_KEY, enabled ? 'on' : 'off');
+    },
+    [services],
+  );
+
   if (state.status === 'loading') {
     return (
       <Screen>
@@ -233,6 +262,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
         profile: state.profile,
         hapticsEnabled: state.hapticsEnabled,
         soundEnabled: state.soundEnabled,
+        autoRestEnabled: state.autoRestEnabled,
         resumeCount,
         refreshProfile,
         reloadAll,
@@ -240,6 +270,7 @@ export function AppDataProvider({ children }: PropsWithChildren) {
         changeAccent,
         changeHaptics,
         changeSound,
+        changeAutoRest,
       }}
     >
       {children}

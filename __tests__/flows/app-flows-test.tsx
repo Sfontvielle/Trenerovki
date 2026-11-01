@@ -1,5 +1,7 @@
+import { exerciseName } from '@/domains/exercises/catalog';
+import { restTimer, setAutoRestEnabled } from '@/features/workout/rest-store';
 import { act, fireEvent } from '@testing-library/react-native';
-import { renderRouter, screen, testRouter } from 'expo-router/testing-library';
+import { renderRouter, screen, testRouter, waitFor } from 'expo-router/testing-library';
 import { Alert, AppState } from 'react-native';
 
 import type { Database } from '@/domains/data-platform/database';
@@ -71,6 +73,8 @@ const profile: Profile = {
   diet: 'any',
 };
 
+type ExerciseStart = Parameters<WorkoutEngine['startSession']>[0]['exercises'][number];
+
 let database: Database;
 let confirmButton = 1;
 let appStateListener: jest.SpyInstance;
@@ -119,6 +123,14 @@ async function seedProfile() {
   await completeOnboarding(database, profile, generatePlan(profile), createId, new Date());
 }
 
+async function openExerciseByName(position: number) {
+  const row = await database.first<{ exercise_id: string }>(
+    'SELECT exercise_id FROM session_exercise ORDER BY position LIMIT 1 OFFSET ?',
+    [position],
+  );
+  await press(new RegExp(`^${exerciseName(row!.exercise_id)}`));
+}
+
 async function seedOpenWorkout() {
   await seedProfile();
   const [day] = await getProgram(database);
@@ -155,6 +167,8 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  restTimer.stop();
+  setAutoRestEnabled(true);
   jest.useRealTimers();
   jest.restoreAllMocks();
 });
@@ -331,11 +345,12 @@ describe('workout', () => {
       { weight_kg: 62.5, reps: 10, rir: 2 },
     ]);
 
-    await press('К обзору тренировки');
+    await testRouter.back();
     await press('Завершить тренировку');
     expect(Alert.alert).toHaveBeenCalledWith('Завершить тренировку?', expect.any(String), expect.any(Array));
 
-    expect(await screen.findByText('Объём: 625 кг')).toBeTruthy();
+    expect(await screen.findByText('Тренировка завершена')).toBeTruthy();
+    expect(screen.getByLabelText('Объём, кг: 625')).toBeTruthy();
     expect(screen.getByText(/Готово/)).toBeTruthy();
 
     await press('Готово');
@@ -350,9 +365,9 @@ describe('workout', () => {
       'SELECT id FROM session_exercise ORDER BY position LIMIT 1 OFFSET 1',
     );
     await renderRouter('./src/app', { initialUrl: '/workout' });
-    await screen.findByText('Продолжить');
+    await screen.findByRole('button', { name: 'Продолжить' });
     await press('Продолжить');
-    await screen.findByText('Пауза');
+    await screen.findByRole('button', { name: 'Пауза' });
     await testRouter.push(`/workout/${exercise!.id}`);
     await screen.findByText('Записать подход');
 
@@ -377,13 +392,13 @@ describe('workout', () => {
   it('pauses and resumes', async () => {
     await seedOpenWorkout();
     await renderRouter('./src/app', { initialUrl: '/workout' });
-    await screen.findByText('Продолжить');
+    await screen.findByRole('button', { name: 'Продолжить' });
 
     await press('Продолжить');
-    expect(await screen.findByText('Пауза')).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Пауза' })).toBeTruthy();
 
     await press('Пауза');
-    expect(await screen.findByText('Продолжить')).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Продолжить' })).toBeTruthy();
   });
 
   it('hides the set form during a pause', async () => {
@@ -592,10 +607,10 @@ describe('editing recorded sets', () => {
     const exercise = open!.exercises[0];
     await engine.logSet(exercise.id, { weightKg: 70, reps: 8, rir: 1 }, createId());
     await renderRouter('./src/app', { initialUrl: '/workout' });
-    await screen.findByText('Продолжить');
+    await screen.findByRole('button', { name: 'Продолжить' });
     await press('Продолжить');
-    await screen.findByText('Пауза');
-    await press(/Подходы: 2 из/);
+    await screen.findByRole('button', { name: 'Пауза' });
+    await openExerciseByName(0);
     await screen.findByText('Записанные подходы');
   }
 
@@ -694,9 +709,9 @@ describe('weight suggestion and safety', () => {
     });
     const next = await engine.getSession(nextId);
     await renderRouter('./src/app', { initialUrl: '/workout' });
-    await screen.findByText('Продолжить');
+    await screen.findByRole('button', { name: 'Продолжить' });
     await press('Продолжить');
-    await screen.findByText('Пауза');
+    await screen.findByRole('button', { name: 'Пауза' });
     await testRouter.push(`/workout/${next!.exercises[0].id}`);
     await screen.findByText('Записать подход');
   }
@@ -735,9 +750,9 @@ describe('adding exercises', () => {
       exercises: [],
     });
     await renderRouter('./src/app', { initialUrl: '/workout' });
-    await screen.findByText('Продолжить');
+    await screen.findByRole('button', { name: 'Продолжить' });
     await press('Продолжить');
-    await screen.findByText('Пауза');
+    await screen.findByRole('button', { name: 'Пауза' });
     await press('Добавить упражнение');
     await screen.findByLabelText('Найти упражнение');
   }
@@ -768,10 +783,10 @@ describe('adding exercises', () => {
   it('removes an exercise added by mistake', async () => {
     await openAddScreen();
     await press(/Подъёмы на носки/);
-    await screen.findByText(/Подходы: 0/);
+    await screen.findByText('Завершить можно после первого записанного подхода.');
 
-    await press(/Подходы: 0/);
-    await press('Убрать из тренировки');
+    await openExerciseByName(0);
+    await press(/Убрать из тренировки/);
 
     expect(await database.all('SELECT id FROM session_exercise')).toEqual([]);
   });
@@ -824,14 +839,14 @@ describe('recovery through the interface', () => {
     await screen.findByText('Тренировка была прервана');
 
     await press('Продолжить тренировку');
-    await screen.findByText('Продолжить');
+    await screen.findByRole('button', { name: 'Продолжить' });
     await press('Продолжить');
-    await screen.findByText('Пауза');
-    await press(/Подходы: 1 из/);
+    await screen.findByRole('button', { name: 'Пауза' });
+    await openExerciseByName(0);
     await screen.findByText('Записать подход');
     await press('Записать подход');
     await screen.findByText(/^2\. /);
-    await press('К обзору тренировки');
+    await testRouter.back();
     await press('Завершить тренировку');
     await screen.findByText('Готово');
 
@@ -1190,9 +1205,9 @@ describe('set details', () => {
     });
     const session = await engine.getSession(sessionId);
     await renderRouter('./src/app', { initialUrl: '/workout' });
-    await screen.findByText('Продолжить');
+    await screen.findByRole('button', { name: 'Продолжить' });
     await press('Продолжить');
-    await screen.findByText('Пауза');
+    await screen.findByRole('button', { name: 'Пауза' });
     await testRouter.push(`/workout/${session!.exercises[0].id}`);
     await screen.findByText('Записать подход');
 
@@ -1212,17 +1227,290 @@ describe('set details', () => {
       'SELECT id FROM session_exercise ORDER BY position LIMIT 1',
     );
     await renderRouter('./src/app', { initialUrl: '/workout' });
-    await screen.findByText('Продолжить');
+    await screen.findByRole('button', { name: 'Продолжить' });
     await press('Продолжить');
-    await screen.findByText('Пауза');
+    await screen.findByRole('button', { name: 'Пауза' });
     await testRouter.push(`/workout/${exercise!.id}`);
     await screen.findByText('Отдых');
 
     await press('1:30', 'radio');
-    expect(await screen.findByText('Остановить таймер')).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Пропустить отдых' })).toBeTruthy();
 
-    await press('Остановить таймер');
-    expect(screen.queryByText('Остановить таймер')).toBeNull();
+    await press('Пропустить отдых');
+    expect(screen.queryByRole('button', { name: 'Пропустить отдых' })).toBeNull();
+  });
+});
+
+describe('set table', () => {
+  async function openTable(exercises: ExerciseStart[], lastTime?: { weightKg: number; reps: number }) {
+    await seedProfile();
+    const engine = new WorkoutEngine({ database, createId, now: () => new Date() });
+    if (lastTime) {
+      const earlier = await engine.startSession({ operationId: createId(), title: 'Прошлая', programDayId: null, exercises });
+      const session = await engine.getSession(earlier);
+      await engine.logSet(session!.exercises[0].id, { ...lastTime, rir: 2 }, createId());
+      await engine.logSet(session!.exercises[0].id, { ...lastTime, rir: 2 }, createId());
+      await engine.completeSession(earlier, createId());
+      await database.run('UPDATE workout_session SET started_at = ?, finished_at = ? WHERE id = ?', [
+        '2026-01-05T10:00:00.000Z',
+        '2026-01-05T11:00:00.000Z',
+        earlier,
+      ]);
+    }
+    const sessionId = await engine.startSession({ operationId: createId(), title: 'Сегодня', programDayId: null, exercises });
+    await renderRouter('./src/app', { initialUrl: '/workout' });
+    await screen.findByRole('button', { name: 'Продолжить' });
+    await press('Продолжить');
+    await screen.findByRole('button', { name: 'Пауза' });
+    return { engine, session: (await engine.getSession(sessionId))! };
+  }
+
+  const bench = { exerciseId: 'bench-press', plannedSets: 2, repsMin: 8, repsMax: 12 };
+  const row = { exerciseId: 'dumbbell-row', plannedSets: 2, repsMin: 8, repsMax: 12 };
+  const setsInDatabase = () => database.all('SELECT weight_kg, reps, kind FROM workout_set WHERE session_exercise_id IN (SELECT session_exercise.id FROM session_exercise JOIN workout_session ON workout_session.id = session_id WHERE state != ?) ORDER BY position', ['completed']);
+
+  it('repeats last time with one tap on the check', async () => {
+    await openTable([bench], { weightKg: 60, reps: 10 });
+
+    await press('Записать подход 1');
+
+    expect(await screen.findByRole('button', { name: 'Отменить подход 1' })).toBeTruthy();
+    expect(await setsInDatabase()).toEqual([{ weight_kg: 60, reps: 10, kind: 'working' }]);
+  });
+
+  it('uses the set above once today differs from last time', async () => {
+    await openTable([bench], { weightKg: 60, reps: 10 });
+
+    await type('Подход 1, вес', '65');
+    await press('Записать подход 1');
+    await screen.findByRole('button', { name: 'Отменить подход 1' });
+    await press('Записать подход 2');
+    await screen.findByRole('button', { name: 'Отменить подход 2' });
+
+    expect(await setsInDatabase()).toEqual([
+      { weight_kg: 65, reps: 10, kind: 'working' },
+      { weight_kg: 65, reps: 10, kind: 'working' },
+    ]);
+  });
+
+  it('asks for the weight of a loaded exercise done for the first time', async () => {
+    await openTable([bench]);
+
+    await press('Записать подход 1');
+
+    expect(await screen.findByText(/Укажите вес/)).toBeTruthy();
+    expect(await setsInDatabase()).toEqual([]);
+
+    await type('Подход 1, вес', '40');
+    await press('Записать подход 1');
+
+    expect(await screen.findByRole('button', { name: 'Отменить подход 1' })).toBeTruthy();
+    expect(screen.queryByText(/Укажите вес/)).toBeNull();
+    expect(await setsInDatabase()).toEqual([{ weight_kg: 40, reps: 8, kind: 'working' }]);
+  });
+
+  it('lets a bodyweight exercise go without a weight', async () => {
+    await openTable([{ exerciseId: 'push-up', plannedSets: 2, repsMin: 8, repsMax: 12 }]);
+
+    await press('Записать подход 1');
+
+    await screen.findByRole('button', { name: 'Отменить подход 1' });
+    expect(await setsInDatabase()).toEqual([{ weight_kg: null, reps: 8, kind: 'working' }]);
+  });
+
+  it('starts the rest by itself and takes it back with the set', async () => {
+    await openTable([bench], { weightKg: 60, reps: 10 });
+
+    await press('Записать подход 1');
+
+    expect(await screen.findByRole('button', { name: 'Пропустить отдых' })).toBeTruthy();
+
+    await press('Отменить подход 1');
+
+    expect(await screen.findByRole('button', { name: 'Записать подход 1' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Пропустить отдых' })).toBeNull();
+    expect(await setsInDatabase()).toEqual([]);
+  });
+
+  it('keeps the typed values after the check is undone', async () => {
+    await openTable([bench], { weightKg: 60, reps: 10 });
+
+    await type('Подход 1, вес', '72,5');
+    await press('Записать подход 1');
+    await press('Отменить подход 1');
+    await screen.findByRole('button', { name: 'Записать подход 1' });
+
+    expect(screen.getByLabelText('Подход 1, вес').props.value).toBe('72,5');
+  });
+
+  it('skips the rest after a warm-up set', async () => {
+    await openTable([bench], { weightKg: 60, reps: 10 });
+
+    await press(/^Подход 1, Рабочий/);
+    await press('Записать подход 1');
+
+    await screen.findByRole('button', { name: 'Отменить подход 1' });
+    expect(await setsInDatabase()).toEqual([{ weight_kg: 60, reps: 10, kind: 'warmup' }]);
+    expect(screen.queryByRole('button', { name: 'Пропустить отдых' })).toBeNull();
+  });
+
+  it('rests after the last exercise of a superset round only', async () => {
+    const { engine, session } = await openTable([bench, row]);
+    await engine.linkWithNext(session.exercises[0].id, createId());
+    await testRouter.push(`/workout/${session.exercises[0].id}`);
+    await screen.findByText('Суперсет: 1 из 2');
+    await testRouter.back();
+    await screen.findAllByText(/^Суперсет, /);
+
+    await act(async () => {
+      await fireEvent.changeText(screen.getAllByLabelText('Подход 1, вес')[0], '40');
+    });
+    await press('Записать подход 1');
+    await screen.findByRole('button', { name: 'Отменить подход 1' });
+
+    expect(screen.queryByRole('button', { name: 'Пропустить отдых' })).toBeNull();
+
+    await act(async () => {
+      await fireEvent.changeText(screen.getAllByLabelText('Подход 1, вес')[1], '20');
+    });
+    await press('Записать подход 1');
+
+    expect(await screen.findByRole('button', { name: 'Пропустить отдых' })).toBeTruthy();
+  });
+
+  it('respects a switched-off automatic rest', async () => {
+    await seedProfile();
+    await database.run("INSERT INTO settings (key, value, updated_at) VALUES ('rest_auto', 'off', '2026-01-01')");
+    const engine = new WorkoutEngine({ database, createId, now: () => new Date() });
+    await engine.startSession({ operationId: createId(), title: 'Сегодня', programDayId: null, exercises: [{ exerciseId: 'push-up', plannedSets: 1, repsMin: 8, repsMax: 12 }] });
+    await renderRouter('./src/app', { initialUrl: '/workout' });
+    await screen.findByRole('button', { name: 'Продолжить' });
+    await press('Продолжить');
+    await screen.findByRole('button', { name: 'Пауза' });
+
+    await press('Записать подход 1');
+
+    await screen.findByRole('button', { name: 'Отменить подход 1' });
+    expect(screen.queryByRole('button', { name: 'Пропустить отдых' })).toBeNull();
+  });
+
+  it('saves a change to a recorded set when the field is left', async () => {
+    await openTable([bench], { weightKg: 60, reps: 10 });
+    await press('Записать подход 1');
+    await screen.findByRole('button', { name: 'Отменить подход 1' });
+
+    await type('Подход 1, повторы', '12');
+    await act(async () => {
+      await fireEvent(screen.getByLabelText('Подход 1, повторы'), 'endEditing');
+    });
+
+    await waitFor(async () => {
+      expect(await setsInDatabase()).toEqual([{ weight_kg: 60, reps: 12, kind: 'working' }]);
+    });
+  });
+
+  it('refuses an impossible change and keeps the record', async () => {
+    await openTable([bench], { weightKg: 60, reps: 10 });
+    await press('Записать подход 1');
+    await screen.findByRole('button', { name: 'Отменить подход 1' });
+
+    await type('Подход 1, повторы', '0');
+    await act(async () => {
+      await fireEvent(screen.getByLabelText('Подход 1, повторы'), 'endEditing');
+    });
+
+    expect(await screen.findByText(/Проверьте значения/)).toBeTruthy();
+    expect(await setsInDatabase()).toEqual([{ weight_kg: 60, reps: 10, kind: 'working' }]);
+  });
+
+  it('shows a change made on the exercise screen', async () => {
+    const { session } = await openTable([bench], { weightKg: 60, reps: 10 });
+    await press('Записать подход 1');
+    await screen.findByRole('button', { name: 'Отменить подход 1' });
+    await testRouter.push(`/workout/${session.exercises[0].id}`);
+    await press('Изменить');
+    await type('Вес, кг', '61');
+    await press('Сохранить изменения');
+    await screen.findByText(/^1\. 61 кг/);
+
+    await testRouter.back();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Подход 1, вес').props.value).toBe('61');
+    });
+  });
+
+  it('records the suggested weight only after it is taken', async () => {
+    const strong = { weightKg: 80, reps: 12 };
+    await openTable([{ ...bench, repsMin: 8, repsMax: 12 }], strong);
+    const suggestion = await screen.findByText(/Можно прибавить: 82,5 кг × 8/);
+    expect(screen.getByLabelText('Подход 1, вес').props.placeholder).toBe('80');
+
+    await act(async () => {
+      await fireEvent.press(suggestion);
+    });
+
+    expect(screen.getByLabelText('Подход 1, вес').props.placeholder).toBe('82,5');
+    await press('Записать подход 1');
+    await screen.findByRole('button', { name: 'Отменить подход 1' });
+    expect(await setsInDatabase()).toEqual([{ weight_kg: 82.5, reps: 8, kind: 'working' }]);
+  });
+
+  it('keeps the entered values and retries a failed save with the same operation', async () => {
+    await openTable([bench], { weightKg: 60, reps: 10 });
+    const logSet = jest
+      .spyOn(WorkoutEngine.prototype, 'logSet')
+      .mockRejectedValueOnce(new Error('database or disk is full'));
+
+    await type('Подход 1, вес', '50');
+    await press('Записать подход 1');
+
+    expect(await screen.findByText(/Подход не сохранён.*закончилось место/)).toBeTruthy();
+    expect(screen.getByLabelText('Подход 1, вес').props.value).toBe('50');
+    expect(screen.queryByRole('button', { name: 'Пропустить отдых' })).toBeNull();
+
+    await press('Записать подход 1');
+
+    await screen.findByRole('button', { name: 'Отменить подход 1' });
+    expect(logSet.mock.calls[0][2]).toBe(logSet.mock.calls[1][2]);
+  });
+
+  it('adds a row on request and always offers one in a free workout', async () => {
+    await openTable([{ exerciseId: 'push-up', plannedSets: null, repsMin: null, repsMax: null }]);
+
+    await type('Подход 1, повторы', '15');
+    await press('Записать подход 1');
+
+    expect(await screen.findByRole('button', { name: 'Записать подход 2' })).toBeTruthy();
+
+    await press('Добавить подход');
+
+    expect(screen.getByRole('button', { name: 'Записать подход 3' })).toBeTruthy();
+  });
+
+  it('locks the table during a pause', async () => {
+    await seedOpenWorkout();
+    await renderRouter('./src/app', { initialUrl: '/workout' });
+    await screen.findByRole('button', { name: 'Продолжить' });
+
+    expect(screen.getAllByRole('button', { name: 'Записать подход 2', disabled: true }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: 'Добавить подход' })).toBeNull();
+    expect(screen.getByText(/Тренировка была прервана/)).toBeTruthy();
+  });
+
+  it('celebrates a beaten record and stops the rest when the workout ends', async () => {
+    const { session } = await openTable([bench], { weightKg: 60, reps: 10 });
+    await type('Подход 1, вес', '70');
+    await press('Записать подход 1');
+    await screen.findByRole('button', { name: 'Пропустить отдых' });
+
+    await press('Завершить тренировку');
+
+        expect(await screen.findByText('Новые рекорды')).toBeTruthy();
+    expect(screen.getByText('Было 60 кг')).toBeTruthy();
+    expect(screen.getByText('70 кг')).toBeTruthy();
+    expect(screen).toHavePathname(`/history/${session.id}`);
+    expect(screen.queryByRole('button', { name: 'Пропустить отдых' })).toBeNull();
   });
 });
 
@@ -1409,15 +1697,16 @@ describe('workout depth', () => {
     ]);
     await resumeOnOverview();
 
-    await press(/^Объединить со следующим/);
-
-    expect(await screen.findAllByText('Суперсет')).toHaveLength(2);
-
     await testRouter.push(`/workout/${session.exercises[0].id}`);
+    await press(/^Объединить со следующим/);
 
     expect(await screen.findByText('Суперсет: 1 из 2')).toBeTruthy();
     await press('Дальше: Тяга гантели в наклоне');
     expect(await screen.findByText('Суперсет: 2 из 2')).toBeTruthy();
+
+    await testRouter.back();
+
+    expect(await screen.findAllByText(/^Суперсет, /)).toHaveLength(2);
   });
 
   it('records a cardio session in minutes and kilometres', async () => {
@@ -1867,9 +2156,9 @@ describe('failures', () => {
       'SELECT id FROM session_exercise ORDER BY position LIMIT 1 OFFSET 1',
     );
     await renderRouter('./src/app', { initialUrl: '/workout' });
-    await screen.findByText('Продолжить');
+    await screen.findByRole('button', { name: 'Продолжить' });
     await press('Продолжить');
-    await screen.findByText('Пауза');
+    await screen.findByRole('button', { name: 'Пауза' });
     await testRouter.push(`/workout/${exercise!.id}`);
     await screen.findByText('Записать подход');
     const logSet = jest

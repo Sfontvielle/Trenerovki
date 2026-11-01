@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { useAppData } from '@/app-data/app-data';
-import { AppText, Button, Panel, useTheme } from '@/design-system';
+import { AppText, Button, IconButton, ListGroup, ListRow, Panel, useTheme } from '@/design-system';
 import { createId } from '@/domains/data-platform/ids';
 import { exerciseTracking, findExercise } from '@/domains/exercises/catalog';
 import { type Suggestion, suggestNextSet } from '@/domains/workout/progression';
-import type { SessionExercise, WorkoutSet } from '@/domains/workout/types';
+import type { SessionExercise, SetKind, WorkoutSet } from '@/domains/workout/types';
 import { SetFields, type SetFormValues, parseSetForm, setFormProblem, toSetForm } from '@/features/workout/set-form';
 import { describeSet, formatSeconds } from '@/features/workout/set-labels';
 import { confirm } from '@/lib/confirm';
@@ -21,6 +21,7 @@ type SetLoggerProps = {
   paused: boolean;
   suggestionsAllowed: boolean;
   onChanged: () => void;
+  onLogged: (kind: SetKind) => void;
 };
 
 function describeSuggestion({ kind, weightKg, reps, durationSec }: Suggestion) {
@@ -53,7 +54,7 @@ function describeSuggestion({ kind, weightKg, reps, durationSec }: Suggestion) {
   }
 }
 
-export function SetLogger({ exercise, recentSets, paused, suggestionsAllowed, onChanged }: SetLoggerProps) {
+export function SetLogger({ exercise, recentSets, paused, suggestionsAllowed, onChanged, onLogged }: SetLoggerProps) {
   const { engine } = useAppData();
   const { theme } = useTheme();
   const tracking = exerciseTracking(exercise.exerciseId);
@@ -100,6 +101,7 @@ export function SetLogger({ exercise, recentSets, paused, suggestionsAllowed, on
         await engine.updateSet(editing.id, input, operationId);
       } else {
         await engine.logSet(exercise.id, input, operationId);
+        onLogged(input.kind ?? 'working');
       }
       setOperationId(createId());
       successFeedback();
@@ -167,34 +169,34 @@ export function SetLogger({ exercise, recentSets, paused, suggestionsAllowed, on
       ) : null}
 
       {exercise.sets.length > 0 ? (
-        <Panel>
-          <AppText variant="heading">{t('Записанные подходы')}</AppText>
+        <ListGroup title={t('Записанные подходы')}>
           {exercise.sets.map((set) => (
-            <View key={set.id} style={{ gap: theme.spacing.s }}>
-              <AppText>{`${set.position}. ${describeSet(set)}`}</AppText>
-              {paused ? null : (
-                <View style={{ flexDirection: 'row', gap: theme.spacing.s }}>
-                  <View style={{ flex: 1 }}>
-                    <Button
-                      label={t('Изменить')}
-                      variant="secondary"
+            <ListRow
+              key={set.id}
+              title={`${set.position}. ${describeSet(set)}`}
+              trailing={
+                paused ? undefined : (
+                  <View style={{ flexDirection: 'row', gap: theme.spacing.s }}>
+                    <IconButton
                       disabled={saving}
+                      glyph="✎"
+                      label={t('Изменить')}
+                      name="pencil"
                       onPress={() => startEditing(set)}
                     />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Button
-                      label={t('Удалить')}
-                      variant="secondary"
+                    <IconButton
                       disabled={saving || editing !== null}
+                      glyph="×"
+                      label={t('Удалить')}
+                      name="trash"
                       onPress={() => remove(set)}
                     />
                   </View>
-                </View>
-              )}
-            </View>
+                )
+              }
+            />
           ))}
-        </Panel>
+        </ListGroup>
       ) : null}
 
       {paused ? (

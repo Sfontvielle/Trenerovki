@@ -422,8 +422,12 @@ describe('suggestNextSet', () => {
 
   it('holds the weight without reserve or when weights differ', () => {
     expect(suggestNextSet([[makeSet({ rir: 0 }), makeSet({ rir: 0 })]], target)?.kind).toBe('hold');
-    expect(suggestNextSet([[makeSet({ rir: null }), makeSet({})]], target)?.kind).toBe('hold');
+    expect(suggestNextSet([[makeSet({ rir: null }), makeSet({ rir: 0 })]], target)?.kind).toBe('hold');
     expect(suggestNextSet([[makeSet({}), makeSet({ weightKg: 75 })]], target)?.kind).toBe('hold');
+  });
+
+  it('reads a reserve left blank as no objection', () => {
+    expect(suggestNextSet([[makeSet({ rir: null }), makeSet({ rir: null })]], target)?.kind).toBe('add_weight');
   });
 
   it('holds after one bad workout and reduces after two', () => {

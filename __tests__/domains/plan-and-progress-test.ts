@@ -19,6 +19,7 @@ import { generatePlan } from '@/domains/program/generate-plan';
 import { getNextDay, getProgram } from '@/domains/program/program-repository';
 import {
   getExerciseRecords,
+  getSessionRecords,
   getExerciseTrend,
   getSummary,
   listCompletedSessions,
@@ -305,6 +306,46 @@ describe('onboarding, rotation and progress', () => {
     expect(trend.map(({ topWeightKg, bestReps }) => [topWeightKg, bestReps])).toEqual([
       [85, 8],
       [85, 6],
+    ]);
+  });
+
+  it('reports only the records a workout actually beat', async () => {
+    const { clock, database, engine } = await setup();
+    const first = await finishWorkout(engine, null, [{ weightKg: 80, reps: 8 }]);
+    clock.time += DAY_MS;
+    const lighter = await finishWorkout(engine, null, [{ weightKg: 75, reps: 8 }]);
+    clock.time += DAY_MS;
+    const equal = await finishWorkout(engine, null, [{ weightKg: 80, reps: 8 }]);
+    clock.time += DAY_MS;
+    const heavier = await finishWorkout(engine, null, [{ weightKg: 70, reps: 8 }, { weightKg: 90, reps: 3 }]);
+
+    expect(await getSessionRecords(database, first)).toEqual([]);
+    expect(await getSessionRecords(database, lighter)).toEqual([]);
+    expect(await getSessionRecords(database, equal)).toEqual([]);
+    expect(await getSessionRecords(database, heavier)).toEqual([
+      { exerciseId: 'bench-press', weightKg: 90, previousKg: 80 },
+    ]);
+  });
+
+  it('ignores warm-ups and later workouts when comparing records', async () => {
+    const { clock, database, engine } = await setup();
+    const sessionId = await engine.startSession({
+      operationId: createId(),
+      title: 'Тренировка',
+      programDayId: null,
+      exercises: [{ exerciseId: 'bench-press', plannedSets: 3, repsMin: 8, repsMax: 12 }],
+    });
+    const session = await engine.getSession(sessionId);
+    await engine.logSet(session!.exercises[0].id, { weightKg: 100, reps: 8, rir: null, kind: 'warmup' }, createId());
+    await engine.logSet(session!.exercises[0].id, { weightKg: 60, reps: 8, rir: null }, createId());
+    await engine.completeSession(sessionId, createId());
+    clock.time += DAY_MS;
+    const second = await finishWorkout(engine, null, [{ weightKg: 70, reps: 8 }]);
+    clock.time += DAY_MS;
+    await finishWorkout(engine, null, [{ weightKg: 200, reps: 1 }]);
+
+    expect(await getSessionRecords(database, second)).toEqual([
+      { exerciseId: 'bench-press', weightKg: 70, previousKg: 60 },
     ]);
   });
 
